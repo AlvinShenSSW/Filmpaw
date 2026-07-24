@@ -121,6 +121,11 @@ const args = [
   'default',
   '--title',
   'kilo glm-5.2 structural review',
+  // Headless runs have no TTY, so permission prompts auto-reject and the
+  // review starves (model can't even run `git diff`). --auto lets the
+  // read-only review prompt do its job; verify `git status` is clean after
+  // the gate as the write-guard.
+  '--auto',
 ];
 
 process.stderr.write(`[kilo-gate] ${kilo} run --command review <target> --model ${model} --variant ${variant}\n`);
@@ -137,6 +142,17 @@ const res = spawnSync(kilo, args, {
 const out = res.stdout || '';
 const err = res.stderr || '';
 writeFileSync(logFile, `${out}\n----- stderr -----\n${err}`);
+
+// Write-guard for --auto: the review prompt is read-only, but verify the
+// working tree really is untouched and shout if it is not.
+const dirty = spawnSync('git', ['status', '--porcelain'], { encoding: 'utf8' });
+if ((dirty.stdout || '').trim()) {
+  process.stderr.write(
+    `[kilo-gate] WARNING: working tree not clean after review — inspect these paths:\n${dirty.stdout}`,
+  );
+  // Fail loud: a silent tree mutation must not pass an unattended pipeline.
+  process.exitCode = 3;
+}
 
 if (res.error && res.error.code === 'ENOENT') {
   emitSkip('Kilo CLI not installed (run: npm install -g @kilocode/cli, then `kilo auth login`).');

@@ -16,7 +16,7 @@
 
 | Issue | 状态 | 分支 | PR | 备注 |
 |---|---|---|---|---|
-| #1 Scaffold + 全局壳 | in-progress | issue-1-scaffold | — | tick 0 启动 |
+| #1 Scaffold + 全局壳 | review | issue-1-scaffold | [#9](https://github.com/AlvinShenSSW/Filmpaw/pull/9) | 实现+CTO自审完, e2e smoke 绿×2; Codex 外门运行中 → 待 GLM 终审 → merge |
 | #2 Server 扫描引擎 | pending | — | — | |
 | #3 Server API | pending | — | — | |
 | #4 UI 设置页 | pending | — | — | 依赖 #2, 可与 #3 并行 |
@@ -28,3 +28,7 @@
 ## 决策日志
 
 - (tick 0) AFK 由操作者在原会话显式启动(/afk 不可用因 skill 装于会话启动后), 按 SKILL.md 规范内联执行。
+- (tick 0, #1) pnpm 11 allowBuilds 占位符导致自动 install exit 1 → app/ui/pnpm-workspace.yaml 置 core-js: false。
+- (tick 0, #1) tauri CLI 必须从 app/ 调用(src-tauri 须为 cwd 子目录), 已写入 src-tauri/README。
+- (tick 0, #1) CTO 自审改法: eval 注入换 initialization_script(防页面加载竞态); server stdout 读端口后持续排水(防 print 填满管道死锁); stderr inherit。
+- (tick 0, #1) e2e 冒烟通过×2: filmpaw.exe + rsbuild:3000 + sidecar python 同时在跑。
