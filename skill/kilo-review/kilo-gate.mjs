@@ -143,6 +143,15 @@ const out = res.stdout || '';
 const err = res.stderr || '';
 writeFileSync(logFile, `${out}\n----- stderr -----\n${err}`);
 
+// Write-guard for --auto: the review prompt is read-only, but verify the
+// working tree really is untouched and shout if it is not.
+const dirty = spawnSync('git', ['status', '--porcelain'], { encoding: 'utf8' });
+if ((dirty.stdout || '').trim()) {
+  process.stderr.write(
+    `[kilo-gate] WARNING: working tree not clean after review — inspect these paths:\n${dirty.stdout}`,
+  );
+}
+
 if (res.error && res.error.code === 'ENOENT') {
   emitSkip('Kilo CLI not installed (run: npm install -g @kilocode/cli, then `kilo auth login`).');
 }

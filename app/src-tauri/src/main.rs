@@ -8,16 +8,24 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 struct ServerState {
-    port: u16,
     child: Mutex<Option<Child>>,
 }
 
-#[tauri::command]
-fn server_port(state: State<ServerState>) -> u16 {
-    state.port
+/// Kill the sidecar and its whole process tree. In dev the server runs as
+/// `uv run …` → python grandchild; child.kill() alone would orphan python.
+fn kill_server_tree(child: &mut Child) {
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    let _ = child.kill();
 }
 
 /// Spawn the server. Dev: `uv run --project <server dir> filmpaw-server`.
@@ -109,13 +117,11 @@ fn spawn_server() -> (Child, u16) {
 fn main() {
     let (child, port) = spawn_server();
     let state = ServerState {
-        port,
         child: Mutex::new(Some(child)),
     };
 
     tauri::Builder::default()
         .manage(state)
-        .invoke_handler(tauri::generate_handler![server_port])
         .setup(move |app| {
             // Init script runs before page scripts on EVERY page load — no
             // injection race, unlike a one-shot eval after window creation.
@@ -136,7 +142,7 @@ fn main() {
                     .ok()
                     .and_then(|mut guard| guard.take());
                 if let Some(mut child) = child {
-                    let _ = child.kill();
+                    kill_server_tree(&mut child);
                 }
             }
         })
