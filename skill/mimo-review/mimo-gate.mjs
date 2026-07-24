@@ -13,6 +13,12 @@ import { spawnSync } from 'node:child_process';
 
 const isWin = process.platform === 'win32';
 const requestedModel = process.env.MIMO_REVIEW_MODEL || 'mimo/mimo-v2.5-pro';
+// Derive the provider from the requested model so a coding-plan route
+// (e.g. xiaomi/mimo-v2.5-pro) is honored instead of being forced onto the
+// `mimo` gateway, which is often creditless/unavailable.
+const requestedProvider = requestedModel.includes('/')
+  ? requestedModel.split('/')[0]
+  : 'mimo';
 let model = requestedModel;
 let modelNote = '';
 const strictModel = ['1', 'true', 'yes', 'on'].includes(
@@ -125,7 +131,10 @@ if (version.status !== 0 && /not recognized|not found|cannot find|ENOENT/i.test(
 // Only run with a model the account can actually select. The default
 // mimo/mimo-v2.5-pro is often unavailable (login/plan) and previously crashed
 // the gate with ProviderModelNotFoundError instead of skipping or downgrading.
-const modelList = spawnSync(mimo, ['models', 'mimo'], {
+const providerRe = new RegExp(
+  `^${requestedProvider.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/[\\w.-]+$`,
+);
+const modelList = spawnSync(mimo, ['models', requestedProvider], {
   encoding: 'utf8',
   shell: isWin,
   env: { ...process.env, MIMOCODE_DISABLE_AUTOUPDATE: 'true' },
@@ -134,11 +143,11 @@ const modelList = spawnSync(mimo, ['models', 'mimo'], {
 const availableModels = `${modelList.stdout || ''}\n${modelList.stderr || ''}`
   .split(/\r?\n/)
   .map((l) => l.trim())
-  .filter((l) => /^mimo\/[\w.-]+$/.test(l));
+  .filter((l) => providerRe.test(l));
 
 if (availableModels.length === 0) {
   emitSkip(
-    'MiMo has no selectable models for provider `mimo` — run `mimo providers login` and confirm `mimo models mimo` lists a model, or set MIMO_REVIEW_GATE=off.',
+    `MiMo has no selectable models for provider \`${requestedProvider}\` — run \`mimo providers login\` and confirm \`mimo models ${requestedProvider}\` lists a model, or set MIMO_REVIEW_GATE=off.`,
   );
 }
 
