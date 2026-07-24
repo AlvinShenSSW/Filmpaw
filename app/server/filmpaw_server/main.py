@@ -24,7 +24,10 @@ def main() -> None:
     # Bind the socket ourselves so an OS-assigned port is known before serving,
     # then hand the open socket to uvicorn (no close/rebind race).
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if sys.platform != "win32":
+        # On Windows SO_REUSEADDR allows port sharing/hijack and defeats
+        # "address already in use" detection, so only set it elsewhere.
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     sock.bind((HOST, args.port))
     port = sock.getsockname()[1]
 

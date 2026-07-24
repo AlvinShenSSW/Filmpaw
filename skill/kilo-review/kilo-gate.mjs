@@ -150,6 +150,8 @@ if ((dirty.stdout || '').trim()) {
   process.stderr.write(
     `[kilo-gate] WARNING: working tree not clean after review — inspect these paths:\n${dirty.stdout}`,
   );
+  // Fail loud: a silent tree mutation must not pass an unattended pipeline.
+  process.exitCode = 3;
 }
 
 if (res.error && res.error.code === 'ENOENT') {

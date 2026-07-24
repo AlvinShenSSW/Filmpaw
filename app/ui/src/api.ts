@@ -8,6 +8,9 @@ declare global {
 }
 
 export function serverBase(): string {
+  // 8720 is the documented standalone-dev convention (see ui/README.md:
+  // `uv run filmpaw-server --port 8720`); inside Tauri the injected
+  // OS-assigned port always wins.
   const port = window.__FILMPAW_PORT__ ?? 8720;
   return `http://127.0.0.1:${port}`;
 }
