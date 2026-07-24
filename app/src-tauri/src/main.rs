@@ -1,14 +1,14 @@
 // Filmpaw Tauri shell: spawn the Python sidecar server, read FILMPAW_PORT
-// from its stdout, expose the port to the UI via the `server_port` command,
+// from its stdout, expose the port to the UI (init script + IPC command),
 // and kill the child on exit.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use tauri::{Manager, State};
+use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
 struct ServerState {
     port: u16,
@@ -43,7 +43,7 @@ fn spawn_server() -> (Child, u16) {
     let mut child = Command::new(&program)
         .args(&args)
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::inherit())
         .spawn()
         .unwrap_or_else(|e| panic!("failed to spawn server ({program}): {e}"));
 
@@ -79,6 +79,20 @@ fn spawn_server() -> (Child, u16) {
             }
         }
     };
+
+    // Keep draining stdout forever so a future print() in the server can
+    // never fill the pipe buffer and block the whole process.
+    std::thread::spawn(move || {
+        let mut sink = Vec::with_capacity(4096);
+        loop {
+            sink.clear();
+            match reader.by_ref().take(4096).read_to_end(&mut sink) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {}
+            }
+        }
+    });
+
     (child, port)
 }
 
@@ -93,10 +107,14 @@ fn main() {
         .manage(state)
         .invoke_handler(tauri::generate_handler![server_port])
         .setup(move |app| {
-            // Inject the port before the page loads so api.ts can read it.
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.eval(&format!("window.__FILMPAW_PORT__ = {port};"));
-            }
+            // Init script runs before page scripts on EVERY page load — no
+            // injection race, unlike a one-shot eval after window creation.
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::default())
+                .title("Filmpaw")
+                .inner_size(1200.0, 800.0)
+                .min_inner_size(960.0, 640.0)
+                .initialization_script(&format!("window.__FILMPAW_PORT__ = {port};"))
+                .build()?;
             Ok(())
         })
         .on_window_event(|window, event| {
