@@ -1,0 +1,314 @@
+<title>Filmpaw UI 设计稿</title>
+<style>
+:root{
+  --page:#f6f5f2; --page-ink:#2b2a28; --page-mut:#7d7a73; --page-line:#e3e1db; --page-card:#ffffff;
+  --acc:#ef9f27; --acc-deep:#b45e14; --acc-soft:#fdf3e3;
+  --ok:#3b6d11; --ok-bg:#eaf3de; --bad:#a32d2d; --bad-bg:#fcebeb;
+  --mono:Consolas,"Cascadia Mono",monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--page:#1c1b19;--page-ink:#e8e5df;--page-mut:#98948b;--page-line:#35332f;--page-card:#242320;--acc-soft:#3a2f1c;--ok:#9fce6a;--ok-bg:#28331b;--bad:#e2807f;--bad-bg:#3a2323}
+}
+:root[data-theme="dark"]{--page:#1c1b19;--page-ink:#e8e5df;--page-mut:#98948b;--page-line:#35332f;--page-card:#242320;--acc-soft:#3a2f1c;--ok:#9fce6a;--ok-bg:#28331b;--bad:#e2807f;--bad-bg:#3a2323}
+:root[data-theme="light"]{--page:#f6f5f2;--page-ink:#2b2a28;--page-mut:#7d7a73;--page-line:#e3e1db;--page-card:#ffffff;--acc-soft:#fdf3e3;--ok:#3b6d11;--ok-bg:#eaf3de;--bad:#a32d2d;--bad-bg:#fcebeb}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--page-ink);font-family:"Microsoft YaHei UI","PingFang SC","Noto Sans SC",system-ui,sans-serif;margin:0}
+.wrap{max-width:1160px;margin:0 auto;padding:40px 24px 80px}
+header.hd{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+.hd h1{font-size:26px;font-weight:600;margin:0;letter-spacing:.5px}
+.hd .sub{color:var(--page-mut);font-size:14px}
+.chips{display:flex;gap:8px;margin:14px 0 30px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--page-mut);border:1px solid var(--page-line);border-radius:99px;padding:4px 12px}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.note{font-size:13px;color:var(--page-mut);margin:10px 0 26px;line-height:1.7}
+.note b{color:var(--acc-deep);font-weight:600}
+h2.sec{font-size:15px;font-weight:600;margin:44px 0 12px;display:flex;align-items:center;gap:10px}
+h2.sec::after{content:"";flex:1;height:1px;background:var(--page-line)}
+.frame-scroll{overflow-x:auto;border-radius:14px}
+/* ---------- app window (deliberately light: v1 app is light-only) ---------- */
+.win{width:1080px;background:#fff;border-radius:12px;border:1px solid #dcd9d3;box-shadow:0 8px 30px rgba(40,30,10,.08);overflow:hidden;color:#33322f}
+.tbar{height:38px;background:#f7f5f1;border-bottom:1px solid #e8e5df;display:flex;align-items:center;padding:0 14px;gap:8px}
+.tbar .t{font-size:12.5px;color:#8a867e;margin-left:6px}
+.tbar .paw{width:18px;height:18px;border-radius:5px;background:#ef9f27;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.tbar .btns{margin-left:auto;display:flex;gap:8px}
+.tbar .btns span{width:11px;height:11px;border-radius:50%;background:#e0ddd6;display:inline-block}
+.app{display:flex;height:560px}
+.rail{width:56px;background:#faf9f6;border-right:1px solid #eceae4;display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:8px}
+.rail button{width:40px;height:40px;border:none;border-radius:10px;background:transparent;color:#8a867e;font-size:19px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.rail button:hover{background:#f0eee8}
+.rail button.on{background:#ef9f27;color:#fff}
+.rail button:focus-visible{outline:2px solid #ef9f27;outline-offset:2px}
+.rail .sp{flex:1}
+.view{flex:1;min-width:0;display:none;flex-direction:column}
+.view.on{display:flex}
+.pad{padding:16px 20px;display:flex;flex-direction:column;flex:1;min-height:0}
+/* controls inside app */
+.inp{display:flex;align-items:center;gap:8px;border:1px solid #ddd9d1;border-radius:9px;padding:8px 12px;background:#fff;font-size:13.5px;flex:1;min-width:0}
+.inp input{border:none;outline:none;flex:1;font:inherit;color:#33322f;background:transparent;min-width:0}
+.inp input::placeholder{color:#b3afa6}
+.inp:focus-within{border-color:#ef9f27;box-shadow:0 0 0 3px #ef9f2726}
+.btn{border:none;border-radius:9px;background:#ef9f27;color:#fff;font:inherit;font-size:13.5px;font-weight:600;padding:8px 16px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.btn:hover{background:#e2921d}
+.btn:focus-visible{outline:2px solid #b45e14;outline-offset:2px}
+.btn.ghost{background:#fff;color:#6b675f;border:1px solid #ddd9d1;font-weight:500}
+.btn.ghost:hover{background:#f7f5f1}
+.btn:disabled{background:#eceae4;color:#b3afa6;cursor:not-allowed}
+.tgl{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:#8a867e;cursor:pointer;white-space:nowrap;user-select:none}
+.tgl input{accent-color:#ef9f27;width:15px;height:15px}
+/* table */
+.tblwrap{flex:1;min-height:0;overflow-y:auto;border:1px solid #eceae4;border-radius:10px;margin-top:12px}
+table.tb{width:100%;border-collapse:collapse;font-size:13px}
+.tb th{position:sticky;top:0;background:#faf9f6;color:#8a867e;font-weight:500;text-align:left;padding:9px 12px;font-size:12px;border-bottom:1px solid #eceae4;z-index:1}
+.tb td{padding:9px 12px;border-bottom:1px solid #f2f0ea;vertical-align:middle}
+.tb tr:last-child td{border-bottom:none}
+.tb tr.miss td{color:#b3afa6}
+.av{width:34px;height:48px;border-radius:7px;background-size:cover;background-position:center top;flex:none;display:flex;align-items:center;justify-content:center}
+.av.big{width:52px;height:74px;border-radius:8px}
+.av.txt{background:#fdf3e3;color:#b45e14;font-weight:700;font-size:15px}
+.av.txt.big{font-size:19px}
+tr.miss .av,.card.miss .av{opacity:.45}
+.idm{font-family:var(--mono);font-size:11.5px;color:#8a867e}
+.tb tr.miss .idm{color:#c4c0b7}
+.al{display:inline-block;background:#f5f3ee;border:1px solid #e6e3dc;border-radius:99px;padding:1px 9px;font-size:11.5px;color:#6b675f;margin-right:4px}
+.aladd{border:none;background:none;color:#b45e14;font-size:11.5px;cursor:pointer;font:inherit;padding:2px 4px;border-radius:6px}
+.aladd:hover{background:#fdf3e3}
+.pathm{font-family:var(--mono);font-size:11.5px;color:#6b675f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:270px;display:inline-block;vertical-align:bottom}
+.tb tr.miss .pathm{color:#b8b4ab}
+.st-ok{color:#3b6d11;font-size:12px;white-space:nowrap}
+.st-miss{color:#a8a49b;font-size:12px;white-space:nowrap}
+.opn{border:none;background:none;color:#b45e14;font-size:17px;cursor:pointer;padding:4px 6px;border-radius:7px}
+.opn:hover{background:#fdf3e3}
+.foot{color:#a8a49b;font-size:12px;padding:10px 4px 0}
+/* archive view */
+.arch{display:flex;flex:1;min-height:0}
+.lcol{width:260px;border-right:1px solid #eceae4;padding:16px 14px;display:flex;flex-direction:column;gap:8px}
+.dirbtn{display:flex;align-items:center;gap:8px;border:1px solid #ddd9d1;border-radius:9px;padding:8px 11px;font-size:12.5px;color:#6b675f;cursor:pointer;background:#fff;font:inherit;width:100%}
+.dirbtn:hover{border-color:#c9c5bc}
+.dirbtn .pth{font-family:var(--mono);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;text-align:left}
+.lfold{border:none;background:none;font:inherit;font-size:13.5px;text-align:left;padding:9px 12px;border-radius:9px;cursor:pointer;color:#4a4842;display:flex;align-items:center;gap:9px}
+.lfold:hover{background:#f7f5f1}
+.lfold.on{background:#fdf3e3;color:#7a4a0c;font-weight:600}
+.rcol{flex:1;min-width:0;padding:16px 18px;display:flex;flex-direction:column;overflow-y:auto}
+.hint{font-size:12px;color:#a8a49b;margin:10px 2px 8px}
+.card{border:1px solid #eceae4;border-radius:11px;padding:12px 14px;margin-bottom:9px;display:flex;align-items:center;gap:12px;transition:box-shadow .3s,border-color .3s}
+.card.flash{border-color:#ef9f27;box-shadow:0 0 0 3px #ef9f2733}
+.card .nm{font-size:14px;font-weight:600}
+.card .nm .aka{font-weight:400;color:#a8a49b;font-size:12px;margin-left:6px}
+.card .pt{font-family:var(--mono);font-size:11.5px;color:#6b675f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.card.miss .nm,.card.miss .pt{color:#b3afa6}
+.mt{min-width:0;flex:1}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#8a867e;padding:30px}
+.empty .big{font-size:34px;margin-bottom:10px}
+.empty .h{font-size:14.5px;font-weight:600;color:#55534d;margin-bottom:5px}
+.empty p{font-size:12.5px;line-height:1.7;margin:0}
+/* settings view */
+.srow{border:1px solid #eceae4;border-radius:11px;padding:11px 14px;margin-bottom:9px;display:flex;align-items:center;gap:12px}
+.srow .sic{font-size:19px;color:#b45e14}
+.srow .snm{font-size:13.5px;font-weight:600;font-family:var(--mono)}
+.srow .sm{font-size:11.5px;color:#8a867e;margin-top:2px}
+.srow.scan-ok{background:#eaf3de;border-color:#c4dd9d}
+.srow.scan-ok .snm{color:#2d520c}.srow.scan-ok .sm{color:#3b6d11}.srow.scan-ok .sic{color:#3b6d11}
+.srow.scan-bad{background:#fcebeb;border-color:#f0b8b8}
+.srow.scan-bad .snm{color:#7a1f1f}.srow.scan-bad .sm{color:#a32d2d}.srow.scan-bad .sic{color:#a32d2d}
+.del{border:none;background:none;color:#b3afa6;font-size:16px;cursor:pointer;padding:5px;border-radius:7px}
+.del:hover{color:#a32d2d;background:#fcebeb}
+.errline{color:#a32d2d;font-size:12px;margin-top:6px;display:none}
+.spin{display:inline-block;animation:rot 1s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}.card{transition:none}}
+/* toast */
+#toast{position:sticky;bottom:18px;display:flex;justify-content:center;pointer-events:none;height:0;z-index:9}
+#toast div{background:#33322f;color:#f5f3ee;font-size:12.5px;border-radius:99px;padding:8px 18px;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;margin-top:-46px}
+#toast div.on{opacity:1;transform:none}
+/* review notes */
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+.ncard{background:var(--page-card);border:1px solid var(--page-line);border-radius:12px;padding:16px 18px}
+.ncard h3{font-size:13.5px;margin:0 0 8px;color:var(--acc-deep)}
+.ncard ul{margin:0;padding-left:18px;font-size:13px;color:var(--page-mut);line-height:1.8}
+.ncard li b{color:var(--page-ink);font-weight:600}
+kbd.q{font-family:var(--mono);font-size:12px;background:var(--acc-soft);color:var(--acc-deep);border-radius:5px;padding:1px 7px}
+</style>
+
+<div class="wrap">
+<header class="hd">
+  <h1>Filmpaw · UI 设计稿</h1>
+  <span class="sub">高保真交互原型 — 可直接点着玩 · v2 · 2026-07-24</span>
+</header>
+<div class="chips">
+  <span class="chip"><span class="dot" style="background:#ef9f27"></span>主橘 #EF9F27</span>
+  <span class="chip"><span class="dot" style="background:#b45e14"></span>深橘 #B45E14</span>
+  <span class="chip"><span class="dot" style="background:#fff;border:1px solid #ddd"></span>白底</span>
+  <span class="chip"><span class="dot" style="background:#8a867e"></span>灰系文字</span>
+  <span class="chip">Tauri 2 · React 19 · MUI 7 · FastAPI</span>
+</div>
+<p class="note">下面是<b>一个真的能操作的窗口原型</b>:左侧导航切三个页面;表演者库的搜索框真的会过滤(试试搜 <b>仓木华</b> — 繁简归一);归档对比里点左栏文件夹会自动匹配 — 点 <b>小红</b> 会同时命中「小红」和「小红(仓木)」(正向子串),点 <b>小红(仓木)</b> 反过来也能命中「小红」(<b>双向子串</b>),点 <b>小C</b> 看无匹配空态;设置页的扫描按钮会跑模拟扫描(TIGER 是离线源)。头像列:有 folder.jpg 显示缩略图(此处为示意图形),没有则显示<b>名字首字</b>。所有"打开文件夹"均为模拟提示。</p>
+
+<h2 class="sec">交互原型</h2>
+<div class="frame-scroll">
+<div class="win">
+  <div class="tbar"><span class="paw">爪</span><span class="t">Filmpaw</span><div class="btns"><span></span><span></span><span></span></div></div>
+  <div class="app">
+    <nav class="rail" aria-label="主导航">
+      <button id="nav0" class="on" title="表演者库" aria-label="表演者库">&#128101;</button>
+      <button id="nav1" title="归档对比" aria-label="归档对比">&#8646;</button>
+      <span class="sp"></span>
+      <button id="nav2" title="设置" aria-label="设置">&#9881;</button>
+    </nav>
+
+    <section class="view on" id="v0">
+      <div class="pad">
+        <div style="display:flex;gap:10px;align-items:center">
+          <div class="inp">&#128269;<input id="q0" type="search" placeholder="搜索名字或别名(支持繁简互搜)" aria-label="搜索表演者"></div>
+          <label class="tgl"><input id="showmiss" type="checkbox" checked>显示失效</label>
+          <button class="btn ghost" onclick="toast('确认弹窗:清理全部失效记录(共 1 条)?')">&#128465; 清理失效</button>
+          <button class="btn" id="rescan">&#8635; 全部重扫</button>
+        </div>
+        <div class="tblwrap">
+          <table class="tb" aria-label="表演者列表">
+            <thead><tr><th style="width:48px">头像</th><th style="width:52px">ID</th><th style="width:118px">名字</th><th>别名</th><th style="width:270px">位置</th><th style="width:70px">状态</th><th style="width:48px"></th></tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <div class="foot" id="cnt"></div>
+      </div>
+    </section>
+
+    <section class="view" id="v1">
+      <div class="arch">
+        <div class="lcol">
+          <button class="dirbtn" onclick="toast('目录选择器 — tauri dialog(模拟)')">&#128193;<span class="pth">D:\Downloads\新片</span>&#9662;</button>
+          <div id="lfolds"></div>
+        </div>
+        <div class="rcol">
+          <div style="display:flex;gap:10px">
+            <div class="inp">&#128269;<input id="q1" type="search" placeholder="点左侧文件夹自动匹配,或手动输入" aria-label="匹配搜索"></div>
+          </div>
+          <div id="rres" style="display:flex;flex-direction:column;flex:1;min-height:0;margin-top:4px"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="v2">
+      <div class="pad">
+        <div style="display:flex;gap:10px">
+          <div class="inp">&#128421;<input id="addsrc" type="text" placeholder="\\NAS名\共享\目录\" aria-label="新扫描源路径"></div>
+          <button class="btn" id="addbtn">＋ 添加源</button>
+        </div>
+        <div class="errline" id="adderr">路径需以 \\ 开头的 UNC 格式,例如 \\Ant\Video Station\女优VI\</div>
+        <div style="margin-top:14px" id="srclist"></div>
+        <div class="foot">数据库:%APPDATA%\Filmpaw\library.db · v0.1.0</div>
+      </div>
+    </section>
+  </div>
+  <div id="toast"><div id="toastmsg"></div></div>
+</div>
+</div>
+
+<h2 class="sec">评审要点</h2>
+<div class="grid2">
+  <div class="ncard"><h3>本稿体现的已定决策</h3><ul>
+    <li><b>各算一条</b> — 两条倉木華各占一行/一卡,各自打开</li>
+    <li><b>失效置灰保留</b> — 小红@EAGLE 是失效示例,打开按钮仍可点,双开禁用</li>
+    <li><b>别名共享</b> — 给任一条倉木華加的别名,搜索时两条都命中</li>
+    <li><b>双向子串 + 繁简归一</b> — 仓木华↔倉木華;小红↔小红(仓木) 双向命中</li>
+    <li><b>头像 (D9)</b> — folder.jpg 缩略图入库;无则名字首字(橘底);失效行头像降透明</li>
+  </ul></div>
+  <div class="ncard"><h3>评审结论 (2026-07-25 定稿)</h3><ul>
+    <li><b>橘色用量</b>:维持现状(仅当前页标识/主按钮/选中态)</li>
+    <li><b>结果样式</b>:卡片式;头像为竖版 poster 比例,归档卡片 52×74</li>
+    <li><b>失效清理</b>:失效行单条删除(带确认)+ 工具栏"清理失效"批量按钮</li>
+    <li><b>merge 策略</b>:<kbd class="q">merge-when-green</kbd>;issues 建后先经 Codex 评审再跑 AFK</li>
+  </ul></div>
+</div>
+</div>
+
+<script>
+var DB=[
+ {id:"a3f2",n:"倉木華",al:["仓木华"],src:"Ant",p:"\\\\Ant\\Video Station\\女优VI\\倉木華",miss:0,ph:1,phv:0},
+ {id:"b810",n:"倉木華",al:[],src:"EAGLE",p:"\\\\EAGLE\\Video Station\\女优V\\倉木華",miss:0,ph:1,phv:1},
+ {id:"c44d",n:"小红",al:[],src:"EAGLE",p:"\\\\EAGLE\\Video Station\\女优V\\小红",miss:1,ph:0},
+ {id:"77e1",n:"小红(仓木)",al:[],src:"Ant",p:"\\\\Ant\\Video Station\\女优VI\\小红(仓木)",miss:0,ph:1,phv:2},
+ {id:"d2e9",n:"三上悠亜",al:["三上悠亚"],src:"Ant",p:"\\\\Ant\\Video Station\\女优VI\\三上悠亜",miss:0,ph:1,phv:1},
+ {id:"e771",n:"明里つむぎ",al:["明里"],src:"EAGLE",p:"\\\\EAGLE\\Video Station\\女优V\\明里つむぎ",miss:0,ph:0},
+ {id:"f0a3",n:"河北彩伽",al:["河北彩花"],src:"TIGER",p:"\\\\TIGER\\Video Station\\女优III\\河北彩伽",miss:0,ph:1,phv:2},
+ {id:"9b12",n:"桃乃木かな",al:["桃乃木香奈"],src:"Ant",p:"\\\\Ant\\Video Station\\女优VI\\桃乃木かな",miss:0,ph:1,phv:0}
+];
+var PHS=[
+ 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 fill=%27%23e7ddcf%27/%3E%3Ccircle cx=%2732%27 cy=%2725%27 r=%2711%27 fill=%27%23b3a894%27/%3E%3Cpath d=%27M12 64c2-14 10-20 20-20s18 6 20 20z%27 fill=%27%23b3a894%27/%3E%3C/svg%3E")',
+ 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 fill=%27%23dde3d8%27/%3E%3Ccircle cx=%2732%27 cy=%2725%27 r=%2711%27 fill=%27%23929f89%27/%3E%3Cpath d=%27M12 64c2-14 10-20 20-20s18 6 20 20z%27 fill=%27%23929f89%27/%3E%3C/svg%3E")',
+ 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Crect width=%2764%27 height=%2764%27 fill=%27%23e8d9d2%27/%3E%3Ccircle cx=%2732%27 cy=%2725%27 r=%2711%27 fill=%27%23b79d92%27/%3E%3Cpath d=%27M12 64c2-14 10-20 20-20s18 6 20 20z%27 fill=%27%23b79d92%27/%3E%3C/svg%3E")'
+];
+function avatar(r,big){
+ if(r.ph){return '<div class="av'+(big?' big':'')+'" style="background-image:'+PHS[r.phv||0]+'" role="img" aria-label="头像(folder.jpg 缩略图)" title="folder.jpg 缩略图(示意)"></div>'}
+ return '<div class="av txt'+(big?' big':'')+'" title="无 folder.jpg — 显示首字">'+esc(r.n.charAt(0))+'</div>'}
+var T2S={"倉":"仓","華":"华","亜":"亚","紅":"红","彩":"彩","花":"花","奈":"奈","(":"(",")":")"};
+function norm(s){s=s.toLowerCase().trim();var o="";for(var i=0;i<s.length;i++){o+=T2S[s[i]]||s[i]}return o}
+function sharedAliases(rec){var out=rec.al.slice();DB.forEach(function(r){if(r!==rec&&norm(r.n)===norm(rec.n)){r.al.forEach(function(a){if(out.indexOf(a)<0)out.push(a)})}});return out}
+function match(rec,q){if(!q)return true;var nq=norm(q);var names=[rec.n].concat(sharedAliases(rec));
+ return names.some(function(x){var nx=norm(x);return nx.indexOf(nq)>=0||(nx.length>=2&&nq.indexOf(nx)>=0)})}
+function toast(m){var t=document.getElementById("toastmsg");t.textContent=m;t.classList.add("on");clearTimeout(t._h);t._h=setTimeout(function(){t.classList.remove("on")},2200)}
+/* nav */
+var views=["v0","v1","v2"];
+["nav0","nav1","nav2"].forEach(function(id,i){document.getElementById(id).addEventListener("click",function(){
+ views.forEach(function(v,j){document.getElementById(v).classList.toggle("on",i===j);document.getElementById("nav"+j).classList.toggle("on",i===j)})})});
+/* screen 1 */
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function renderTable(){
+ var q=document.getElementById("q0").value,showMiss=document.getElementById("showmiss").checked;
+ var rows=DB.filter(function(r){return(showMiss||!r.miss)&&match(r,q)});
+ var h="";
+ rows.forEach(function(r){
+  var als=sharedAliases(r).map(function(a){return '<span class="al">'+esc(a)+'</span>'}).join("");
+  h+='<tr class="'+(r.miss?"miss":"")+'"><td>'+avatar(r,false)+'</td><td><span class="idm">'+r.id+'</span></td><td style="font-weight:600">'+esc(r.n)+'</td><td>'+als+'<button class="aladd" onclick="toast(\'行内别名输入 — 实现见设计文档 §7.2\')">＋ 别名</button></td><td><span class="pathm" title="'+esc(r.p)+'">'+esc(r.p)+'</span></td><td>'+(r.miss?'<span class="st-miss">○ 失效</span>':'<span class="st-ok">● 在线</span>')+'</td><td><button class="opn" title="打开文件夹" aria-label="打开文件夹" onclick="toast(\'已打开 Explorer(模拟):'+esc(r.p).replace(/\\\\/g,"\\\\\\\\")+'\')">&#128194;</button>'+(r.miss?'<button class="del" title="删除失效记录" aria-label="删除失效记录" onclick="toast(\'确认弹窗:删除失效记录「'+esc(r.n)+'」及其别名?\')">&#128465;</button>':'')+'</td></tr>'});
+ if(!rows.length){h='<tr><td colspan="7"><div class="empty" style="padding:40px"><div class="big">&#128269;</div><div class="h">没有匹配「'+esc(q)+'」的记录</div><p>名字与别名均未命中(已含繁简归一与双向子串)</p></div></td></tr>'}
+ document.getElementById("tbody").innerHTML=h;
+ document.getElementById("cnt").textContent="共 "+rows.length+" 条 · 3 个来源";
+}
+document.getElementById("q0").addEventListener("input",renderTable);
+document.getElementById("showmiss").addEventListener("change",renderTable);
+document.getElementById("rescan").addEventListener("click",function(){toast("全部重扫:新增 0 · 更新 6 · 失效 1 · TIGER 不可达已跳过")});
+renderTable();
+/* screen 2 */
+var FOLDS=["倉木華","小红","小红(仓木)","小C"],selFold=-1;
+function renderFolds(){
+ var h="";FOLDS.forEach(function(f,i){h+='<button class="lfold'+(i===selFold?" on":"")+'" onclick="pick('+i+')">&#128193; '+esc(f)+'</button>'});
+ document.getElementById("lfolds").innerHTML=h}
+function pick(i){selFold=i;renderFolds();var q=document.getElementById("q1");q.value=FOLDS[i];renderRes(FOLDS[i],true)}
+function renderRes(q,auto){
+ var el=document.getElementById("rres");
+ if(!q){el.innerHTML='<div class="empty"><div class="big">&#8646;</div><div class="h">选择左侧文件夹开始匹配</div><p>或在上方手动输入名字/别名</p></div>';return}
+ var rows=DB.filter(function(r){return match(r,q)});
+ var h='<div class="hint">'+(rows.length?rows.length+" 条匹配(名字/别名 · 含繁简)"+(auto?" · 自动匹配":""):"")+'</div>';
+ rows.forEach(function(r,i){
+  var als=sharedAliases(r);
+  h+='<div class="card'+(r.miss?" miss":"")+'" id="rc'+i+'">'+avatar(r,true)+'<div class="mt"><div class="nm">'+esc(r.n)+(als.length?'<span class="aka">'+esc(als.join(" · "))+'</span>':"")+'</div><div class="pt">'+esc(r.p)+'</div></div>'+(r.miss?'<button class="btn" disabled title="文件夹已失效">双开</button>':(selFold<0?'<button class="btn" disabled title="先选择左侧本地文件夹">双开</button>':'<button class="btn" onclick="dopen('+i+',\''+esc(r.n)+'\')">&#8646; 双开</button>'))+'</div>'});
+ if(!rows.length){h+='<div class="empty"><div class="big">&#129300;</div><div class="h">库中没有「'+esc(q)+'」</div><p>可能用了别的艺名 — 改搜索词试试<br>或者这是还没入库的新人</p></div>'}
+ el.innerHTML=h}
+function dopen(i,n){var c=document.getElementById("rc"+i);c.classList.add("flash");setTimeout(function(){c.classList.remove("flash")},900);toast("已同时打开(模拟):本地\\"+FOLDS[selFold]+" + NAS\\"+n)}
+document.getElementById("q1").addEventListener("input",function(){renderRes(this.value,false)});
+renderFolds();renderRes("",false);
+/* screen 3 */
+var SRC=[
+ {n:"\\\\Ant\\Video Station\\女优VI\\",c:31,t:"07-24 21:03",on:1},
+ {n:"\\\\EAGLE\\Video Station\\女优V\\",c:28,t:"07-23 18:40",on:1},
+ {n:"\\\\TIGER\\Video Station\\女优III\\",c:24,t:"07-20 09:12",on:0}
+];
+function renderSrc(){
+ var h="";SRC.forEach(function(s,i){
+  h+='<div class="srow" id="sr'+i+'"><span class="sic">&#128421;</span><div class="mt"><div class="snm">'+esc(s.n)+'</div><div class="sm" id="sm'+i+'">'+s.c+' 人 · 上次扫描 '+s.t+' · '+(s.on?'在线':'离线')+'</div></div><button class="btn ghost" id="sb'+i+'" onclick="scan('+i+')">&#8635; 扫描</button><button class="del" title="删除源" aria-label="删除源" onclick="toast(\'删除确认弹窗:将同时删除该源 '+s.c+' 条表演者记录\')">&#128465;</button></div>'});
+ document.getElementById("srclist").innerHTML=h}
+function scan(i){
+ var row=document.getElementById("sr"+i),sm=document.getElementById("sm"+i),b=document.getElementById("sb"+i);
+ row.className="srow";b.disabled=true;sm.innerHTML='<span class="spin">&#8635;</span> 扫描中…';
+ setTimeout(function(){
+  b.disabled=false;
+  if(SRC[i].on){row.className="srow scan-ok";sm.textContent="新增 "+(i===0?2:3)+" · 更新 "+(SRC[i].c-2)+" · 失效 "+(i===1?1:0)}
+  else{row.className="srow scan-bad";sm.textContent="源不可达 — 已跳过,记录未变动"}
+ },1100)}
+document.getElementById("addbtn").addEventListener("click",function(){
+ var v=document.getElementById("addsrc").value.trim(),err=document.getElementById("adderr");
+ if(v.indexOf("\\\\")!==0){err.style.display="block";return}
+ err.style.display="none";
+ SRC.push({n:v.charAt(v.length-1)==="\\"?v:v+"\\",c:0,t:"—",on:1});renderSrc();document.getElementById("addsrc").value="";toast("已添加,点「扫描」建立索引")});
+renderSrc();
+</script>
