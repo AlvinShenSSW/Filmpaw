@@ -125,8 +125,7 @@ Get-Content .env | Where-Object { $_ -match '^\s*[^#].*=' } | ForEach-Object {
 
 ### Status on this machine (checked 2026-07-24)
 
-- ✅ Installed & on PATH: `node`, `git`, `gh`, `codex`, `kimi`, `mimo`, `python`, `uv`
-- ❌ **Missing: `kilo`** (GLM 5.2 gate) — install with `npm i -g @kilocode/cli` then
-  `kilo auth login`. Until then the Kilo/GLM add-on self-skips.
+- ✅ Installed & on PATH: `node`, `git`, `gh`, `codex`, `kimi`, `mimo`, `kilo`
+  (v7.4.15, GLM 5.2 gate), `python`, `uv`
 - Auth status of each CLI is not verified here — confirm `codex login` / `kimi login`
-  before an AFK run that relies on them.
+  / `kilo auth login` before an AFK run that relies on them.
