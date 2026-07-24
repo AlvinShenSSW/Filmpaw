@@ -125,7 +125,7 @@ DELETE /api/sources/{id}                   → 204 (级联删 performers)
 POST   /api/sources/{id}/scan              → {added, refreshed, missing} | 503(不可达)
 POST   /api/scan-all                       → [{source_id, ok, added, refreshed, missing | error}]
 
-GET    /api/performers?q=&include_missing= → 分页列表(含 has_thumb 布尔); q 走归一化子串匹配 name+alias (D4/D5)
+GET    /api/performers?q=&include_missing=&source_id= → 分页列表(含 has_thumb); q 走双向归一化子串匹配 name+alias (D4/D5); source_id 缺省=全部来源
 GET    /api/performers/{id}/thumb          → image/jpeg (Cache-Control 按 thumb_mtime) | 404(无 → UI 显示首字头像)
 POST   /api/performers/{id}/aliases {alias}→ 201 | 409(该记录下重复)
 DELETE /api/aliases/{id}                   → 204
@@ -149,7 +149,7 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 - 中文 UI;MUI 7 组件;窗口默认 1200×800, 最小 960×640
 
 ### 7.2 表演者库 (首页)
-- 工具栏: 搜索框(实时过滤, 300ms debounce) · "显示失效"开关(默认开) · 全部重扫按钮
+- 工具栏: 搜索框(实时过滤, 300ms debounce) · **来源筛选下拉框(默认"全部来源", 选项=各扫描源, 选中后仅显示该源的表演者)** · "显示失效"开关(默认开) · 清理失效 · 全部重扫按钮
 - 表格列: 头像(竖版 poster ≈34×48px 圆角, D9) / ID(短哈希, hover 显全) / 名字 / 别名(chips + 行内"+ 别名") / 位置(UNC, 中段省略, hover 显全) / 状态(●在线 ○失效) / 操作
 - 头像: 有 thumb → 缩略图 object-fit cover;无 → 名字首字(橘底 #FDF3E3 深橘字 #B45E14);失效行头像随行降透明度
 - 操作列: 打开文件夹;**失效行额外显示删除按钮(带确认)**;工具栏加"清理失效"批量按钮(确认 + 数量提示)
