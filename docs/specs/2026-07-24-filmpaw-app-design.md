@@ -1,14 +1,16 @@
 # Filmpaw App — 完整设计文档 (待操作者评审)
 
-日期: 2026-07-24 · 状态: **v2 完整版,待操作者评审** · 语言: 中文
-评审通过后 → 建 GitHub issues → 全部经 AFK 执行。
+日期: 2026-07-24 · 状态: **v3 — 操作者评审通过 (2026-07-25)** · 语言: 中文
+已按本文档 §10 建 GitHub issues → 全部经 AFK 执行。
 
 ## 0. 执行与评审链 (操作者已指定)
 
 - 所有实现任务经 **AFK** 跑:每 issue 走完整瀑布(design→TDD→CI→评审→merge)
 - 评审链: **CTO 自审 = Claude (cto-pr-review) → 外门 = Codex (codex-review) → 终审 = GLM 5.2 (kilo-review, 操作者显式选定的实验性 final gate)**
 - Kimi 不在本项目主链;若 GLM 不可用 → 降级运行并按 AFK 规则向操作者报告
-- merge 策略: 待评审时确认(默认 `leave-open`)
+- merge 策略: **`merge-when-green`**(操作者已确认: CI 绿 + 三层评审全过 → 自动合并)
+- **Issue 前置门**: issues 建立后,先由 **Codex 评审 issue 本身**(拆分粒度、依赖、验收标准、与本设计的一致性),
+  发现的问题修正到 issue 后,**才允许开跑 AFK**。
 
 ## 1. 定位
 
@@ -27,7 +29,7 @@ App 只负责"找到并同时打开两边文件夹";拷贝/删除由操作者在
 | D6 | SMB 权限 | 跟随主机 Windows 会话凭据,app 不做账密管理 |
 | D7 | 代码位置 | 本仓库 `app/` 目录,与 `skill/` 共存 |
 | D8 | 评审链 | CTO=Claude, 外门=Codex, 终审=GLM 5.2 (见 §0) |
-| D9 | 头像 | 表演者根目录 `folder.jpg` → 生成缩略图**存数据库**;没有则显示名字**首字**头像 |
+| D9 | 头像 | 表演者根目录 `folder.jpg` → 生成缩略图**存数据库**;没有则显示名字**首字**头像;**显示为竖版 poster 比例(约2:3), object-fit cover** |
 
 ## 3. 用户流程 (핵心三条)
 
@@ -127,6 +129,8 @@ GET    /api/performers?q=&include_missing= → 分页列表(含 has_thumb 布尔
 GET    /api/performers/{id}/thumb          → image/jpeg (Cache-Control 按 thumb_mtime) | 404(无 → UI 显示首字头像)
 POST   /api/performers/{id}/aliases {alias}→ 201 | 409(该记录下重复)
 DELETE /api/aliases/{id}                   → 204
+DELETE /api/performers/{id}                → 204 (单条删除, UI 仅对失效行提供入口)
+POST   /api/performers/purge-missing       → {deleted} (批量清理全部失效记录)
 POST   /api/performers/{id}/open           → 打开 Explorer → 204 | 404(路径已不存在→顺带置 is_missing)
 
 GET    /api/local/subdirs?path=            → 本地目录一级子文件夹名列表 (归档界面左栏)
@@ -146,8 +150,9 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 
 ### 7.2 表演者库 (首页)
 - 工具栏: 搜索框(实时过滤, 300ms debounce) · "显示失效"开关(默认开) · 全部重扫按钮
-- 表格列: 头像(36px 圆角方, D9) / ID(短哈希, hover 显全) / 名字 / 别名(chips + 行内"+ 别名") / 位置(UNC, 中段省略, hover 显全) / 状态(●在线 ○失效) / 打开
-- 头像: 有 thumb → 显示缩略图;无 → 名字首字(橘底 #FDF3E3 深橘字 #B45E14);失效行头像随行降透明度
+- 表格列: 头像(竖版 poster ≈34×48px 圆角, D9) / ID(短哈希, hover 显全) / 名字 / 别名(chips + 行内"+ 别名") / 位置(UNC, 中段省略, hover 显全) / 状态(●在线 ○失效) / 操作
+- 头像: 有 thumb → 缩略图 object-fit cover;无 → 名字首字(橘底 #FDF3E3 深橘字 #B45E14);失效行头像随行降透明度
+- 操作列: 打开文件夹;**失效行额外显示删除按钮(带确认)**;工具栏加"清理失效"批量按钮(确认 + 数量提示)
 - 失效行整体置灰; 打开按钮对失效行仍可点(可能只是上次扫描时离线)
 - 状态: 空库空态(引导去设置) · 搜索无结果空态
 - 底栏: "共 N 条 · M 个来源"
@@ -158,7 +163,7 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 - 右栏: 搜索框(选中左项自动填入, 可手改; 清空=不显示结果) · 命中数提示 · 结果卡片列表
 - **左右独立**: 手动修改搜索词**不清除**左侧选中 — 双开永远配对「左侧当前选中的本地文件夹 + 所点卡片的 NAS 文件夹」, 与搜索词无关(场景: 左选"小红", 手动搜出"小小白", 双开 = 本地小红 + NAS小小白)
 - 左侧未选中任何文件夹时, 双开按钮禁用(tooltip "先选择左侧本地文件夹")
-  - 卡片: 头像(44px, D9, 同首字回退) / 名字 + 别名(灰) / UNC 路径 / 状态 / **双开**按钮(失效条禁用双开, 提示"文件夹已失效")
+  - 卡片: 头像(竖版 poster ≈52×74px, D9, 同首字回退, 比列表更大便于认人) / 名字 + 别名(灰) / UNC 路径 / 状态 / **双开**按钮(失效条禁用双开, 提示"文件夹已失效")
   - 无匹配空态: "库中无此人 — 试试手动搜索别名, 或这是新人"
 - 双开成功后卡片短暂高亮反馈, 不弹 toast 轰炸
 
