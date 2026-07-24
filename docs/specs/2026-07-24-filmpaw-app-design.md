@@ -197,12 +197,14 @@ app/
 
 | # | Issue | 依赖 |
 |---|---|---|
-| 1 | Scaffold: app/ 三件套骨架 + 构建链打通 (tauri dev 能起, sidecar hello) | — |
-| 2 | Server: DB schema + normalize + sources CRUD + 扫描引擎 (纯逻辑+测试) | 1 |
-| 3 | Server: performers/aliases/搜索 API + 打开文件夹/双开 | 2 |
-| 4 | UI: 设置页 (源管理+扫描) | 3 |
+| 1 | Scaffold: app/ 三件套 + 构建链 + **全局壳(§7.1 导航/路由/窗口尺寸)** | — |
+| 2 | Server: DB schema + normalize + sources CRUD + 扫描引擎 + 缩略图 | 1 |
+| 3 | Server: performers/aliases/搜索 API(含分页 envelope + D5 读模型) + 打开/双开 | 2 |
+| 4 | UI: 设置页 (源管理+扫描) | **2** |
 | 5 | UI: 表演者库 | 3 |
 | 6 | UI: 归档对比 | 3 |
-| 7 | 打包: PyInstaller + NSIS + CI 发布产物 | 4,5,6 |
+| 8 | UI+API: 表演者库来源筛选下拉框 | **5** |
+| 7 | 打包: PyInstaller + NSIS + CI 发布产物 | 4,5,6,**8** |
 
-依赖呈波次: 1 → 2 → 3 → (4,5,6 并行或顺序) → 7。
+波次: 1 → 2 → (3 ∥ 4) → (5,6 并行) → 8 → 7。
+经 Codex issue 评审(2026-07-25)修订: 全局壳归 #1、#4 降依赖至 #2、#8 串行于 #5、#7 收口含 #8、#3 补分页契约与 D5 读模型。

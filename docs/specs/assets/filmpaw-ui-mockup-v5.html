@@ -159,6 +159,12 @@ kbd.q{font-family:var(--mono);font-size:12px;background:var(--acc-soft);color:va
       <div class="pad">
         <div style="display:flex;gap:10px;align-items:center">
           <div class="inp">&#128269;<input id="q0" type="search" placeholder="搜索名字或别名(支持繁简互搜)" aria-label="搜索表演者"></div>
+          <select id="srcsel" aria-label="来源筛选" style="border:1px solid #ddd9d1;border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;color:#4a4842;background:#fff;cursor:pointer;max-width:170px">
+            <option value="">全部来源</option>
+            <option value="Ant">Ant · 女优VI</option>
+            <option value="EAGLE">EAGLE · 女优V</option>
+            <option value="TIGER">TIGER · 女优III</option>
+          </select>
           <label class="tgl"><input id="showmiss" type="checkbox" checked>显示失效</label>
           <button class="btn ghost" onclick="toast('确认弹窗:清理全部失效记录(共 1 条)?')">&#128465; 清理失效</button>
           <button class="btn" id="rescan">&#8635; 全部重扫</button>
@@ -212,6 +218,7 @@ kbd.q{font-family:var(--mono);font-size:12px;background:var(--acc-soft);color:va
     <li><b>别名共享</b> — 给任一条倉木華加的别名,搜索时两条都命中</li>
     <li><b>双向子串 + 繁简归一</b> — 仓木华↔倉木華;小红↔小红(仓木) 双向命中</li>
     <li><b>头像 (D9)</b> — folder.jpg 缩略图入库;无则名字首字(橘底);失效行头像降透明</li>
+    <li><b>来源筛选</b> — 工具栏下拉框,默认全部来源,可选单个 NAS 源,底栏统计联动</li>
   </ul></div>
   <div class="ncard"><h3>评审结论 (2026-07-25 定稿)</h3><ul>
     <li><b>橘色用量</b>:维持现状(仅当前页标识/主按钮/选中态)</li>
@@ -254,18 +261,19 @@ var views=["v0","v1","v2"];
 /* screen 1 */
 function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
 function renderTable(){
- var q=document.getElementById("q0").value,showMiss=document.getElementById("showmiss").checked;
- var rows=DB.filter(function(r){return(showMiss||!r.miss)&&match(r,q)});
+ var q=document.getElementById("q0").value,showMiss=document.getElementById("showmiss").checked,src=document.getElementById("srcsel").value;
+ var rows=DB.filter(function(r){return(showMiss||!r.miss)&&(!src||r.src===src)&&match(r,q)});
  var h="";
  rows.forEach(function(r){
   var als=sharedAliases(r).map(function(a){return '<span class="al">'+esc(a)+'</span>'}).join("");
   h+='<tr class="'+(r.miss?"miss":"")+'"><td>'+avatar(r,false)+'</td><td><span class="idm">'+r.id+'</span></td><td style="font-weight:600">'+esc(r.n)+'</td><td>'+als+'<button class="aladd" onclick="toast(\'行内别名输入 — 实现见设计文档 §7.2\')">＋ 别名</button></td><td><span class="pathm" title="'+esc(r.p)+'">'+esc(r.p)+'</span></td><td>'+(r.miss?'<span class="st-miss">○ 失效</span>':'<span class="st-ok">● 在线</span>')+'</td><td><button class="opn" title="打开文件夹" aria-label="打开文件夹" onclick="toast(\'已打开 Explorer(模拟):'+esc(r.p).replace(/\\\\/g,"\\\\\\\\")+'\')">&#128194;</button>'+(r.miss?'<button class="del" title="删除失效记录" aria-label="删除失效记录" onclick="toast(\'确认弹窗:删除失效记录「'+esc(r.n)+'」及其别名?\')">&#128465;</button>':'')+'</td></tr>'});
  if(!rows.length){h='<tr><td colspan="7"><div class="empty" style="padding:40px"><div class="big">&#128269;</div><div class="h">没有匹配「'+esc(q)+'」的记录</div><p>名字与别名均未命中(已含繁简归一与双向子串)</p></div></td></tr>'}
  document.getElementById("tbody").innerHTML=h;
- document.getElementById("cnt").textContent="共 "+rows.length+" 条 · 3 个来源";
+ document.getElementById("cnt").textContent="共 "+rows.length+" 条 · "+(src?"当前来源: "+src:"3 个来源");
 }
 document.getElementById("q0").addEventListener("input",renderTable);
 document.getElementById("showmiss").addEventListener("change",renderTable);
+document.getElementById("srcsel").addEventListener("change",renderTable);
 document.getElementById("rescan").addEventListener("click",function(){toast("全部重扫:新增 0 · 更新 6 · 失效 1 · TIGER 不可达已跳过")});
 renderTable();
 /* screen 2 */
