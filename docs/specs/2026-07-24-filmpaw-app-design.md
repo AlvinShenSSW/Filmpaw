@@ -75,13 +75,14 @@ CREATE TABLE performers (
   thumb_mtime REAL                     -- 源 folder.jpg 的 mtime, 未变则跳过重生成
 );
 CREATE INDEX idx_performers_name_norm ON performers(name_norm);
-CREATE TABLE aliases (
+CREATE TABLE aliases (                 -- D5: 组级存储 — 别名属于"同名组", 不属于单条记录
   id INTEGER PRIMARY KEY,
-  performer_id TEXT NOT NULL REFERENCES performers(id) ON DELETE CASCADE,
+  name_norm TEXT NOT NULL,             -- 组键 = performers.name_norm
   alias TEXT NOT NULL,
   alias_norm TEXT NOT NULL,
-  UNIQUE(performer_id, alias_norm)
+  UNIQUE(name_norm, alias_norm)        -- 组内唯一由 DB 直接保证
 );
+CREATE INDEX idx_aliases_name_norm ON aliases(name_norm);
 CREATE INDEX idx_aliases_alias_norm ON aliases(alias_norm);
 ```
 
@@ -92,10 +93,13 @@ CREATE INDEX idx_aliases_alias_norm ON aliases(alias_norm);
   - 正向: 搜"小红" → 命中库里"小红(仓木)" (记录含搜索词)
   - 反向: 左侧文件夹叫"小红(仓木)" → 命中库里"小红" (搜索词含记录名; 记录名≥2字才反向, 防单字名噪音)
 - 删除 source → 级联删其 performers(设置页删除时二次确认,提示影响人数)
-- **D5 写入不变量**(API 层强制, 同名组按 name_norm 动态成组): `POST alias` 时, 若 alias_norm
-  已存在于**任一同 name_norm 记录**的别名中, 或等于该组 name_norm 本身 → **409**。
-  保证同名组内别名全局唯一, 不会出现重复 chip(给 A 条倉木華加"华姐"后, 再给 B 条加"华姐"= 409)。
-- **D5 删除语义**: 任一投影 chip 的删除 = 删除底层唯一 alias 行 → 所有同名记录的投影同步消失。
+- **D5 组级存储语义**: 别名表直接以 name_norm 为组键 — 组内所有记录天然共享同一组别名,
+  无"自有/投影"之分。`POST /performers/{id}/aliases` = 解析该记录的 name_norm → 插组行;
+  重复(UNIQUE 约束)或 alias_norm 等于组 name_norm 本身 → **409**。
+- **D5 删除语义**: 删除任一行上的别名 chip = 删除该组行 → 所有同名记录同步消失。
+- **D5 生命周期(与记录删除解耦)**: 删除失效记录 / 删除 source / purge-missing **不触碰别名**。
+  组内最后一条记录被删后别名行保留为孤儿 — 搜索 join performers, 孤儿不可见、无副作用;
+  未来重扫再次出现同名文件夹时, 别名**自动重新生效**(有意保留的特性)。
 - **分页契约**: `page` 从 **1** 起; `page_size` 默认 **50**, 上限 **200**(超出→422);
   **稳定排序** = `name_norm ASC, id ASC`; `total` 与 `source_count` 均在**过滤后集合**
   (q + include_missing + source_id 生效、分页不生效)上计算; `source_count` = 该集合 distinct source_id 数。
@@ -134,7 +138,7 @@ POST   /api/scan-all                       → [{source_id, ok, added, refreshed
 
 GET    /api/performers?q=&include_missing=&source_id= → 分页列表(含 has_thumb); q 走双向归一化子串匹配 name+alias (D4/D5); source_id 缺省=全部来源
 GET    /api/performers/{id}/thumb          → image/jpeg (Cache-Control 按 thumb_mtime) | 404(无 → UI 显示首字头像)
-POST   /api/performers/{id}/aliases {alias}→ 201 | 409(该记录下重复)
+POST   /api/performers/{id}/aliases {alias}→ 201 | 409(同名组内重复, 或 alias==组名; 组级存储见 §4)
 DELETE /api/aliases/{id}                   → 204
 DELETE /api/performers/{id}                → 204 (单条删除, UI 仅对失效行提供入口)
 POST   /api/performers/purge-missing       → {deleted} (批量清理全部失效记录)

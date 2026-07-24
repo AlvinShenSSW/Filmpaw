@@ -84,6 +84,22 @@ Newly installed skills are picked up when Claude Code starts a fresh session.
 > `node "C:\Users\<you>\.claude\skills\codex-review\codex-gate.mjs"`. The gate reads
 > the **current directory's** git diff, so run it from the target repo.
 
+## CLI invocation discipline (anti-hang rules — MUST follow)
+
+Driving Codex/Kimi/Kilo/MiMo headless has bitten us with hangs. Rules:
+
+1. **Always close stdin**: append `< /dev/null` (bash) or pipe empty input. `codex exec`
+   without it blocks forever on "Reading additional input from stdin...".
+2. **Always set a hard timeout** on the invocation (tool timeout or the gate script's
+   built-in `*_TIMEOUT_MS`). Never launch an external CLI with no upper bound.
+3. **Prefer the in-repo gate scripts** (`skill/*-review/*-gate.mjs`) over raw CLI calls —
+   they already handle per-OS flags, timeout caps, skip-detection, and marker output.
+4. **Never use interactive flags headless**: `mimo --prompt` opens the TUI (use
+   `mimo run ... --format` via mimo-gate.mjs); no `-i`/REPL modes; nothing that can prompt.
+5. **Run long calls in background + notification**, never poll-sleep; if stderr shows a
+   "waiting/reading input" line and stdout stays empty for minutes, kill and re-invoke
+   with stdin closed instead of waiting.
+
 ## External CLI dependencies (per machine, once)
 
 All gates are **optional and self-skipping** — a missing/unauthenticated CLI emits a
