@@ -6,7 +6,7 @@
 use std::io::{BufRead, BufReader, Read};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use tauri::{Manager, State, WebviewUrl, WebviewWindowBuilder};
 
@@ -48,50 +48,60 @@ fn spawn_server() -> (Child, u16) {
         .unwrap_or_else(|e| panic!("failed to spawn server ({program}): {e}"));
 
     let stdout = child.stdout.take().expect("child stdout piped");
-    let mut reader = BufReader::new(stdout);
-    let deadline = Instant::now() + Duration::from_secs(30);
-    let mut line = String::new();
-    let port = loop {
-        line.clear();
-        if Instant::now() > deadline {
-            let _ = child.kill();
-            panic!("server did not announce FILMPAW_PORT within 30s");
-        }
-        match reader.read_line(&mut line) {
-            Ok(0) => {
-                let _ = child.kill();
-                panic!("server exited before announcing its port");
-            }
-            Ok(_) => {
-                if let Some(rest) = line.trim().strip_prefix("FILMPAW_PORT=") {
-                    match rest.parse::<u16>() {
-                        Ok(p) => break p,
-                        Err(e) => {
-                            let _ = child.kill();
-                            panic!("bad FILMPAW_PORT value {rest:?}: {e}");
-                        }
+
+    // Read stdout on a dedicated thread so the 30s startup deadline is
+    // enforced even when the child produces NO output (a blocking read_line
+    // on the main thread would never return to a deadline check). After the
+    // port line, the same thread keeps draining stdout forever so a future
+    // print() in the server can never fill the pipe buffer and block it.
+    let (tx, rx) = std::sync::mpsc::channel::<Result<u16, String>>();
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        let mut line = String::new();
+        loop {
+            line.clear();
+            match reader.read_line(&mut line) {
+                Ok(0) => {
+                    let _ = tx.send(Err("server exited before announcing its port".into()));
+                    return;
+                }
+                Ok(_) => {
+                    if let Some(rest) = line.trim().strip_prefix("FILMPAW_PORT=") {
+                        let _ = tx.send(match rest.parse::<u16>() {
+                            Ok(p) => Ok(p),
+                            Err(e) => Err(format!("bad FILMPAW_PORT value {rest:?}: {e}")),
+                        });
+                        break;
                     }
                 }
-            }
-            Err(e) => {
-                let _ = child.kill();
-                panic!("failed reading server stdout: {e}");
+                Err(e) => {
+                    let _ = tx.send(Err(format!("failed reading server stdout: {e}")));
+                    return;
+                }
             }
         }
-    };
-
-    // Keep draining stdout forever so a future print() in the server can
-    // never fill the pipe buffer and block the whole process.
-    std::thread::spawn(move || {
+        // Drain phase: swallow everything until EOF.
         let mut sink = Vec::with_capacity(4096);
         loop {
             sink.clear();
             match reader.by_ref().take(4096).read_to_end(&mut sink) {
-                Ok(0) | Err(_) => break,
+                Ok(0) | Err(_) => return,
                 Ok(_) => {}
             }
         }
     });
+
+    let port = match rx.recv_timeout(Duration::from_secs(30)) {
+        Ok(Ok(p)) => p,
+        Ok(Err(msg)) => {
+            let _ = child.kill();
+            panic!("{msg}");
+        }
+        Err(_) => {
+            let _ = child.kill();
+            panic!("server did not announce FILMPAW_PORT within 30s");
+        }
+    };
 
     (child, port)
 }
