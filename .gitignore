@@ -9,3 +9,12 @@
 # OS / editor cruft
 Thumbs.db
 .DS_Store
+
+# app build artifacts
+app/server/.venv/
+app/ui/node_modules/
+app/ui/dist/
+app/src-tauri/target/
+app/src-tauri/gen/
+__pycache__/
+*.pyc
