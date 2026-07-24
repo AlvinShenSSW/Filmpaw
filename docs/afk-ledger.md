@@ -16,8 +16,8 @@
 
 | Issue | 状态 | 分支 | PR | 备注 |
 |---|---|---|---|---|
-| #1 Scaffold + 全局壳 | review | issue-1-scaffold | [#9](https://github.com/AlvinShenSSW/Filmpaw/pull/9) | 实现+CTO自审完, e2e smoke 绿×2; Codex 外门运行中 → 待 GLM 终审 → merge |
-| #2 Server 扫描引擎 | pending | — | — | |
+| #1 Scaffold + 全局壳 | **merged** ✅ | issue-1-scaffold(已删) | [#9](https://github.com/AlvinShenSSW/Filmpaw/pull/9) | 全评审链过: CTO 3fix / Codex 1P2 / GLM 两轮(R1 5项修, R2 无P1) → squash 合并 |
+| #2 Server 扫描引擎 | next | — | — | tick 下一步: 分支 issue-2-scan-engine |
 | #3 Server API | pending | — | — | |
 | #4 UI 设置页 | pending | — | — | 依赖 #2, 可与 #3 并行 |
 | #5 UI 表演者库 | pending | — | — | |
@@ -32,3 +32,5 @@
 - (tick 0, #1) tauri CLI 必须从 app/ 调用(src-tauri 须为 cwd 子目录), 已写入 src-tauri/README。
 - (tick 0, #1) CTO 自审改法: eval 注入换 initialization_script(防页面加载竞态); server stdout 读端口后持续排水(防 print 填满管道死锁); stderr inherit。
 - (tick 0, #1) e2e 冒烟通过×2: filmpaw.exe + rsbuild:3000 + sidecar python 同时在跑。
+- (tick 0, #1) GLM R2 无 P1 → 收敛合并。驳回: Unix树杀(§9不做)/py3.13(§8选型)/预置依赖。延后至 #7: panic UX、动态 CSP、Job Object 硬杀加固。
+- (tick 0, gate) kilo CLI 评审完后 suggest 工具 schema bug 死循环→gate 超时收尾, verdict 需从 transcript 提取。kilo-gate 已加 --auto + fail-loud 写保护。
