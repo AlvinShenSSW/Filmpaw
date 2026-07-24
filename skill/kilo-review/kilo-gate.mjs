@@ -121,6 +121,11 @@ const args = [
   'default',
   '--title',
   'kilo glm-5.2 structural review',
+  // Headless runs have no TTY, so permission prompts auto-reject and the
+  // review starves (model can't even run `git diff`). --auto lets the
+  // read-only review prompt do its job; verify `git status` is clean after
+  // the gate as the write-guard.
+  '--auto',
 ];
 
 process.stderr.write(`[kilo-gate] ${kilo} run --command review <target> --model ${model} --variant ${variant}\n`);
