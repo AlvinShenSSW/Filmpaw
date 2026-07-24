@@ -92,6 +92,13 @@ CREATE INDEX idx_aliases_alias_norm ON aliases(alias_norm);
   - 正向: 搜"小红" → 命中库里"小红(仓木)" (记录含搜索词)
   - 反向: 左侧文件夹叫"小红(仓木)" → 命中库里"小红" (搜索词含记录名; 记录名≥2字才反向, 防单字名噪音)
 - 删除 source → 级联删其 performers(设置页删除时二次确认,提示影响人数)
+- **D5 写入不变量**(API 层强制, 同名组按 name_norm 动态成组): `POST alias` 时, 若 alias_norm
+  已存在于**任一同 name_norm 记录**的别名中, 或等于该组 name_norm 本身 → **409**。
+  保证同名组内别名全局唯一, 不会出现重复 chip(给 A 条倉木華加"华姐"后, 再给 B 条加"华姐"= 409)。
+- **D5 删除语义**: 任一投影 chip 的删除 = 删除底层唯一 alias 行 → 所有同名记录的投影同步消失。
+- **分页契约**: `page` 从 **1** 起; `page_size` 默认 **50**, 上限 **200**(超出→422);
+  **稳定排序** = `name_norm ASC, id ASC`; `total` 与 `source_count` 均在**过滤后集合**
+  (q + include_missing + source_id 生效、分页不生效)上计算; `source_count` = 该集合 distinct source_id 数。
 
 ## 5. 扫描算法
 
@@ -144,7 +151,7 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 ## 7. UI/UX 设计
 
 ### 7.1 总体
-- MDCx 式 **52px 左侧图标导航**: 表演者库 / 归档对比 / 设置
+- MDCx 式 **56px 左侧图标导航**(与 mockup 资产一致): 表演者库 / 归档对比 / 设置
 - 色: 主橘 `#EF9F27`(当前页标识、主按钮), 深橘 `#BA7517`(次级强调/图标), 白底, 灰系文字分级
 - 中文 UI;MUI 7 组件;窗口默认 1200×800, 最小 960×640
 
@@ -173,7 +180,9 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 - 其他: DB 路径显示(只读) · 版本号
 
 ### 7.5 Mockups
-三主屏设计稿已评审(会话内 widget, 2026-07-24);补充态(空态/扫描中/无匹配)见同日第二组 widget。
+**唯一视觉基准 = 仓库内交互原型 [`docs/specs/assets/filmpaw-ui-mockup-v5.html`](assets/filmpaw-ui-mockup-v5.html)**
+(v6 内容: 三主屏 + 来源筛选 + poster 头像 + 失效清理 + 空态/扫描态/无匹配态, 操作者已评审通过)。
+尺寸/色值/交互以该文件为准; 本文档文字描述与其冲突时, 以 mockup 为准并回改文档。
 
 ## 8. 技术结构与构建
 
