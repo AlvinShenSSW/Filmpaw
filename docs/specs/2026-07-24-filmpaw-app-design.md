@@ -22,11 +22,12 @@ App 只负责"找到并同时打开两边文件夹";拷贝/删除由操作者在
 | D1 | 同名表演者跨 NAS | **各算一条** — 一行 = 一个 NAS 文件夹,名字可重复 |
 | D2 | 重扫时文件夹消失 | **标记失效保留**(置灰,不删,可手动清理) |
 | D3 | 技术栈 | **照搬 MDCx 结构**(Tauri 2 + React + Python FastAPI sidecar) |
-| D4 | 模糊搜索 | **子串匹配 + 繁简归一**(zhconv;倉木華↔仓木华互搜) |
+| D4 | 模糊搜索 | **双向子串 + 繁简归一**(zhconv;倉木華↔仓木华互搜;"小红"↔"小红(仓木)"双向命中, 见 §4) |
 | D5 | 别名 | **同名记录自动共享**(查询层实现: 命中别名→取 name→返回全部同 name 记录) |
 | D6 | SMB 权限 | 跟随主机 Windows 会话凭据,app 不做账密管理 |
 | D7 | 代码位置 | 本仓库 `app/` 目录,与 `skill/` 共存 |
 | D8 | 评审链 | CTO=Claude, 外门=Codex, 终审=GLM 5.2 (见 §0) |
+| D9 | 头像 | 表演者根目录 `folder.jpg` → 生成缩略图**存数据库**;没有则显示名字**首字**头像 |
 
 ## 3. 用户流程 (핵心三条)
 
@@ -67,7 +68,9 @@ CREATE TABLE performers (
   unc_path TEXT NOT NULL UNIQUE,       -- \\Ant\Video Station\女优VI\倉木華
   first_seen_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
-  is_missing INTEGER NOT NULL DEFAULT 0
+  is_missing INTEGER NOT NULL DEFAULT 0,
+  thumb BLOB,                          -- D9: folder.jpg 缩略图 (JPEG, 最长边 256px, q80), NULL=无
+  thumb_mtime REAL                     -- 源 folder.jpg 的 mtime, 未变则跳过重生成
 );
 CREATE INDEX idx_performers_name_norm ON performers(name_norm);
 CREATE TABLE aliases (
@@ -81,7 +84,11 @@ CREATE INDEX idx_aliases_alias_norm ON aliases(alias_norm);
 ```
 
 - `normalize(s) = zhconv_to_simplified(lower(unicodedata.normalize('NFKC', s.strip())))`
-  (NFKC 顺带处理全角/半角;大小写只影响拉丁字母)
+  (NFKC 顺带处理全角/半角、全角括号→半角;大小写只影响拉丁字母)
+- **匹配规则 = 双向子串** (对 name 与 alias 逐一判):
+  `hit = rec_norm.contains(q_norm) or (len(rec_norm) >= 2 and q_norm.contains(rec_norm))`
+  - 正向: 搜"小红" → 命中库里"小红(仓木)" (记录含搜索词)
+  - 反向: 左侧文件夹叫"小红(仓木)" → 命中库里"小红" (搜索词含记录名; 记录名≥2字才反向, 防单字名噪音)
 - 删除 source → 级联删其 performers(设置页删除时二次确认,提示影响人数)
 
 ## 5. 扫描算法
@@ -94,6 +101,12 @@ scan(source):
   for name in disk - db.folder_names: 新建记录 (uuid, now, is_missing=0)
   for name in disk & db.folder_names: last_seen_at=now, is_missing=0
   for rec  in db 且 rec.folder_name not in disk: is_missing=1   # D2, 不删
+  for rec  in 在盘记录:                                          # D9 缩略图
+    jpg = rec.unc_path + '\folder.jpg'
+    if jpg 存在 且 mtime(jpg) != rec.thumb_mtime:
+        rec.thumb = Pillow 缩略图(最长边256, JPEG q80); rec.thumb_mtime = mtime(jpg)
+    elif jpg 不存在: rec.thumb = NULL; rec.thumb_mtime = NULL
+    # 读取/解码失败 → 保留原值并记 warning, 不中断扫描; 失效记录不动其 thumb
   source.last_scan_at = now
   返回 {added, refreshed, missing} 计数
 ```
@@ -110,7 +123,8 @@ DELETE /api/sources/{id}                   → 204 (级联删 performers)
 POST   /api/sources/{id}/scan              → {added, refreshed, missing} | 503(不可达)
 POST   /api/scan-all                       → [{source_id, ok, added, refreshed, missing | error}]
 
-GET    /api/performers?q=&include_missing= → 分页列表; q 走归一化子串匹配 name+alias (D4/D5)
+GET    /api/performers?q=&include_missing= → 分页列表(含 has_thumb 布尔); q 走归一化子串匹配 name+alias (D4/D5)
+GET    /api/performers/{id}/thumb          → image/jpeg (Cache-Control 按 thumb_mtime) | 404(无 → UI 显示首字头像)
 POST   /api/performers/{id}/aliases {alias}→ 201 | 409(该记录下重复)
 DELETE /api/aliases/{id}                   → 204
 POST   /api/performers/{id}/open           → 打开 Explorer → 204 | 404(路径已不存在→顺带置 is_missing)
@@ -132,7 +146,8 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 
 ### 7.2 表演者库 (首页)
 - 工具栏: 搜索框(实时过滤, 300ms debounce) · "显示失效"开关(默认开) · 全部重扫按钮
-- 表格列: ID(短哈希, hover 显全) / 名字 / 别名(chips + 行内"+ 别名") / 位置(UNC, 中段省略, hover 显全) / 状态(●在线 ○失效) / 打开
+- 表格列: 头像(36px 圆角方, D9) / ID(短哈希, hover 显全) / 名字 / 别名(chips + 行内"+ 别名") / 位置(UNC, 中段省略, hover 显全) / 状态(●在线 ○失效) / 打开
+- 头像: 有 thumb → 显示缩略图;无 → 名字首字(橘底 #FDF3E3 深橘字 #B45E14);失效行头像随行降透明度
 - 失效行整体置灰; 打开按钮对失效行仍可点(可能只是上次扫描时离线)
 - 状态: 空库空态(引导去设置) · 搜索无结果空态
 - 底栏: "共 N 条 · M 个来源"
@@ -141,7 +156,7 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 - 左栏(固定 260px): 目录选择按钮(tauri dialog) + 当前路径 · 一级子文件夹列表(单选高亮橘)
   - 记住上次目录, 启动自动载入; 目录不存在→提示重选
 - 右栏: 搜索框(选中左项自动填入, 可手改; 清空=不显示结果) · 命中数提示 · 结果卡片列表
-  - 卡片: 名字 + 别名(灰) / UNC 路径 / 状态 / **双开**按钮(失效条禁用双开, 提示"文件夹已失效")
+  - 卡片: 头像(44px, D9, 同首字回退) / 名字 + 别名(灰) / UNC 路径 / 状态 / **双开**按钮(失效条禁用双开, 提示"文件夹已失效")
   - 无匹配空态: "库中无此人 — 试试手动搜索别名, 或这是新人"
 - 双开成功后卡片短暂高亮反馈, 不弹 toast 轰炸
 
@@ -159,7 +174,7 @@ GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次
 app/
 ├─ src-tauri/      # Tauri 2 (Rust): 窗口壳, sidecar 启动/停止, externalBin=filmpaw-server
 ├─ ui/             # React 19 + MUI 7 + TanStack Router/Query + Zustand + rsbuild + biome
-└─ server/         # Python 3.13 + FastAPI + sqlite3(标准库) + zhconv; uv 管理; PyInstaller 打包
+└─ server/         # Python 3.13 + FastAPI + sqlite3(标准库) + zhconv + pillow(缩略图); uv 管理; PyInstaller 打包
 ```
 
 - server 启动: 绑 127.0.0.1:0 → 实际端口写 stdout → Tauri 读取注入 UI (同 MDCx sidecar 模式)
