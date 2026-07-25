@@ -19,7 +19,7 @@ export const tokens = {
   orangeDeep: "#B45E14",
   orangeSoft: "#FDF3E3",
   ink: "#33322F",
-  muted: "#8A867E",
+  muted: "#6B675E", // WCAG AA on white (5.67:1); was #8A867E (3.4:1, failed)
   line: "#ECEAE4",
   lineStrong: "#DDD9D1",
   paper: "#FAF9F6",
@@ -37,7 +37,11 @@ export const RAIL_WIDTH = 56;
 export const theme = createTheme({
   palette: {
     mode: "light",
-    primary: { main: tokens.orange, dark: tokens.orangeDeep, contrastText: "#FFFFFF" },
+    // Filled buttons use INK text on the orange brand (5.77:1 AA) — white on
+    // #EF9F27 was only 2.17:1. The brand orange is kept; contrast comes from
+    // the dark label, and hover stays light (see MuiButton override) so the
+    // ratio holds. This satisfies the a11y checklist this theme documents.
+    primary: { main: tokens.orange, dark: tokens.orangeDeep, contrastText: tokens.ink },
     success: { main: tokens.ok },
     error: { main: tokens.bad },
     background: { default: "#FFFFFF", paper: tokens.paper },
@@ -58,8 +62,11 @@ export const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
+        // Reduce only transitions (decorative); leave keyframe animations
+        // like the loading spinner functional. No !important — component
+        // styles that opt out can still win.
         "@media (prefers-reduced-motion: reduce)": {
-          "*": { transitionDuration: "0.01ms !important", animationDuration: "0.01ms !important" },
+          "*": { transitionDuration: "0.01ms" },
         },
       },
     },
@@ -67,7 +74,7 @@ export const theme = createTheme({
       defaultProps: { disableElevation: true },
       styleOverrides: {
         root: {
-          minWidth: 0, // let padding size the button; never clip CJK labels
+          minWidth: 44, // keep a touch-target floor; nowrap+padding prevent CJK clipping
           whiteSpace: "nowrap",
           paddingLeft: 14,
           paddingRight: 14,
@@ -75,6 +82,9 @@ export const theme = createTheme({
           transition: "background-color 180ms ease, border-color 180ms ease",
           "&:focus-visible": { outline: `2px solid ${tokens.orangeDeep}`, outlineOffset: 2 },
         },
+        // Hover must stay light so INK text keeps AA contrast (the MUI
+        // default darkens to primary.dark, which would drop the ratio).
+        containedPrimary: { "&:hover": { backgroundColor: "#E2921D" } },
         outlinedInherit: { borderColor: tokens.lineStrong, color: tokens.muted },
         sizeSmall: { paddingTop: 5, paddingBottom: 5 },
       },

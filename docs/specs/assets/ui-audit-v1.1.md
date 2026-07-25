@@ -31,3 +31,10 @@ prefers-reduced-motion)。**配色不采纳其 teal**——保留操作者指定
 
 修复前: 「全部重扫」在 960 宽被 flex 挤压 4px(scrollWidth 72 > clientWidth 68)。
 修复后: 6 组合全部零溢出。字号收敛到 {12,13,16,18}(caption/body/input/heading)。
+
+## 无障碍对比 (Kimi 终审 P1/P2 修复, WCAG AA ≥4.5:1)
+- 填充按钮: 橘黄 #EF9F27 底 + **深墨字 #33322F** = **5.77:1**(原白字仅 2.17:1); hover 保持浅橘 #E2921D 维持达标
+- 次级/caption 文字: **#6B675E** on white = **5.67:1**(原 #8A867E 仅 3.4:1)
+- 状态文字 ok/bad on white 达标
+- 回归测试 `src/theme.test.ts` 锁死上述比值(4 断言)
+- 触达目标: 按钮 minWidth 44; reduced-motion 只降 transition 保留 spinner
