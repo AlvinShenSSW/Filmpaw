@@ -24,3 +24,10 @@ __pycache__/
 
 # openapi-ts transient error logs
 openapi-ts-error-*.log
+
+# build artifacts
+app/src-tauri/binaries/
+app/server/dist/
+app/server/build/
+app/server/sidecar_entry.py
+app/server/*.spec

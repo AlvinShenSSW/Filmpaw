@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: app/ui/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Server tests
+        working-directory: app/server
+        run: |
+          uv sync
+          uv run pytest -q
+
+      - name: OpenAPI drift check
+        working-directory: app/server
+        run: |
+          uv run python -c "
+          import json
+          from filmpaw_server.app import create_app
+          open('../ui/openapi.json', 'w', encoding='utf-8').write(json.dumps(create_app().openapi(), ensure_ascii=False, indent=1))
+          "
+          git diff --exit-code ../ui/openapi.json || (echo '::error::openapi.json is stale — run the export and commit' && exit 1)
+
+      - name: UI checks
+        working-directory: app/ui
+        run: |
+          pnpm install --frozen-lockfile
+          ./node_modules/.bin/tsc --noEmit
+          ./node_modules/.bin/biome ci src
+          ./node_modules/.bin/vitest run
+
+      - name: Build sidecar (PyInstaller)
+        working-directory: app/server
+        run: uv run python build_sidecar.py
+
+      - name: Sidecar smoke (frozen binary announces its port)
+        working-directory: app/server
+        run: |
+          uv run python - <<'EOF'
+          import glob
+          import subprocess
+          import sys
+          import threading
+
+          exe = glob.glob("../src-tauri/binaries/filmpaw-server-*.exe")[0]
+          p = subprocess.Popen([exe], stdout=subprocess.PIPE, text=True)
+          result = {}
+
+          def read() -> None:
+              result["line"] = p.stdout.readline().strip()
+
+          t = threading.Thread(target=read, daemon=True)
+          t.start()
+          t.join(30)
+          p.kill()
+          line = result.get("line", "")
+          print("sidecar first line:", line or "<none within 30s>")
+          sys.exit(0 if line.startswith("FILMPAW_PORT=") else 1)
+          EOF
+
+      - name: Tauri build (NSIS)
+        working-directory: app
+        run: ui/node_modules/.bin/tauri build
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: filmpaw-nsis
+          path: app/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

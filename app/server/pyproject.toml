@@ -17,6 +17,7 @@ filmpaw-server = "filmpaw_server.main:main"
 dev = [
     "pytest>=8.4",
     "httpx>=0.28",
+    "pyinstaller>=6.21.0",
 ]
 
 [build-system]

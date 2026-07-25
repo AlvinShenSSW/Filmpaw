@@ -16,12 +16,20 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
     "targets": [
       "nsis"
     ],
     "icon": [
       "icons/icon.ico"
-    ]
+    ],
+    "externalBin": [
+      "binaries/filmpaw-server"
+    ],
+    "windows": {
+      "nsis": {
+        "displayLanguageSelector": false
+      }
+    }
   }
 }

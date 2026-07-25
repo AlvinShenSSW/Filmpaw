@@ -1,6 +1,7 @@
 /** Server port resolution: Tauri injects window.__FILMPAW_PORT__; dev falls back to 8720. */
 
 declare global {
+  const __APP_VERSION__: string;
   interface Window {
     __FILMPAW_PORT__?: number;
     __TAURI_INTERNALS__?: unknown;

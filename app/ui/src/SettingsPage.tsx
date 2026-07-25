@@ -253,7 +253,8 @@ export function SettingsPage() {
       </Box>
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 3 }}>
-        数据库: {settings.data?.db_path ?? "…"} · v{health.data?.version ?? "…"}
+        数据库: {settings.data?.db_path ?? "…"} · v{__APP_VERSION__} · server v
+        {health.data?.version ?? "…"}
       </Typography>
 
       <Dialog open={confirmDelete !== null} onClose={() => setConfirmDelete(null)}>

@@ -28,25 +28,46 @@ fn kill_server_tree(child: &mut Child) {
     let _ = child.kill();
 }
 
-/// Spawn the server. Dev: `uv run --project <server dir> filmpaw-server`.
-/// Packaged (#7): the FILMPAW_SERVER_BIN env var / bundled sidecar path.
-fn spawn_server() -> (Child, u16) {
-    let (program, args): (String, Vec<String>) = match std::env::var("FILMPAW_SERVER_BIN") {
-        Ok(bin) => (bin, vec![]),
-        Err(_) => {
-            let server_dir = std::env::current_dir()
-                .expect("cwd")
-                .parent()
-                .expect("app dir")
-                .join("server")
-                .to_string_lossy()
-                .into_owned();
-            (
-                "uv".into(),
-                vec!["run".into(), "--project".into(), server_dir, "filmpaw-server".into()],
-            )
+/// Spawn the server. Resolution order:
+/// 1. FILMPAW_SERVER_BIN env override (tests / custom setups)
+/// 2. packaged: the bundled sidecar next to the app exe
+/// 3. dev: `uv run --project <server dir> filmpaw-server`
+fn server_command() -> (String, Vec<String>) {
+    if let Ok(bin) = std::env::var("FILMPAW_SERVER_BIN") {
+        return (bin, vec![]);
+    }
+    if !cfg!(debug_assertions) {
+        // Packaged: the sidecar MUST sit next to the exe. Never fall back to
+        // the dev `uv` path in release — it would mask a missing sidecar with
+        // a confusing spawn failure on user machines.
+        let exe = std::env::current_exe().expect("current_exe");
+        let sidecar = exe
+            .parent()
+            .expect("exe dir")
+            .join("filmpaw-server.exe");
+        if !sidecar.exists() {
+            panic!(
+                "packaged sidecar filmpaw-server.exe not found next to {}",
+                exe.display()
+            );
         }
-    };
+        return (sidecar.to_string_lossy().into_owned(), vec![]);
+    }
+    let server_dir = std::env::current_dir()
+        .expect("cwd")
+        .parent()
+        .expect("app dir")
+        .join("server")
+        .to_string_lossy()
+        .into_owned();
+    (
+        "uv".into(),
+        vec!["run".into(), "--project".into(), server_dir, "filmpaw-server".into()],
+    )
+}
+
+fn spawn_server() -> (Child, u16) {
+    let (program, args) = server_command();
 
     let mut command = Command::new(&program);
     command.args(&args);
