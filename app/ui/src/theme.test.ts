@@ -26,7 +26,8 @@ describe("token contrast (WCAG AA >= 4.5:1 for text)", () => {
     expect(ratio(tokens.ink, tokens.orangeHover)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("selected-folder text and deep-orange marks pass", () => {
+  it("selected-folder + avatar text and deep-orange marks pass", () => {
+    // orangeText on orangeSoft = the avatar first-char AND selected-folder pairing
     expect(ratio(tokens.orangeText, tokens.orangeSoft)).toBeGreaterThanOrEqual(4.5);
     expect(ratio(tokens.orangeDeep, tokens.white)).toBeGreaterThanOrEqual(4.5);
   });

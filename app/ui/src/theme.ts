@@ -61,7 +61,7 @@ export const theme = createTheme({
     h6: { fontSize: 18, fontWeight: 600, lineHeight: 1.4 },
     subtitle2: { fontSize: 14, fontWeight: 600, lineHeight: 1.5 },
     body2: { fontSize: 13, lineHeight: 1.6 },
-    caption: { fontSize: 12, lineHeight: 1.5, color: tokens.muted },
+    caption: { fontSize: 12, lineHeight: 1.5, color: "text.secondary" },
     button: { fontSize: 13, fontWeight: 600, textTransform: "none" },
   },
   components: {
@@ -90,7 +90,11 @@ export const theme = createTheme({
         },
         // Hover must stay light so INK text keeps AA contrast (the MUI
         // default darkens to primary.dark, which would drop the ratio).
-        containedPrimary: { "&:hover": { backgroundColor: tokens.orangeHover } },
+        containedPrimary: {
+          // Hover AND active stay light so ink text keeps AA (MUI would
+          // darken to primary.dark otherwise).
+          "&:hover, &:active": { backgroundColor: tokens.orangeHover },
+        },
         outlinedInherit: { borderColor: tokens.lineStrong, color: tokens.muted },
         sizeSmall: { paddingTop: 5, paddingBottom: 5 },
       },

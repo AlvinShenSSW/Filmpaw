@@ -70,7 +70,7 @@ export function PosterAvatar({
       sx={{
         ...common,
         bgcolor: tokens.orangeSoft,
-        color: tokens.orangeDeep,
+        color: tokens.orangeText, // 6.79:1 on soft; orangeDeep was only 4.27:1
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
