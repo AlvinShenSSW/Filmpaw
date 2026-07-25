@@ -1,5 +1,6 @@
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DnsIcon from "@mui/icons-material/Dns";
+import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -21,6 +22,7 @@ import {
   listSourcesApiSourcesGet,
   scanOneApiSourcesSourceIdScanPost,
 } from "./client";
+import { pickDirectory } from "./pickDirectory";
 
 interface ScanState {
   kind: "idle" | "scanning" | "ok" | "unreachable";
@@ -36,6 +38,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [uncInput, setUncInput] = useState("");
   const [addError, setAddError] = useState("");
+  const [isPicking, setIsPicking] = useState(false);
   const [scanStates, setScanStates] = useState<Record<number, ScanState>>({});
   const [confirmDelete, setConfirmDelete] = useState<{
     id: number;
@@ -127,6 +130,22 @@ export function SettingsPage() {
     },
   });
 
+  // Browse fills the input; the existing addSource still does server-side
+  // UNC normalization + reachability validation — no separate UI validation.
+  const browseForSource = async () => {
+    if (isPicking) return; // guard against concurrent dialogs
+    setIsPicking(true);
+    try {
+      const dir = await pickDirectory("选择 NAS 扫描源目录");
+      if (dir) {
+        setUncInput(dir);
+        setAddError("");
+      }
+    } finally {
+      setIsPicking(false);
+    }
+  };
+
   return (
     <Box sx={{ p: 3, maxWidth: 860 }}>
       <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
@@ -142,6 +161,16 @@ export function SettingsPage() {
           onChange={(e) => setUncInput(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "新扫描源路径" } }}
         />
+        <Button
+          variant="outlined"
+          color="inherit"
+          startIcon={<FolderOpenIcon />}
+          onClick={browseForSource}
+          disabled={isPicking}
+          sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: "#DDD9D1" }}
+        >
+          浏览
+        </Button>
         <Button
           variant="contained"
           disableElevation

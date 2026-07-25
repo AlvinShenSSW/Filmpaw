@@ -16,6 +16,7 @@ vi.mock("./client", () => ({
   openPairApiOpenPairPost: vi.fn(),
 }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
+vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
 
 import { ArchivePage } from "./ArchivePage";
 import {
@@ -24,6 +25,7 @@ import {
   localSubdirsApiLocalSubdirsGet,
   openPairApiOpenPairPost,
 } from "./client";
+import { pickDirectory } from "./pickDirectory";
 
 const REC = {
   id: "a3f2aaaa-0000-0000-0000-000000000001",
@@ -184,7 +186,7 @@ describe("stale results (Kimi R3)", () => {
 describe("chooseDir forensics (#18)", () => {
   it("shows the REAL error (not 'not found') when probe fails on a transient error", async () => {
     const { putSettingsApiSettingsPut } = await import("./client");
-    vi.spyOn(window, "prompt").mockReturnValue("D:/Downloads/新片");
+    vi.mocked(pickDirectory).mockResolvedValue("D:/Downloads/新片");
     // fresh mount with no saved dir so chooseDir is the only probe caller
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:db" },
@@ -200,7 +202,7 @@ describe("chooseDir forensics (#18)", () => {
 
   it("persists only after the server accepts the anchor, using its canonical value", async () => {
     const { putSettingsApiSettingsPut } = await import("./client");
-    vi.spyOn(window, "prompt").mockReturnValue("D:/Downloads/Movies/"); // fwd slash + trailing
+    vi.mocked(pickDirectory).mockResolvedValue("D:/Downloads/Movies/"); // fwd slash + trailing
     const CANON = "D:\\Downloads\\Movies";
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:\\db" },
@@ -223,7 +225,7 @@ describe("chooseDir forensics (#18)", () => {
   });
 
   it("reverts and reports when the server rejects the anchor", async () => {
-    vi.spyOn(window, "prompt").mockReturnValue("C:\\");
+    vi.mocked(pickDirectory).mockResolvedValue("C:\\");
     // drive root keeps its separator (not drive-relative "C:")
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:db" },
@@ -245,7 +247,7 @@ describe("chooseDir forensics (#18)", () => {
 
 describe("drive-root normalization (Codex #18)", () => {
   it("keeps the separator for a drive root instead of making it drive-relative", async () => {
-    vi.spyOn(window, "prompt").mockReturnValue("C:/");
+    vi.mocked(pickDirectory).mockResolvedValue("C:/");
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:db" },
     } as never);
@@ -260,7 +262,7 @@ describe("drive-root normalization (Codex #18)", () => {
   });
 
   it("collapses multiple trailing separators on a drive root to one", async () => {
-    vi.spyOn(window, "prompt").mockReturnValue("C:////");
+    vi.mocked(pickDirectory).mockResolvedValue("C:////");
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:db" },
     } as never);

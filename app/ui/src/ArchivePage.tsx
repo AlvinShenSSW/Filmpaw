@@ -16,21 +16,11 @@ import {
   putSettingsApiSettingsPut,
 } from "./client";
 import { PosterAvatar } from "./PerformersPage";
+import { pickDirectory } from "./pickDirectory";
 
 function detailOf(error: unknown, fallback: string): string {
   const detail = (error as { detail?: unknown } | undefined)?.detail;
   return typeof detail === "string" ? detail : fallback;
-}
-
-/** Tauri native dir picker; dev fallback = prompt for a path. */
-async function pickDirectory(): Promise<string | null> {
-  const { isTauri } = await import("@tauri-apps/api/core");
-  if (isTauri()) {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const r = await open({ directory: true, title: "选择本地下载目录" });
-    return typeof r === "string" ? r : null;
-  }
-  return window.prompt("输入本地目录路径 (dev 模式)");
 }
 
 export function ArchivePage() {
@@ -42,6 +32,7 @@ export function ArchivePage() {
   const [q, setQ] = useState("");
   const [toast, setToast] = useState("");
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [isPicking, setIsPicking] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -87,7 +78,17 @@ export function ArchivePage() {
   });
 
   const chooseDir = async () => {
-    const raw = await pickDirectory();
+    if (isPicking) return; // guard against concurrent dialogs / probe+save
+    setIsPicking(true);
+    try {
+      await runChooseDir();
+    } finally {
+      setIsPicking(false);
+    }
+  };
+
+  const runChooseDir = async () => {
+    const raw = await pickDirectory("选择本地下载目录");
     if (!raw) return;
     // Defensive normalization: some pickers/platforms hand back forward
     // slashes or a trailing separator; keep the stored anchor canonical
@@ -171,6 +172,7 @@ export function ArchivePage() {
           color="inherit"
           startIcon={<FolderIcon />}
           onClick={chooseDir}
+          disabled={isPicking}
           sx={{
             justifyContent: "flex-start",
             textTransform: "none",
