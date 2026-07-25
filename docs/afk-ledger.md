@@ -23,7 +23,7 @@
 | #5 UI 表演者库 | **merged** ✅ | issue-5-performers-ui(已删) | [#13](https://github.com/AlvinShenSSW/Filmpaw/pull/13) | Codex P1 清理范围+P2 分页; Kimi 错误浮现; 14 UI tests |
 | #6 UI 归档对比 | **merged** ✅ | issue-6-archive-ui(已删) | [#14](https://github.com/AlvinShenSSW/Filmpaw/pull/14) | Codex CLEAN; Kimi 5轮(symlink逃逸/锚点/TOCTOU/服务端join); R5 无P1 收敛 |
 | #8 来源筛选 | **merged** ✅ | issue-8-source-filter(已删) | [#15](https://github.com/AlvinShenSSW/Filmpaw/pull/15) | Codex CLEAN×2连; Kimi 失效重置; 26 UI tests |
-| #7 打包+CI | next | issue-7-packaging | — | 收官: PyInstaller+NSIS+CI+openapi漂移+评审延后加固 |
+| #7 打包+CI | **merged** ✅ | issue-7-packaging(已删) | [#16](https://github.com/AlvinShenSSW/Filmpaw/pull/16) | Codex CLEAN×3连; Kimi 3条修; CI 三跑收敛(CRLF→绿→冒烟绿); NSIS 产出+打包冒烟 |
 
 ## 决策日志
 
@@ -40,3 +40,8 @@
 - (2026-07-25) 操作者指令: 终审 GLM→Kimi。GLM 两次超时(25/40min 皆死在 6 轨汇总), kilo 孤儿泄露已修。#3 起终审 = Kimi。
 - (2026-07-25) 断流根治: 常驻 Monitor 心跳(20min)上线, session cron 降级为参考。规则: 每轮收尾必留在途唤醒源, 心跳兜底。
 - (#4) 教训: 管道 `| tail` 会吞掉退出码 — 检查命令一律显式验证 $? 或不接管道。openapi 漂移防护+本地端点加固已转 #7。
+
+## 🏁 运行结束 (2026-07-25 14:3x)
+
+队列 #1-#8 全部 merged+closed。调度器已清理(cron d09476ca + 心跳 monitor)。
+最终报告见会话记录。遗留加固项集中记录于 issue #7 正文(v1.1 批次)。
