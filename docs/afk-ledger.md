@@ -18,8 +18,8 @@
 |---|---|---|---|---|
 | #1 Scaffold + 全局壳 | **merged** ✅ | issue-1-scaffold(已删) | [#9](https://github.com/AlvinShenSSW/Filmpaw/pull/9) | 全评审链过: CTO 3fix / Codex 1P2 / GLM 两轮(R1 5项修, R2 无P1) → squash 合并 |
 | #2 Server 扫描引擎 | **merged** ✅ | issue-2-scan-engine(已删) | [#10](https://github.com/AlvinShenSSW/Filmpaw/pull/10) | 27 tests; CTO/Codex×2/GLM×2 全链, GLM R1 抓到 P1 脏事务, R2 APPROVE WITH COMMENTS |
-| #3 Server API | next | issue-3-performers-api | — | Wave 3; #4 可并行(依赖#2已并入main) |
-| #4 UI 设置页 | pending | — | — | 依赖 #2, 可与 #3 并行 |
+| #3 Server API | **merged** ✅ | issue-3-performers-api(已删) | [#11](https://github.com/AlvinShenSSW/Filmpaw/pull/11) | 42 tests; CTO 2fix / Codex 1驳回 / Kimi R1 1P1+2 R2 APPROVE-WC |
+| #4 UI 设置页 | next | issue-4-settings-ui | — | server 全部就绪, TS client 生成链在此打通 |
 | #5 UI 表演者库 | pending | — | — | |
 | #6 UI 归档对比 | pending | — | — | |
 | #8 来源筛选 | pending | — | — | 在 #5 之后 |
