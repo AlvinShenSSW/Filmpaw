@@ -45,3 +45,16 @@
 
 队列 #1-#8 全部 merged+closed。调度器已清理(cron d09476ca + 心跳 monitor)。
 最终报告见会话记录。遗留加固项集中记录于 issue #7 正文(v1.1 批次)。
+
+## v1.1 运行 (2026-07-25 操作者实测反馈, 4 issues)
+
+- Scope: **#17 console窗口 → #18 目录不可访问bug → #19 源路径选择器 → #20 UI/UX打磨(必须 ui-ux-pro-max)**
+- 流程同 v1.0: issue 先过 Codex 前置门 → 逐 issue 瀑布(CTO→Codex→Kimi, merge-when-green)
+- 心跳 monitor 已重启; #20 依赖 #17-#19 先行(UI 打磨最后做避免冲突)
+
+| Issue | 状态 | 分支 | PR | 备注 |
+|---|---|---|---|---|
+| #17 console 窗口 | issue-gate | — | — | Codex 前置门评审中 |
+| #18 目录不可访问 | issue-gate | — | — | 需打包版复现定位 |
+| #19 源路径选择器 | issue-gate | — | — | |
+| #20 UI/UX 打磨 | issue-gate | — | — | 收尾, 用 ui-ux-pro-max |
