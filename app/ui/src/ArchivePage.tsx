@@ -87,17 +87,29 @@ export function ArchivePage() {
   });
 
   const chooseDir = async () => {
-    const dir = await pickDirectory();
-    if (!dir) return;
+    const raw = await pickDirectory();
+    if (!raw) return;
+    // Defensive normalization: some pickers/platforms hand back forward
+    // slashes or a trailing separator; the server is tolerant but keep the
+    // stored anchor canonical (Windows backslashes, no trailing slash).
+    const dir = raw.replace(/\//g, "\\").replace(/\\+$/, "");
     // Validate before persisting: a bad pick must not poison the saved dir.
     const probe = await localSubdirsApiLocalSubdirsGet({ query: { path: dir } });
     if (probe.error || !probe.data) {
-      setToast("目录不存在或不可访问 — 未保存");
+      // Surface the REAL reason instead of always claiming "not found" —
+      // a probe can fail from a transient/connection error too (#18).
+      setToast(`无法读取目录: ${detailOf(probe.error, "server 未响应")} — 未保存`);
       return;
     }
-    setLocalDir(dir);
+    // Persist and only apply local state after the server ACCEPTS the anchor
+    // (its validation is the containment boundary); revert on rejection.
+    const saved = await putSettingsApiSettingsPut({ body: { last_local_dir: dir } });
+    if (saved.error || !saved.data) {
+      setToast(`保存目录失败: ${detailOf(saved.error, "server 拒绝")}`);
+      return;
+    }
+    setLocalDir(saved.data.last_local_dir ?? dir);
     setSelected(null);
-    await putSettingsApiSettingsPut({ body: { last_local_dir: dir } });
     queryClient.invalidateQueries({ queryKey: ["local-subdirs"] });
   };
 
@@ -170,7 +182,7 @@ export function ArchivePage() {
 
         {subdirs.isError && localDir && (
           <Typography variant="caption" sx={{ color: "#A32D2D" }} role="alert">
-            目录不存在或不可访问 — 请重新选择
+            读取失败: {detailOf(subdirs.error, "server 未响应")} — 请重新选择
           </Typography>
         )}
         {dirLoaded && !localDir && (
