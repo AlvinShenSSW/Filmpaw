@@ -23,6 +23,7 @@ import {
   scanOneApiSourcesSourceIdScanPost,
 } from "./client";
 import { pickDirectory } from "./pickDirectory";
+import { tokens } from "./theme";
 
 interface ScanState {
   kind: "idle" | "scanning" | "ok" | "unreachable";
@@ -152,14 +153,21 @@ export function SettingsPage() {
         设置
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          flexWrap: "wrap",
+          "& > .MuiButtonBase-root": { flexShrink: 0 },
+        }}
+      >
         <TextField
-          fullWidth
           size="small"
           placeholder="\\NAS名\共享\目录\"
           value={uncInput}
           onChange={(e) => setUncInput(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "新扫描源路径" } }}
+          sx={{ flex: 1, minWidth: 220 }}
         />
         <Button
           variant="outlined"
@@ -167,7 +175,7 @@ export function SettingsPage() {
           startIcon={<FolderOpenIcon />}
           onClick={browseForSource}
           disabled={isPicking}
-          sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: "#DDD9D1" }}
+          sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: tokens.lineStrong }}
         >
           浏览
         </Button>
@@ -182,7 +190,7 @@ export function SettingsPage() {
         </Button>
       </Box>
       {addError && (
-        <Typography variant="body2" sx={{ color: "#A32D2D", mt: 0.75 }} role="alert">
+        <Typography variant="body2" sx={{ color: tokens.bad, mt: 0.75 }} role="alert">
           {addError}
         </Typography>
       )}
@@ -197,15 +205,15 @@ export function SettingsPage() {
                 border: "1px solid",
                 borderColor:
                   scan.kind === "ok"
-                    ? "#C4DD9D"
+                    ? tokens.okBorder
                     : scan.kind === "unreachable"
-                      ? "#F0B8B8"
-                      : "#ECEAE4",
+                      ? tokens.badBorder
+                      : tokens.line,
                 bgcolor:
                   scan.kind === "ok"
-                    ? "#EAF3DE"
+                    ? tokens.okBg
                     : scan.kind === "unreachable"
-                      ? "#FCEBEB"
+                      ? tokens.badBg
                       : "background.default",
                 borderRadius: "11px",
                 p: "11px 14px",
@@ -214,11 +222,11 @@ export function SettingsPage() {
                 gap: 1.5,
               }}
             >
-              <DnsIcon sx={{ color: "#B45E14", fontSize: 20 }} />
+              <DnsIcon sx={{ color: tokens.orangeDeep, fontSize: 20 }} />
               <Box sx={{ minWidth: 0, flex: 1 }}>
                 <Typography
                   variant="body2"
-                  sx={{ fontWeight: 600, fontFamily: "Consolas, monospace" }}
+                  sx={{ fontWeight: 600, fontFamily: tokens.mono }}
                   noWrap
                 >
                   {s.unc_path}
@@ -228,9 +236,9 @@ export function SettingsPage() {
                   sx={{
                     color:
                       scan.kind === "ok"
-                        ? "#3B6D11"
+                        ? tokens.ok
                         : scan.kind === "unreachable"
-                          ? "#A32D2D"
+                          ? tokens.bad
                           : "text.secondary",
                   }}
                 >
@@ -254,7 +262,7 @@ export function SettingsPage() {
                 startIcon={<RefreshIcon />}
                 onClick={() => scanOne.mutate(s.id)}
                 disabled={scan.kind === "scanning"}
-                sx={{ color: "text.secondary", borderColor: "#DDD9D1" }}
+                sx={{ color: "text.secondary", borderColor: tokens.lineStrong }}
               >
                 扫描
               </Button>

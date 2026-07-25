@@ -13,7 +13,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { ArchivePage, PerformersPage, SettingsPage } from "./pages";
-import { RAIL_WIDTH } from "./theme";
+import { RAIL_WIDTH, tokens } from "./theme";
 
 function RailButton({
   to,
@@ -33,9 +33,9 @@ function RailButton({
               width: 40,
               height: 40,
               borderRadius: "10px",
-              color: isActive ? "#FFF" : "text.secondary",
+              color: isActive ? tokens.ink : "text.secondary",
               bgcolor: isActive ? "primary.main" : "transparent",
-              "&:hover": { bgcolor: isActive ? "primary.main" : "#F0EEE8" },
+              "&:hover": { bgcolor: isActive ? "primary.main" : tokens.hoverBg },
             }}
           >
             {children}
@@ -55,7 +55,7 @@ function Shell() {
         sx={{
           width: RAIL_WIDTH,
           flexShrink: 0,
-          borderRight: "1px solid #ECEAE4",
+          borderRight: `1px solid ${tokens.line}`,
           bgcolor: "background.paper",
           display: "flex",
           flexDirection: "column",

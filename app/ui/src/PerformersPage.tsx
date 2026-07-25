@@ -36,6 +36,7 @@ import {
   purgeMissingApiPerformersPurgeMissingPost,
   scanAllApiScanAllPost,
 } from "./client";
+import { tokens } from "./theme";
 
 export function PosterAvatar({
   performer,
@@ -68,8 +69,8 @@ export function PosterAvatar({
       aria-label={`${performer.name} 首字头像`}
       sx={{
         ...common,
-        bgcolor: "#FDF3E3",
-        color: "#B45E14",
+        bgcolor: tokens.orangeSoft,
+        color: tokens.orangeText, // 6.79:1 on soft; orangeDeep was only 4.27:1
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -241,14 +242,23 @@ export function PerformersPage() {
 
   return (
     <Box sx={{ p: 3, display: "flex", flexDirection: "column", height: "100%" }}>
-      <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", mb: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          alignItems: "center",
+          mb: 1.5,
+          flexWrap: "wrap",
+          "& > .MuiButtonBase-root, & > .MuiFormControlLabel-root": { flexShrink: 0 },
+        }}
+      >
         <TextField
-          fullWidth
           size="small"
           placeholder="搜索名字或别名(支持繁简互搜)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "搜索表演者" } }}
+          sx={{ flex: 1, minWidth: 200 }}
         />
         <TextField
           select
@@ -288,7 +298,7 @@ export function PerformersPage() {
           size="small"
           onClick={() => setConfirmPurge(true)}
           disabled={missingTotal === 0}
-          sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: "#DDD9D1" }}
+          sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: tokens.lineStrong }}
         >
           清理失效
         </Button>
@@ -306,7 +316,7 @@ export function PerformersPage() {
       </Box>
 
       <TableContainer
-        sx={{ border: "1px solid #ECEAE4", borderRadius: "10px", flex: 1, minHeight: 0 }}
+        sx={{ border: `1px solid ${tokens.line}`, borderRadius: "10px", flex: 1, minHeight: 0 }}
       >
         <Table size="small" stickyHeader aria-label="表演者列表">
           <TableHead>
@@ -330,7 +340,7 @@ export function PerformersPage() {
                   <Tooltip title={p.id}>
                     <Typography
                       variant="caption"
-                      sx={{ fontFamily: "Consolas, monospace", color: "text.secondary" }}
+                      sx={{ fontFamily: tokens.mono, color: "text.secondary" }}
                     >
                       {p.id.slice(0, 4)}
                     </Typography>
@@ -374,7 +384,7 @@ export function PerformersPage() {
                         setAliasEditFor(p.id);
                         setAliasInput("");
                       }}
-                      sx={{ color: "#B45E14", fontSize: 12, minWidth: 0 }}
+                      sx={{ color: tokens.orangeDeep, fontSize: 12, minWidth: 0 }}
                     >
                       ＋ 别名
                     </Button>
@@ -386,7 +396,7 @@ export function PerformersPage() {
                       variant="caption"
                       noWrap
                       sx={{
-                        fontFamily: "Consolas, monospace",
+                        fontFamily: tokens.mono,
                         color: "text.secondary",
                         display: "block",
                         maxWidth: 270,
@@ -399,7 +409,7 @@ export function PerformersPage() {
                 <TableCell>
                   <Typography
                     variant="caption"
-                    sx={{ color: p.is_missing ? "text.disabled" : "#3B6D11" }}
+                    sx={{ color: p.is_missing ? tokens.muted : tokens.ok }}
                   >
                     {p.is_missing ? "○ 失效" : "● 在线"}
                   </Typography>
@@ -409,7 +419,7 @@ export function PerformersPage() {
                     size="small"
                     aria-label={`打开 ${p.name} 的文件夹`}
                     onClick={() => openFolder.mutate(p.id)}
-                    sx={{ color: "#B45E14" }}
+                    sx={{ color: tokens.orangeDeep }}
                   >
                     <FolderOpenIcon fontSize="small" />
                   </IconButton>
@@ -429,7 +439,7 @@ export function PerformersPage() {
               <TableRow>
                 <TableCell colSpan={7}>
                   <Box sx={{ textAlign: "center", py: 6 }} role="alert">
-                    <Typography variant="body2" sx={{ color: "#A32D2D", mb: 1 }}>
+                    <Typography variant="body2" sx={{ color: tokens.bad, mb: 1 }}>
                       列表加载失败 — 请确认 server 正在运行
                     </Typography>
                     <Button size="small" onClick={() => performers.refetch()}>
@@ -473,7 +483,7 @@ export function PerformersPage() {
             size="small"
             onClick={() => performers.fetchNextPage()}
             disabled={performers.isFetchingNextPage}
-            sx={{ color: "#B45E14", fontSize: 12 }}
+            sx={{ color: tokens.orangeDeep, fontSize: 12 }}
           >
             加载更多
           </Button>
