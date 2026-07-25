@@ -87,6 +87,7 @@ def delete_source(request: Request, source_id: int) -> None:
         conn = _conn(request)
         cur = conn.execute("DELETE FROM sources WHERE id=?", (source_id,))
         if cur.rowcount == 0:
+            conn.rollback()  # 0-row DML still opened an implicit transaction
             raise HTTPException(status_code=404, detail="源不存在")
         conn.commit()
 
