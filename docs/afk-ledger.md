@@ -55,6 +55,6 @@
 | Issue | 状态 | 分支 | PR | 备注 |
 |---|---|---|---|---|
 | #17 console 窗口 | **merged** ✅ | issue-17-no-console(已删) | #21 | CREATE_NO_WINDOW; Codex CLEAN/Kimi APPROVE; 冒烟3/3 |
-| #18 目录不可访问 | next | issue-18-local-dir-bug | — | 先冻结sidecar路径矩阵取证 |
-| #19 源路径选择器 | issue-gate | — | — | |
+| #18 目录不可访问 | **merged** ✅ | issue-18-local-dir-bug(已删) | #22 | 取证排除server; UI错误浮现修复; Codex盘符根/Kimi多分隔符; 31 tests |
+| #19 源路径选择器 | next | issue-19-source-picker | — | 抽共享 pickDirectory helper |
 | #20 UI/UX 打磨 | issue-gate | — | — | 收尾, 用 ui-ux-pro-max |
