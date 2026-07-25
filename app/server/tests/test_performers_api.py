@@ -312,3 +312,23 @@ def test_single_char_alias_no_reverse_noise(client, source_dir) -> None:
     assert client.post(f"/api/performers/{pid}/aliases", json={"alias": "白"}).status_code == 201
     assert _items(client, q="大白鲨(新)")["items"] == []   # no reverse noise
     assert _items(client, q="白")["items"][0]["name"] == "小白花"  # forward OK
+
+
+def test_open_clears_missing_when_folder_is_back(client, source_dir, opened) -> None:
+    """Kimi P2: opening a missing row whose folder is reachable again
+    clears the flag (it was just offline at last scan)."""
+    import shutil
+
+    d = add_performer_folder(source_dir, "回来了")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+
+    shutil.rmtree(d)
+    client.post(f"/api/sources/{sid}/scan")
+    assert _items(client)["items"][0]["is_missing"] is True
+
+    add_performer_folder(source_dir, "回来了")  # folder reappears (no rescan)
+    assert client.post(f"/api/performers/{pid}/open").status_code == 204
+    assert _items(client)["items"][0]["is_missing"] is False  # un-flagged
+    assert len(opened) == 1

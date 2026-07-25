@@ -15,7 +15,6 @@ import os
 import sqlite3
 import subprocess
 import sys
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
@@ -277,7 +276,15 @@ def open_performer(request: Request, performer_id: str) -> None:
             raise HTTPException(status_code=404, detail="表演者不存在")
     # Reachability check OUTSIDE the lock: an unreachable UNC path can block
     # for the whole network timeout and must not freeze every other request.
-    if not os.path.isdir(row["unc_path"]):
+    reachable = os.path.isdir(row["unc_path"])
+    if reachable and row["is_missing"]:
+        # The share was just offline at last scan — folder is back, un-flag it.
+        with _lock(request):
+            conn.execute(
+                "UPDATE performers SET is_missing=0 WHERE id=?", (performer_id,)
+            )
+            conn.commit()
+    if not reachable:
         with _lock(request):
             # Re-check the row still exists before flagging (it may have been
             # deleted while we probed the share).
