@@ -324,10 +324,13 @@ def open_performer(request: Request, performer_id: str) -> None:
     # for the whole network timeout and must not freeze every other request.
     reachable = os.path.isdir(row["unc_path"])
     if reachable and row["is_missing"]:
-        # The share was just offline at last scan — folder is back, un-flag it.
+        # The share was just offline at last scan — folder is back, un-flag
+        # it. Guard WHERE is_missing=1: the probe ran outside the lock and a
+        # concurrent scan may already have updated the row (stale read).
         with _lock(request):
             conn.execute(
-                "UPDATE performers SET is_missing=0 WHERE id=?", (performer_id,)
+                "UPDATE performers SET is_missing=0 WHERE id=? AND is_missing=1",
+                (performer_id,),
             )
             conn.commit()
     if not reachable:

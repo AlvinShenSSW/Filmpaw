@@ -28,3 +28,17 @@ def test_cors_allows_ui_origins() -> None:
         assert r.headers.get("access-control-allow-origin") == origin
     r = client.get("/api/health", headers={"Origin": "http://evil.example"})
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_cors_preflight_for_mutations() -> None:
+    """Kimi minor: mutations rely on OPTIONS preflight, not just simple GET."""
+    client = TestClient(create_app())
+    r = client.options(
+        "/api/sources",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert r.status_code == 200
+    assert "POST" in r.headers.get("access-control-allow-methods", "")
