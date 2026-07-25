@@ -17,8 +17,8 @@
 | Issue | 状态 | 分支 | PR | 备注 |
 |---|---|---|---|---|
 | #1 Scaffold + 全局壳 | **merged** ✅ | issue-1-scaffold(已删) | [#9](https://github.com/AlvinShenSSW/Filmpaw/pull/9) | 全评审链过: CTO 3fix / Codex 1P2 / GLM 两轮(R1 5项修, R2 无P1) → squash 合并 |
-| #2 Server 扫描引擎 | review | issue-2-scan-engine | [#10](https://github.com/AlvinShenSSW/Filmpaw/pull/10) | 25 tests 绿; CTO 1fix / Codex R1 1P1(并发锁) R2 1P2(大小写) 已修收敛; GLM 终审 detached 25min 跑道进行中 |
-| #3 Server API | pending | — | — | |
+| #2 Server 扫描引擎 | **merged** ✅ | issue-2-scan-engine(已删) | [#10](https://github.com/AlvinShenSSW/Filmpaw/pull/10) | 27 tests; CTO/Codex×2/GLM×2 全链, GLM R1 抓到 P1 脏事务, R2 APPROVE WITH COMMENTS |
+| #3 Server API | next | issue-3-performers-api | — | Wave 3; #4 可并行(依赖#2已并入main) |
 | #4 UI 设置页 | pending | — | — | 依赖 #2, 可与 #3 并行 |
 | #5 UI 表演者库 | pending | — | — | |
 | #6 UI 归档对比 | pending | — | — | |
@@ -36,3 +36,4 @@
 - (tick 0, gate) kilo CLI 评审完后 suggest 工具 schema bug 死循环→gate 超时收尾, verdict 需从 transcript 提取。kilo-gate 已加 --auto + fail-loud 写保护。
 - (#2) Codex 外门: P1 sqlite 并发竞态→全 handler 串行锁+并发回归测试; P2 大小写改名重复建档→casefold 匹配。
 - (gate) kilo review 固定起 6 轨多 agent 流程, 10 分钟工具上限不够 → 解法: detached 进程 + KILO_REVIEW_TIMEOUT_MS=1500000 + Monitor 监听。后续终审一律用此模式。
+- (#2) GLM P1: 扫描异常未回滚→共享连接脏事务被后续 commit 持久化(毁库级)。已修+回归测试。延后: off-lock 缩略图解码、格式预检。
