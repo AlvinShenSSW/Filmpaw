@@ -218,6 +218,8 @@ def test_open_pair_semantics(client, source_dir, tmp_path, opened) -> None:
     pid = _items(client)["items"][0]["id"]
     local = tmp_path / "downloads" / "配对"
     local.mkdir(parents=True)
+    # Containment guard: pair only opens inside the approved local dir.
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
 
     ok = client.post("/api/open-pair", json={"local_path": str(local), "performer_id": pid})
     assert ok.status_code == 204
@@ -337,3 +339,23 @@ def test_open_clears_missing_when_folder_is_back(client, source_dir, opened) -> 
     assert client.post(f"/api/performers/{pid}/open").status_code == 204
     assert _items(client)["items"][0]["is_missing"] is False  # un-flagged
     assert len(opened) == 1
+
+
+def test_open_pair_rejects_paths_outside_approved_dir(client, source_dir, tmp_path, opened) -> None:
+    """Kimi P2: containment — arbitrary directories must not be openable."""
+    add_performer_folder(source_dir, "越界")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+
+    outside = tmp_path / "elsewhere" / "越界"
+    outside.mkdir(parents=True)
+
+    r0 = client.post("/api/open-pair", json={"local_path": str(outside), "performer_id": pid})
+    assert r0.status_code == 422  # no approved dir yet
+
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
+    r = client.post("/api/open-pair", json={"local_path": str(outside), "performer_id": pid})
+    assert r.status_code == 422
+    assert "不在已选择" in r.json()["detail"]
+    assert opened == []

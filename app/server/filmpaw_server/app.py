@@ -1,5 +1,6 @@
 """FastAPI application factory."""
 
+import os
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -30,15 +31,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app = FastAPI(title="filmpaw-server", version=__version__, lifespan=lifespan)
     # The UI runs on a different origin than the sidecar (rsbuild dev
     # localhost:3000; packaged Tauri http://tauri.localhost) — without CORS
-    # every browser fetch to 127.0.0.1:<port> is blocked.
+    # every browser fetch to 127.0.0.1:<port> is blocked. Dev-server origins
+    # are trusted ONLY when FILMPAW_DEV=1 (set by the shell in debug builds):
+    # a shipped app must not trust arbitrary pages on localhost:3000.
+    origins = ["http://tauri.localhost", "tauri://localhost"]
+    if os.environ.get("FILMPAW_DEV") == "1":
+        origins += ["http://localhost:3000", "http://127.0.0.1:3000"]
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://tauri.localhost",
-            "tauri://localhost",
-        ],
+        allow_origins=origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

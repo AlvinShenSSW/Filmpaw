@@ -545,6 +545,18 @@ export type AddAliasApiPerformersPerformerIdAliasesPostData = {
 
 export type AddAliasApiPerformersPerformerIdAliasesPostErrors = {
     /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    409: {
+        detail?: string;
+    };
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -692,6 +704,12 @@ export type OpenPerformerApiPerformersPerformerIdOpenPostData = {
 
 export type OpenPerformerApiPerformersPerformerIdOpenPostErrors = {
     /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -747,9 +765,23 @@ export type OpenPairApiOpenPairPostData = {
 
 export type OpenPairApiOpenPairPostErrors = {
     /**
-     * Validation Error
+     * 错误
      */
-    422: HttpValidationError;
+    404: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    409: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    422: {
+        detail?: string;
+    };
 };
 
 export type OpenPairApiOpenPairPostError = OpenPairApiOpenPairPostErrors[keyof OpenPairApiOpenPairPostErrors];

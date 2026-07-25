@@ -141,3 +141,28 @@ describe("ArchivePage", () => {
     expect(screen.getByText(/可能用了别的艺名/)).toBeInTheDocument();
   });
 });
+
+describe("Kimi verify fixes", () => {
+  it("search failure shows an alert with retry (not silence)", async () => {
+    vi.mocked(listPerformersApiPerformersGet).mockRejectedValue(new Error("ECONNREFUSED"));
+    renderPage();
+    await userEvent.type(await screen.findByLabelText("匹配搜索"), "谁");
+    expect(await screen.findByRole("alert")).toHaveTextContent("匹配加载失败");
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+  });
+
+  it("forward-slash localDir joins with forward slash", async () => {
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: "/mnt/downloads", db_path: "X:db" },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /^小红$/ }));
+    const pairButtons = await screen.findAllByRole("button", { name: /双开/ });
+    await userEvent.click(pairButtons[0]);
+    await waitFor(() =>
+      expect(openPairApiOpenPairPost).toHaveBeenCalledWith({
+        body: { local_path: "/mnt/downloads/小红", performer_id: REC.id },
+      }),
+    );
+  });
+});

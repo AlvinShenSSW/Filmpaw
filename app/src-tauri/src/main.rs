@@ -48,8 +48,12 @@ fn spawn_server() -> (Child, u16) {
         }
     };
 
-    let mut child = Command::new(&program)
-        .args(&args)
+    let mut command = Command::new(&program);
+    command.args(&args);
+    // Dev-server CORS origins are trusted only when the shell says so.
+    #[cfg(debug_assertions)]
+    command.env("FILMPAW_DEV", "1");
+    let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()

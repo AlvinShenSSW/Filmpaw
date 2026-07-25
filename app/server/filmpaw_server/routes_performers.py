@@ -28,6 +28,16 @@ router = APIRouter(prefix="/api")
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
 
+# OpenAPI declaration for the 4xx-with-detail responses the UI depends on.
+_ERR = {
+    "description": "错误",
+    "content": {
+        "application/json": {
+            "schema": {"type": "object", "properties": {"detail": {"type": "string"}}}
+        }
+    },
+}
+
 
 class AliasOut(BaseModel):
     id: int
@@ -220,7 +230,12 @@ class AliasIn(BaseModel):
     alias: str
 
 
-@router.post("/performers/{performer_id}/aliases", status_code=201, response_model=AliasOut)
+@router.post(
+    "/performers/{performer_id}/aliases",
+    status_code=201,
+    response_model=AliasOut,
+    responses={404: _ERR, 409: _ERR},
+)
 def add_alias(request: Request, performer_id: str, body: AliasIn) -> dict:
     alias = body.alias.strip()
     if not alias:
@@ -319,7 +334,7 @@ def put_settings(request: Request, body: SettingsIn) -> dict:
 # ------------------------------------------------------------- open / local
 
 
-@router.post("/performers/{performer_id}/open", status_code=204)
+@router.post("/performers/{performer_id}/open", status_code=204, responses={404: _ERR})
 def open_performer(request: Request, performer_id: str) -> None:
     conn = _conn(request)
     with _lock(request):
@@ -371,8 +386,27 @@ class OpenPairIn(BaseModel):
     performer_id: str
 
 
-@router.post("/open-pair", status_code=204)
+@router.post("/open-pair", status_code=204, responses={404: _ERR, 409: _ERR, 422: _ERR})
 def open_pair(request: Request, body: OpenPairIn) -> None:
+    # Containment guard (Kimi review): only paths inside the user-approved
+    # last_local_dir may be opened — the CORS surface must never grant
+    # arbitrary directory opens.
+    with _lock(request):
+        approved_row = _conn(request).execute(
+            "SELECT value FROM settings WHERE key='last_local_dir'"
+        ).fetchone()
+    approved = approved_row["value"] if approved_row and approved_row["value"] else None
+    if approved is None:
+        raise HTTPException(status_code=422, detail="尚未选择本地目录")
+    try:
+        inside = (
+            os.path.commonpath([os.path.abspath(body.local_path), os.path.abspath(approved)])
+            == os.path.abspath(approved)
+        )
+    except ValueError:  # different drives
+        inside = False
+    if not inside:
+        raise HTTPException(status_code=422, detail="路径不在已选择的本地目录内")
     if not os.path.isdir(body.local_path):
         raise HTTPException(status_code=422, detail="本地目录不存在 — 请重新选择")
     conn = _conn(request)

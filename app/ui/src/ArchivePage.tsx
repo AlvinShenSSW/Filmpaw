@@ -7,7 +7,7 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   getSettingsApiSettingsGet,
   listPerformersApiPerformersGet,
@@ -41,6 +41,12 @@ export function ArchivePage() {
   const [q, setQ] = useState("");
   const [toast, setToast] = useState("");
   const [flashId, setFlashId] = useState<string | null>(null);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+    };
+  }, []);
 
   // Restore the remembered directory once on mount.
   useEffect(() => {
@@ -82,6 +88,12 @@ export function ArchivePage() {
   const chooseDir = async () => {
     const dir = await pickDirectory();
     if (!dir) return;
+    // Validate before persisting: a bad pick must not poison the saved dir.
+    const probe = await localSubdirsApiLocalSubdirsGet({ query: { path: dir } });
+    if (probe.error || !probe.data) {
+      setToast("目录不存在或不可访问 — 未保存");
+      return;
+    }
     setLocalDir(dir);
     setSelected(null);
     await putSettingsApiSettingsPut({ body: { last_local_dir: dir } });
@@ -91,15 +103,20 @@ export function ArchivePage() {
   const openPair = useMutation({
     mutationFn: async (performerId: string) => {
       if (!localDir || !selected) throw new Error("no-selection");
+      // Separator follows the picked dir (tauri may hand back / on some
+      // platforms); never hardcode a backslash.
+      const sep = localDir.includes("/") ? "/" : "\\";
+      const base = localDir.endsWith(sep) ? localDir.slice(0, -1) : localDir;
       const r = await openPairApiOpenPairPost({
-        body: { local_path: `${localDir}\\${selected}`, performer_id: performerId },
+        body: { local_path: `${base}${sep}${selected}`, performer_id: performerId },
       });
       if (r.error) throw r.error;
       return performerId;
     },
     onSuccess: (performerId) => {
       setFlashId(performerId);
-      setTimeout(() => setFlashId(null), 900);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlashId(null), 900);
     },
     onError: (e) => {
       setToast(detailOf(e, "双开失败"));
@@ -197,9 +214,22 @@ export function ArchivePage() {
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "匹配搜索" } }}
         />
-        {q.trim() !== "" && (
+        {results.isError && (
+          <Box sx={{ my: 1 }} role="alert">
+            <Typography variant="caption" sx={{ color: "#A32D2D", mr: 1 }}>
+              匹配加载失败 — 请确认 server 正在运行
+            </Typography>
+            <Button size="small" onClick={() => results.refetch()}>
+              重试
+            </Button>
+          </Box>
+        )}
+        {q.trim() !== "" && !results.isError && (
           <Typography variant="caption" color="text.secondary" sx={{ my: 1 }}>
             {items.length} 条匹配(名字/别名 · 含繁简)
+            {(results.data?.total ?? 0) > items.length
+              ? ` · 共 ${results.data?.total} 条, 仅显示前 ${items.length} — 请细化搜索词`
+              : ""}
           </Typography>
         )}
 
