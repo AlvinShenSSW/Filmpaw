@@ -694,6 +694,10 @@
      "source_count": {
       "type": "integer",
       "title": "Source Count"
+     },
+     "missing_total": {
+      "type": "integer",
+      "title": "Missing Total"
      }
     },
     "type": "object",
@@ -702,7 +706,8 @@
      "total",
      "page",
      "page_size",
-     "source_count"
+     "source_count",
+     "missing_total"
     ],
     "title": "PerformerListOut"
    },

@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 
+export { PerformersPage } from "./PerformersPage";
 export { SettingsPage } from "./SettingsPage";
 
 function Placeholder({ title, note }: { title: string; note: string }) {
@@ -14,10 +15,6 @@ function Placeholder({ title, note }: { title: string; note: string }) {
       </Typography>
     </Box>
   );
-}
-
-export function PerformersPage() {
-  return <Placeholder title="表演者库" note="issue #5 实现 — 列表/搜索/别名/失效清理" />;
 }
 
 export function ArchivePage() {

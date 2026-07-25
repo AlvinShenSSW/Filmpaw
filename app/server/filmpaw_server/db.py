@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS performers (
 );
 CREATE INDEX IF NOT EXISTS idx_performers_name_norm ON performers(name_norm);
 CREATE INDEX IF NOT EXISTS idx_performers_source ON performers(source_id);
+CREATE INDEX IF NOT EXISTS idx_performers_is_missing ON performers(is_missing);
 CREATE TABLE IF NOT EXISTS aliases (
   id INTEGER PRIMARY KEY,
   name_norm TEXT NOT NULL,

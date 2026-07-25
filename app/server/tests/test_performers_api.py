@@ -164,6 +164,9 @@ def test_filters_and_stats_ignore_pagination(client, source_dir, tmp_path) -> No
 
     both = _items(client, include_missing=True, page_size=1)
     assert both["total"] == 3  # total ignores pagination
+    assert both["missing_total"] == 1  # global, filter-independent (purge scope)
+    # Codex P1 regression: a filtered view must still report the GLOBAL count
+    assert _items(client, q="甲")["missing_total"] == 1
     only = _items(client, include_missing=False)
     assert only["total"] == 2
     assert {i["name"] for i in only["items"]} == {"甲", "乙"}
