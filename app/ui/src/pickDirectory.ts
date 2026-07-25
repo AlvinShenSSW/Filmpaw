@@ -6,7 +6,8 @@ export async function pickDirectory(title: string): Promise<string | null> {
   if (isTauri()) {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const r = await open({ directory: true, title });
-    return typeof r === "string" ? r : null;
+    // Same null-on-empty contract as the dev branch below.
+    return typeof r === "string" && r.trim() ? r.trim() : null;
   }
   const r = window.prompt(`${title} (dev 模式: 输入路径)`);
   return r?.trim() ? r.trim() : null;
