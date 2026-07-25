@@ -5,7 +5,7 @@ import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "./theme";
 
 vi.mock("./client", () => ({
@@ -60,6 +60,8 @@ function renderPage() {
     </QueryClientProvider>,
   );
 }
+
+afterEach(() => vi.restoreAllMocks());
 
 beforeEach(() => {
   vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
@@ -176,5 +178,99 @@ describe("stale results (Kimi R3)", () => {
     await userEvent.clear(screen.getByLabelText("匹配搜索"));
     expect(await screen.findByText(/选择左侧文件夹开始匹配/)).toBeInTheDocument();
     expect(screen.queryAllByRole("button", { name: /双开/ })).toHaveLength(0);
+  });
+});
+
+describe("chooseDir forensics (#18)", () => {
+  it("shows the REAL error (not 'not found') when probe fails on a transient error", async () => {
+    const { putSettingsApiSettingsPut } = await import("./client");
+    vi.spyOn(window, "prompt").mockReturnValue("D:/Downloads/新片");
+    // fresh mount with no saved dir so chooseDir is the only probe caller
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValueOnce({
+      error: new Error("Failed to fetch"), // realistic network/CORS reject
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    expect(await screen.findByText(/无法读取目录: server 未响应/)).toBeInTheDocument();
+    expect(putSettingsApiSettingsPut).not.toHaveBeenCalled();
+  });
+
+  it("persists only after the server accepts the anchor, using its canonical value", async () => {
+    const { putSettingsApiSettingsPut } = await import("./client");
+    vi.spyOn(window, "prompt").mockReturnValue("D:/Downloads/Movies/"); // fwd slash + trailing
+    const CANON = "D:\\Downloads\\Movies";
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:\\db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: CANON, subdirs: ["倉木華"] },
+    } as never);
+    vi.mocked(putSettingsApiSettingsPut).mockResolvedValue({
+      data: { last_local_dir: CANON, db_path: "X:\\db" },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    // fwd slashes + trailing separator normalized to canonical backslashes
+    await waitFor(() => expect(putSettingsApiSettingsPut).toHaveBeenCalled());
+    const arg = vi.mocked(putSettingsApiSettingsPut).mock.calls[0][0] as {
+      body: { last_local_dir: string };
+    };
+    expect(arg.body.last_local_dir).toBe(CANON);
+    expect(await screen.findByText(CANON)).toBeInTheDocument();
+  });
+
+  it("reverts and reports when the server rejects the anchor", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("C:\\");
+    // drive root keeps its separator (not drive-relative "C:")
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: "C:\\", subdirs: [] },
+    } as never);
+    const { putSettingsApiSettingsPut } = await import("./client");
+    vi.mocked(putSettingsApiSettingsPut).mockResolvedValue({
+      error: { detail: "不能选择磁盘根目录" },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    expect(await screen.findByText(/保存目录失败: 不能选择磁盘根目录/)).toBeInTheDocument();
+    // localDir not applied -> still the empty-prompt hint
+    expect(screen.getByText(/选择你新下载电影所在的目录/)).toBeInTheDocument();
+  });
+});
+
+describe("drive-root normalization (Codex #18)", () => {
+  it("keeps the separator for a drive root instead of making it drive-relative", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("C:/");
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: "C:\\", subdirs: [] },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    await waitFor(() =>
+      expect(localSubdirsApiLocalSubdirsGet).toHaveBeenCalledWith({ query: { path: "C:\\" } }),
+    );
+  });
+
+  it("collapses multiple trailing separators on a drive root to one", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("C:////");
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: "C:\\", subdirs: [] },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    await waitFor(() =>
+      expect(localSubdirsApiLocalSubdirsGet).toHaveBeenCalledWith({ query: { path: "C:\\" } }),
+    );
   });
 });
