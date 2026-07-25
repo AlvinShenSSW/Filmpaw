@@ -121,18 +121,29 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
     db_rows = conn.execute(
         "SELECT id, folder_name FROM performers WHERE source_id=?", (source_id,)
     ).fetchall()
-    by_folder = {r["folder_name"]: r["id"] for r in db_rows}
-    disk_set = set(disk_names)
+    # Windows/SMB is case-insensitive: match on casefold so a case-only
+    # rename (Alice -> ALICE) refreshes the same record instead of
+    # inserting a duplicate and marking the original missing.
+    by_folder = {r["folder_name"].casefold(): r["id"] for r in db_rows}
+    display_by_key = {r["folder_name"].casefold(): r["folder_name"] for r in db_rows}
+    disk_set = {n.casefold() for n in disk_names}
 
     for name in disk_names:
         folder_path = str(Path(root) / name)
-        if name in by_folder:
+        key = name.casefold()
+        if key in by_folder:
+            pid = by_folder[key]
             conn.execute(
                 "UPDATE performers SET last_seen_at=?, is_missing=0 WHERE id=?",
-                (now, by_folder[name]),
+                (now, pid),
             )
+            if display_by_key[key] != name:  # case-only rename: adopt new casing
+                conn.execute(
+                    "UPDATE performers SET name=?, name_norm=?, folder_name=?, unc_path=?"
+                    " WHERE id=?",
+                    (name, normalize(name), name, folder_path, pid),
+                )
             result.refreshed += 1
-            pid = by_folder[name]
         else:
             pid = str(uuid.uuid4())
             conn.execute(

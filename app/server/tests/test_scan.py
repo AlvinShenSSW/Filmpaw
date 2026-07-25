@@ -138,3 +138,22 @@ def test_missing_record_thumb_untouched(db, source_dir) -> None:
     scan_source(db, sid)
     row = _rows(db)["I子"]
     assert row["is_missing"] == 1 and row["thumb"] == old
+
+
+def test_case_only_rename_refreshes_same_record(db, source_dir) -> None:
+    """Codex P2 regression: Windows/SMB is case-insensitive — a case-only
+    rename must refresh the same record (adopting the new casing), not
+    insert a duplicate + mark the original missing."""
+    d = add_performer_folder(source_dir, "Alice")
+    sid = _add_source(db, source_dir)
+    scan_source(db, sid)
+    old_id = _rows(db)["Alice"]["id"]
+
+    d.rename(d.parent / "ALICE")
+    r = scan_source(db, sid)
+    assert (r.added, r.refreshed, r.missing) == (0, 1, 0)
+    rows = _rows(db)
+    assert list(rows) == ["ALICE"]          # single record, new casing
+    assert rows["ALICE"]["id"] == old_id    # same identity
+    assert rows["ALICE"]["is_missing"] == 0
+    assert rows["ALICE"]["unc_path"].endswith("ALICE")
