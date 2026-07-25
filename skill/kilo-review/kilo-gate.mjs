@@ -159,6 +159,19 @@ if (res.error && res.error.code === 'ENOENT') {
 }
 
 if (res.error && (res.error.code === 'ETIMEDOUT' || res.signal)) {
+  // Reap kilo's orphaned children: SIGKILL on the shell wrapper does not
+  // kill the node process tree on Windows, leaking ~5 processes per timeout.
+  if (isWin) {
+    spawnSync(
+      'powershell',
+      [
+        '-NoProfile',
+        '-Command',
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'kilo' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+      ],
+      { timeout: 30_000 },
+    );
+  }
   emitSkip(
     `Kilo review timed out after ${timeoutMs}ms (raise KILO_REVIEW_TIMEOUT_MS or set KILO_REVIEW_GATE=off). Transcript: ${logFile}`,
   );
