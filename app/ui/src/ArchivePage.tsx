@@ -74,11 +74,14 @@ export function ArchivePage() {
   // updates on SUCCESS — a failed refresh keeps the list and the selection
   // intact so the user can retry. The search term is deliberately left
   // alone (design §7.3: left selection and right search are independent).
+  // Functional updater + data-only deps: the decision reads the LATEST
+  // selection, so a click landing between the refreshed render and this
+  // effect's flush can't be clobbered by a stale closure value.
   useEffect(() => {
-    if (selected && subdirs.data && !subdirs.data.subdirs.includes(selected)) {
-      setSelected(null);
-    }
-  }, [subdirs.data, selected]);
+    const data = subdirs.data;
+    if (!data) return;
+    setSelected((current) => (current && !data.subdirs.includes(current) ? null : current));
+  }, [subdirs.data]);
 
   const results = useQuery({
     queryKey: ["archive-match", q],
