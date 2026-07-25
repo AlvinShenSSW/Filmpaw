@@ -10,6 +10,7 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
+import MenuItem from "@mui/material/MenuItem";
 import Snackbar from "@mui/material/Snackbar";
 import Switch from "@mui/material/Switch";
 import Table from "@mui/material/Table";
@@ -21,7 +22,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { serverBase } from "./api";
 import type { PerformerOut } from "./client";
@@ -30,6 +31,7 @@ import {
   deleteAliasApiAliasesAliasIdDelete,
   deletePerformerApiPerformersPerformerIdDelete,
   listPerformersApiPerformersGet,
+  listSourcesApiSourcesGet,
   openPerformerApiPerformersPerformerIdOpenPost,
   purgeMissingApiPerformersPurgeMissingPost,
   scanAllApiScanAllPost,
@@ -95,17 +97,33 @@ export function PerformersPage() {
   const [toast, setToast] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<PerformerOut | null>(null);
   const [confirmPurge, setConfirmPurge] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState<number | "">("");
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search), 300);
     return () => clearTimeout(t);
   }, [search]);
 
+  const sources = useQuery({
+    queryKey: ["sources"],
+    queryFn: async () => {
+      const r = await listSourcesApiSourcesGet();
+      if (r.error) throw r.error;
+      return r.data ?? [];
+    },
+  });
+
   const performers = useInfiniteQuery({
-    queryKey: ["performers", q, showMissing],
+    queryKey: ["performers", q, showMissing, sourceFilter],
     queryFn: async ({ pageParam }) => {
       const r = await listPerformersApiPerformersGet({
-        query: { q, include_missing: showMissing, page: pageParam, page_size: 200 },
+        query: {
+          q,
+          include_missing: showMissing,
+          page: pageParam,
+          page_size: 200,
+          ...(sourceFilter !== "" ? { source_id: sourceFilter } : {}),
+        },
       });
       if (r.error || !r.data) throw r.error ?? new Error("list");
       return r.data;
@@ -221,6 +239,24 @@ export function PerformersPage() {
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "搜索表演者" } }}
         />
+        <TextField
+          select
+          size="small"
+          value={sourceFilter}
+          onChange={(e) => setSourceFilter(e.target.value === "" ? "" : Number(e.target.value))}
+          sx={{ minWidth: 150 }}
+          slotProps={{
+            htmlInput: { "aria-label": "来源筛选" },
+            select: { displayEmpty: true },
+          }}
+        >
+          <MenuItem value="">全部来源</MenuItem>
+          {sources.data?.map((s) => (
+            <MenuItem key={s.id} value={s.id}>
+              {s.label ?? s.unc_path}
+            </MenuItem>
+          ))}
+        </TextField>
         <FormControlLabel
           control={
             <Switch
@@ -412,7 +448,10 @@ export function PerformersPage() {
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 1 }}>
         <Typography variant="caption" color="text.secondary">
-          共 {stats?.total ?? 0} 条 · {stats?.source_count ?? 0} 个来源
+          共 {stats?.total ?? 0} 条 ·{" "}
+          {sourceFilter !== ""
+            ? `当前来源: ${sources.data?.find((s) => s.id === sourceFilter)?.label ?? sourceFilter}`
+            : `${stats?.source_count ?? 0} 个来源`}
           {items.length < (stats?.total ?? 0) ? ` · 已显示 ${items.length}` : ""}
         </Typography>
         {performers.hasNextPage && (
