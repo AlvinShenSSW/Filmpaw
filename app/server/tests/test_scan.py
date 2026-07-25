@@ -48,6 +48,9 @@ def test_rescan_refreshes_and_marks_missing_without_delete(db, source_dir) -> No
     rows = _rows(db)
     assert rows["B子"]["is_missing"] == 1  # marked, not deleted
     assert rows["A子"]["is_missing"] == 0
+    # already-missing folders are NOT re-counted on the next scan
+    r2 = scan_source(db, sid)
+    assert (r2.added, r2.refreshed, r2.missing) == (0, 1, 0)
 
 
 def test_missing_folder_reappears_clears_flag(db, source_dir) -> None:

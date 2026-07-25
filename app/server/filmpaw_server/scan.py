@@ -151,7 +151,9 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
             ).fetchone()
             if row and not row["is_missing"]:
                 conn.execute("UPDATE performers SET is_missing=1 WHERE id=?", (pid,))
-            result.missing += 1
+                # Count NEWLY missing only, matching the added/refreshed
+                # delta semantics of the scan summary.
+                result.missing += 1
 
     conn.execute("UPDATE sources SET last_scan_at=? WHERE id=?", (now, source_id))
     conn.commit()
