@@ -16,6 +16,7 @@ BINARIES = HERE.parent / "src-tauri" / "binaries"
 
 TRIPLES = {
     ("Windows", "AMD64"): "x86_64-pc-windows-msvc",
+    ("Windows", "ARM64"): "aarch64-pc-windows-msvc",
 }
 
 

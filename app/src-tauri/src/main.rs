@@ -37,14 +37,21 @@ fn server_command() -> (String, Vec<String>) {
         return (bin, vec![]);
     }
     if !cfg!(debug_assertions) {
-        if let Ok(exe) = std::env::current_exe() {
-            if let Some(dir) = exe.parent() {
-                let sidecar = dir.join("filmpaw-server.exe");
-                if sidecar.exists() {
-                    return (sidecar.to_string_lossy().into_owned(), vec![]);
-                }
-            }
+        // Packaged: the sidecar MUST sit next to the exe. Never fall back to
+        // the dev `uv` path in release — it would mask a missing sidecar with
+        // a confusing spawn failure on user machines.
+        let exe = std::env::current_exe().expect("current_exe");
+        let sidecar = exe
+            .parent()
+            .expect("exe dir")
+            .join("filmpaw-server.exe");
+        if !sidecar.exists() {
+            panic!(
+                "packaged sidecar filmpaw-server.exe not found next to {}",
+                exe.display()
+            );
         }
+        return (sidecar.to_string_lossy().into_owned(), vec![]);
     }
     let server_dir = std::env::current_dir()
         .expect("cwd")

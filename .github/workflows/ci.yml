@@ -56,6 +56,31 @@ jobs:
         working-directory: app/server
         run: uv run python build_sidecar.py
 
+      - name: Sidecar smoke (frozen binary announces its port)
+        working-directory: app/server
+        run: |
+          uv run python - <<'EOF'
+          import glob
+          import subprocess
+          import sys
+          import threading
+
+          exe = glob.glob("../src-tauri/binaries/filmpaw-server-*.exe")[0]
+          p = subprocess.Popen([exe], stdout=subprocess.PIPE, text=True)
+          result = {}
+
+          def read() -> None:
+              result["line"] = p.stdout.readline().strip()
+
+          t = threading.Thread(target=read, daemon=True)
+          t.start()
+          t.join(30)
+          p.kill()
+          line = result.get("line", "")
+          print("sidecar first line:", line or "<none within 30s>")
+          sys.exit(0 if line.startswith("FILMPAW_PORT=") else 1)
+          EOF
+
       - name: Tauri build (NSIS)
         working-directory: app
         run: ui/node_modules/.bin/tauri build
