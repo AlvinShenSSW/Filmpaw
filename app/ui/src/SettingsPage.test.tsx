@@ -102,7 +102,11 @@ describe("SettingsPage", () => {
 
   it("renders db path and version in the footer", async () => {
     renderPage();
-    expect(await screen.findByText(/X:\\db · v0\.1\.0/)).toBeInTheDocument();
+    // Version comes from the single source (tauri.conf.json via __APP_VERSION__),
+    // so a release bump must not break this assertion.
+    expect(
+      await screen.findByText(new RegExp(`X:\\\\db · v${__APP_VERSION__}`)),
+    ).toBeInTheDocument();
   });
 });
 
