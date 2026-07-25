@@ -15,13 +15,9 @@ export function serverBase(): string {
   return `http://127.0.0.1:${port}`;
 }
 
-export interface Health {
-  status: string;
-  version: string;
-}
+import { client } from "./client/client.gen";
 
-export async function fetchHealth(): Promise<Health> {
-  const resp = await fetch(`${serverBase()}/api/health`);
-  if (!resp.ok) throw new Error(`health ${resp.status}`);
-  return resp.json() as Promise<Health>;
+/** Point the generated SDK at the sidecar. Call once at startup. */
+export function configureClient(): void {
+  client.setConfig({ baseUrl: serverBase() });
 }

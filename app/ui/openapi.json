@@ -1,0 +1,1069 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "filmpaw-server",
+  "version": "0.1.0"
+ },
+ "paths": {
+  "/api/health": {
+   "get": {
+    "summary": "Health",
+    "operationId": "health_api_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HealthOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sources": {
+   "get": {
+    "summary": "List Sources",
+    "operationId": "list_sources_api_sources_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/SourceOut"
+         },
+         "type": "array",
+         "title": "Response List Sources Api Sources Get"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "summary": "Add Source",
+    "operationId": "add_source_api_sources_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SourceIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SourceCreated"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sources/{source_id}": {
+   "delete": {
+    "summary": "Delete Source",
+    "operationId": "delete_source_api_sources__source_id__delete",
+    "parameters": [
+     {
+      "name": "source_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Source Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/sources/{source_id}/scan": {
+   "post": {
+    "summary": "Scan One",
+    "operationId": "scan_one_api_sources__source_id__scan_post",
+    "parameters": [
+     {
+      "name": "source_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Source Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ScanSummary"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/scan-all": {
+   "post": {
+    "summary": "Scan All",
+    "operationId": "scan_all_api_scan_all_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/ScanAllItem"
+         },
+         "type": "array",
+         "title": "Response Scan All Api Scan All Post"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers": {
+   "get": {
+    "summary": "List Performers",
+    "operationId": "list_performers_api_performers_get",
+    "parameters": [
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Q"
+      }
+     },
+     {
+      "name": "include_missing",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": true,
+       "title": "Include Missing"
+      }
+     },
+     {
+      "name": "source_id",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Source Id"
+      }
+     },
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1,
+       "title": "Page"
+      }
+     },
+     {
+      "name": "page_size",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 50,
+       "title": "Page Size"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PerformerListOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers/{performer_id}/thumb": {
+   "get": {
+    "summary": "Get Thumb",
+    "operationId": "get_thumb_api_performers__performer_id__thumb_get",
+    "parameters": [
+     {
+      "name": "performer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Performer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers/{performer_id}/aliases": {
+   "post": {
+    "summary": "Add Alias",
+    "operationId": "add_alias_api_performers__performer_id__aliases_post",
+    "parameters": [
+     {
+      "name": "performer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Performer Id"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AliasIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/AliasOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/aliases/{alias_id}": {
+   "delete": {
+    "summary": "Delete Alias",
+    "operationId": "delete_alias_api_aliases__alias_id__delete",
+    "parameters": [
+     {
+      "name": "alias_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Alias Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers/{performer_id}": {
+   "delete": {
+    "summary": "Delete Performer",
+    "description": "Single-record delete (UI offers it on missing rows only). D5: group\naliases are intentionally untouched.",
+    "operationId": "delete_performer_api_performers__performer_id__delete",
+    "parameters": [
+     {
+      "name": "performer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Performer Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers/purge-missing": {
+   "post": {
+    "summary": "Purge Missing",
+    "operationId": "purge_missing_api_performers_purge_missing_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/PurgeOut"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/settings": {
+   "get": {
+    "summary": "Get Settings",
+    "operationId": "get_settings_api_settings_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SettingsOut"
+        }
+       }
+      }
+     }
+    }
+   },
+   "put": {
+    "summary": "Put Settings",
+    "operationId": "put_settings_api_settings_put",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/SettingsIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SettingsOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers/{performer_id}/open": {
+   "post": {
+    "summary": "Open Performer",
+    "operationId": "open_performer_api_performers__performer_id__open_post",
+    "parameters": [
+     {
+      "name": "performer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Performer Id"
+      }
+     }
+    ],
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/local/subdirs": {
+   "get": {
+    "summary": "Local Subdirs",
+    "operationId": "local_subdirs_api_local_subdirs_get",
+    "parameters": [
+     {
+      "name": "path",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Path"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SubdirsOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/open-pair": {
+   "post": {
+    "summary": "Open Pair",
+    "operationId": "open_pair_api_open_pair_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OpenPairIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "204": {
+      "description": "Successful Response"
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "AliasIn": {
+    "properties": {
+     "alias": {
+      "type": "string",
+      "title": "Alias"
+     }
+    },
+    "type": "object",
+    "required": [
+     "alias"
+    ],
+    "title": "AliasIn"
+   },
+   "AliasOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "alias": {
+      "type": "string",
+      "title": "Alias"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "alias"
+    ],
+    "title": "AliasOut"
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "HealthOut": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "version"
+    ],
+    "title": "HealthOut"
+   },
+   "OpenPairIn": {
+    "properties": {
+     "local_path": {
+      "type": "string",
+      "title": "Local Path"
+     },
+     "performer_id": {
+      "type": "string",
+      "title": "Performer Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "local_path",
+     "performer_id"
+    ],
+    "title": "OpenPairIn"
+   },
+   "PerformerListOut": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PerformerOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "page": {
+      "type": "integer",
+      "title": "Page"
+     },
+     "page_size": {
+      "type": "integer",
+      "title": "Page Size"
+     },
+     "source_count": {
+      "type": "integer",
+      "title": "Source Count"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "total",
+     "page",
+     "page_size",
+     "source_count"
+    ],
+    "title": "PerformerListOut"
+   },
+   "PerformerOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "source_id": {
+      "type": "integer",
+      "title": "Source Id"
+     },
+     "source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Label"
+     },
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "is_missing": {
+      "type": "boolean",
+      "title": "Is Missing"
+     },
+     "has_thumb": {
+      "type": "boolean",
+      "title": "Has Thumb"
+     },
+     "aliases": {
+      "items": {
+       "$ref": "#/components/schemas/AliasOut"
+      },
+      "type": "array",
+      "title": "Aliases"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "source_id",
+     "source_label",
+     "unc_path",
+     "is_missing",
+     "has_thumb",
+     "aliases"
+    ],
+    "title": "PerformerOut"
+   },
+   "PurgeOut": {
+    "properties": {
+     "deleted": {
+      "type": "integer",
+      "title": "Deleted"
+     }
+    },
+    "type": "object",
+    "required": [
+     "deleted"
+    ],
+    "title": "PurgeOut"
+   },
+   "ScanAllItem": {
+    "properties": {
+     "source_id": {
+      "type": "integer",
+      "title": "Source Id"
+     },
+     "ok": {
+      "type": "boolean",
+      "title": "Ok"
+     },
+     "added": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Added"
+     },
+     "refreshed": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refreshed"
+     },
+     "missing": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Missing"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "source_id",
+     "ok"
+    ],
+    "title": "ScanAllItem"
+   },
+   "ScanSummary": {
+    "properties": {
+     "added": {
+      "type": "integer",
+      "title": "Added"
+     },
+     "refreshed": {
+      "type": "integer",
+      "title": "Refreshed"
+     },
+     "missing": {
+      "type": "integer",
+      "title": "Missing"
+     }
+    },
+    "type": "object",
+    "required": [
+     "added",
+     "refreshed",
+     "missing"
+    ],
+    "title": "ScanSummary"
+   },
+   "SettingsIn": {
+    "properties": {
+     "last_local_dir": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Local Dir"
+     }
+    },
+    "type": "object",
+    "title": "SettingsIn"
+   },
+   "SettingsOut": {
+    "properties": {
+     "last_local_dir": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Local Dir"
+     },
+     "db_path": {
+      "type": "string",
+      "title": "Db Path"
+     }
+    },
+    "type": "object",
+    "required": [
+     "last_local_dir",
+     "db_path"
+    ],
+    "title": "SettingsOut"
+   },
+   "SourceCreated": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "unc_path",
+     "label"
+    ],
+    "title": "SourceCreated"
+   },
+   "SourceIn": {
+    "properties": {
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     }
+    },
+    "type": "object",
+    "required": [
+     "unc_path"
+    ],
+    "title": "SourceIn"
+   },
+   "SourceOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "last_scan_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Scan At"
+     },
+     "performer_count": {
+      "type": "integer",
+      "title": "Performer Count"
+     },
+     "reachable": {
+      "type": "boolean",
+      "title": "Reachable"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "unc_path",
+     "label",
+     "last_scan_at",
+     "performer_count",
+     "reachable"
+    ],
+    "title": "SourceOut"
+   },
+   "SubdirsOut": {
+    "properties": {
+     "path": {
+      "type": "string",
+      "title": "Path"
+     },
+     "subdirs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Subdirs"
+     }
+    },
+    "type": "object",
+    "required": [
+     "path",
+     "subdirs"
+    ],
+    "title": "SubdirsOut"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

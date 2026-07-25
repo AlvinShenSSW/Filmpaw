@@ -1,7 +1,7 @@
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import { useQuery } from "@tanstack/react-query";
-import { fetchHealth } from "./api";
+
+export { SettingsPage } from "./SettingsPage";
 
 function Placeholder({ title, note }: { title: string; note: string }) {
   return (
@@ -22,14 +22,4 @@ export function PerformersPage() {
 
 export function ArchivePage() {
   return <Placeholder title="归档对比" note="issue #6 实现 — 本地目录 × NAS 匹配双开" />;
-}
-
-export function SettingsPage() {
-  const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth, retry: 1 });
-  const state = health.isLoading
-    ? "连接中…"
-    : health.isError
-      ? "未连接"
-      : `已连接 · v${health.data?.version}`;
-  return <Placeholder title="设置" note={`issue #4 实现 — 扫描源管理 · server: ${state}`} />;
 }

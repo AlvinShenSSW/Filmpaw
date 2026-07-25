@@ -11,8 +11,34 @@ def test_health_ok() -> None:
     body = resp.json()
     assert body["status"] == "ok"
     assert body["version"] == __version__
+    assert "db_path" not in body  # not leaked here; settings carries it
 
 
 def test_health_unknown_route_404() -> None:
     client = TestClient(create_app())
     assert client.get("/api/nope").status_code == 404
+
+
+def test_cors_allows_ui_origins() -> None:
+    """Codex P1 regression: UI origins (dev + Tauri) must receive CORS
+    headers or every sidecar call is browser-blocked."""
+    client = TestClient(create_app())
+    for origin in ("http://localhost:3000", "http://tauri.localhost"):
+        r = client.get("/api/health", headers={"Origin": origin})
+        assert r.headers.get("access-control-allow-origin") == origin
+    r = client.get("/api/health", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in r.headers
+
+
+def test_cors_preflight_for_mutations() -> None:
+    """Kimi minor: mutations rely on OPTIONS preflight, not just simple GET."""
+    client = TestClient(create_app())
+    r = client.options(
+        "/api/sources",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert r.status_code == 200
+    assert "POST" in r.headers.get("access-control-allow-methods", "")

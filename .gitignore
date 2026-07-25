@@ -21,3 +21,6 @@ __pycache__/
 
 # harness runtime files
 .claude/*.lock
+
+# openapi-ts transient error logs
+openapi-ts-error-*.log

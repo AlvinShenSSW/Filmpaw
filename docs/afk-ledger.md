@@ -38,3 +38,4 @@
 - (gate) kilo review 固定起 6 轨多 agent 流程, 10 分钟工具上限不够 → 解法: detached 进程 + KILO_REVIEW_TIMEOUT_MS=1500000 + Monitor 监听。后续终审一律用此模式。
 - (#2) GLM P1: 扫描异常未回滚→共享连接脏事务被后续 commit 持久化(毁库级)。已修+回归测试。延后: off-lock 缩略图解码、格式预检。
 - (2026-07-25) 操作者指令: 终审 GLM→Kimi。GLM 两次超时(25/40min 皆死在 6 轨汇总), kilo 孤儿泄露已修。#3 起终审 = Kimi。
+- (2026-07-25) 断流根治: 常驻 Monitor 心跳(20min)上线, session cron 降级为参考。规则: 每轮收尾必留在途唤醒源, 心跳兜底。

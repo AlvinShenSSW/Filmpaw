@@ -253,9 +253,11 @@ def test_local_subdirs_and_settings(client, tmp_path) -> None:
     ] == sorted(["甲", "乙"])
     assert client.get("/api/local/subdirs", params={"path": str(root / "no")}).status_code == 422
 
-    assert client.get("/api/settings").json() == {"last_local_dir": None}
+    first = client.get("/api/settings").json()
+    assert first["last_local_dir"] is None
+    assert first["db_path"]  # settings carries the db path for the UI footer
     client.put("/api/settings", json={"last_local_dir": str(root)})
-    assert client.get("/api/settings").json() == {"last_local_dir": str(root)}
+    assert client.get("/api/settings").json()["last_local_dir"] == str(root)
 
 
 # ------------------------------------------------------------ delete/purge
