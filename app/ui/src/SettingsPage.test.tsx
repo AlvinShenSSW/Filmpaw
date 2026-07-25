@@ -95,3 +95,15 @@ describe("SettingsPage", () => {
     expect(await screen.findByText(/X:\\db · v0\.1\.0/)).toBeInTheDocument();
   });
 });
+
+describe("scan transport failure", () => {
+  it("resets the row instead of sticking in scanning (Codex P2)", async () => {
+    vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({ data: [SRC] } as never);
+    vi.mocked(scanOneApiSourcesSourceIdScanPost).mockRejectedValue(new Error("ECONNREFUSED"));
+    renderPage();
+    const btn = await screen.findByRole("button", { name: /扫描/ });
+    await userEvent.click(btn);
+    expect(await screen.findByText(/源不可达/)).toBeInTheDocument();
+    expect(btn).toBeEnabled(); // not stuck in scanning
+  });
+});

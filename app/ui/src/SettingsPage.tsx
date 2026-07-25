@@ -74,7 +74,7 @@ export function SettingsPage() {
       const r = await scanOneApiSourcesSourceIdScanPost({
         path: { source_id: sourceId },
       });
-      if (r.error) throw Object.assign(new Error("scan"), { sourceId, cause: r.error });
+      if (r.error) throw r.error;
       return { sourceId, data: r.data as { added: number; refreshed: number; missing: number } };
     },
     onSuccess: ({ sourceId, data }) => {
@@ -87,8 +87,10 @@ export function SettingsPage() {
       }));
       refetchSources();
     },
-    onError: (e: unknown) => {
-      const sourceId = (e as { sourceId: number }).sourceId;
+    // The mutation VARIABLES carry the source id — a transport-level
+    // rejection has no body, and keying failure state off the error object
+    // left the row stuck in "scanning" forever.
+    onError: (_e: unknown, sourceId: number) => {
       setScanStates((s) => ({
         ...s,
         [sourceId]: { kind: "unreachable", text: "源不可达 — 已跳过, 记录未变动" },
