@@ -38,6 +38,7 @@ export function SettingsPage() {
   const queryClient = useQueryClient();
   const [uncInput, setUncInput] = useState("");
   const [addError, setAddError] = useState("");
+  const [isPicking, setIsPicking] = useState(false);
   const [scanStates, setScanStates] = useState<Record<number, ScanState>>({});
   const [confirmDelete, setConfirmDelete] = useState<{
     id: number;
@@ -132,10 +133,16 @@ export function SettingsPage() {
   // Browse fills the input; the existing addSource still does server-side
   // UNC normalization + reachability validation — no separate UI validation.
   const browseForSource = async () => {
-    const dir = await pickDirectory("选择 NAS 扫描源目录");
-    if (dir) {
-      setUncInput(dir);
-      setAddError("");
+    if (isPicking) return; // guard against concurrent dialogs
+    setIsPicking(true);
+    try {
+      const dir = await pickDirectory("选择 NAS 扫描源目录");
+      if (dir) {
+        setUncInput(dir);
+        setAddError("");
+      }
+    } finally {
+      setIsPicking(false);
     }
   };
 
@@ -159,6 +166,7 @@ export function SettingsPage() {
           color="inherit"
           startIcon={<FolderOpenIcon />}
           onClick={browseForSource}
+          disabled={isPicking}
           sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: "#DDD9D1" }}
         >
           浏览

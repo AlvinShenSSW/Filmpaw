@@ -32,6 +32,7 @@ export function ArchivePage() {
   const [q, setQ] = useState("");
   const [toast, setToast] = useState("");
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [isPicking, setIsPicking] = useState(false);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -77,6 +78,16 @@ export function ArchivePage() {
   });
 
   const chooseDir = async () => {
+    if (isPicking) return; // guard against concurrent dialogs / probe+save
+    setIsPicking(true);
+    try {
+      await runChooseDir();
+    } finally {
+      setIsPicking(false);
+    }
+  };
+
+  const runChooseDir = async () => {
     const raw = await pickDirectory("选择本地下载目录");
     if (!raw) return;
     // Defensive normalization: some pickers/platforms hand back forward
@@ -161,6 +172,7 @@ export function ArchivePage() {
           color="inherit"
           startIcon={<FolderIcon />}
           onClick={chooseDir}
+          disabled={isPicking}
           sx={{
             justifyContent: "flex-start",
             textTransform: "none",
