@@ -335,6 +335,36 @@
        }
       }
      },
+     "404": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     },
      "422": {
       "description": "Validation Error",
       "content": {
@@ -472,6 +502,21 @@
        }
       }
      },
+     "400": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
      "422": {
       "description": "Validation Error",
       "content": {
@@ -503,6 +548,21 @@
     "responses": {
      "204": {
       "description": "Successful Response"
+     },
+     "404": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
      },
      "422": {
       "description": "Validation Error",
@@ -573,6 +633,51 @@
     "responses": {
      "204": {
       "description": "Successful Response"
+     },
+     "400": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
      },
      "422": {
       "description": "Validation Error",
@@ -654,9 +759,13 @@
    },
    "OpenPairIn": {
     "properties": {
-     "local_path": {
+     "local_dir": {
       "type": "string",
-      "title": "Local Path"
+      "title": "Local Dir"
+     },
+     "subdir": {
+      "type": "string",
+      "title": "Subdir"
      },
      "performer_id": {
       "type": "string",
@@ -665,7 +774,8 @@
     },
     "type": "object",
     "required": [
-     "local_path",
+     "local_dir",
+     "subdir",
      "performer_id"
     ],
     "title": "OpenPairIn"

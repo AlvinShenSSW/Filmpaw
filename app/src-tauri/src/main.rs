@@ -48,8 +48,13 @@ fn spawn_server() -> (Child, u16) {
         }
     };
 
-    let mut child = Command::new(&program)
-        .args(&args)
+    let mut command = Command::new(&program);
+    command.args(&args);
+    // Dev-server CORS origins are trusted only when the shell says so.
+    // Always set explicitly: a release build must override any inherited
+    // FILMPAW_DEV=1 from the parent environment.
+    command.env("FILMPAW_DEV", if cfg!(debug_assertions) { "1" } else { "0" });
+    let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
@@ -121,6 +126,7 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(move |app| {
             // Init script runs before page scripts on EVERY page load — no

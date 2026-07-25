@@ -57,9 +57,13 @@ export type HealthOut = {
  */
 export type OpenPairIn = {
     /**
-     * Local Path
+     * Local Dir
      */
-    local_path: string;
+    local_dir: string;
+    /**
+     * Subdir
+     */
+    subdir: string;
     /**
      * Performer Id
      */
@@ -545,6 +549,18 @@ export type AddAliasApiPerformersPerformerIdAliasesPostData = {
 
 export type AddAliasApiPerformersPerformerIdAliasesPostErrors = {
     /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    409: {
+        detail?: string;
+    };
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -662,6 +678,12 @@ export type PutSettingsApiSettingsPutData = {
 
 export type PutSettingsApiSettingsPutErrors = {
     /**
+     * 错误
+     */
+    400: {
+        detail?: string;
+    };
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -691,6 +713,12 @@ export type OpenPerformerApiPerformersPerformerIdOpenPostData = {
 };
 
 export type OpenPerformerApiPerformersPerformerIdOpenPostErrors = {
+    /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
     /**
      * Validation Error
      */
@@ -746,6 +774,24 @@ export type OpenPairApiOpenPairPostData = {
 };
 
 export type OpenPairApiOpenPairPostErrors = {
+    /**
+     * 错误
+     */
+    400: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    409: {
+        detail?: string;
+    };
     /**
      * Validation Error
      */

@@ -218,20 +218,39 @@ def test_open_pair_semantics(client, source_dir, tmp_path, opened) -> None:
     pid = _items(client)["items"][0]["id"]
     local = tmp_path / "downloads" / "配对"
     local.mkdir(parents=True)
+    # Containment guard: pair only opens inside the approved local dir.
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
 
-    ok = client.post("/api/open-pair", json={"local_path": str(local), "performer_id": pid})
+    base = str(tmp_path / "downloads")
+    ok = client.post(
+        "/api/open-pair", json={"local_dir": base, "subdir": "配对", "performer_id": pid}
+    )
     assert ok.status_code == 204
     assert len(opened) == 2  # both folders
 
-    # 422 local gone
+    # 400 local gone (app-level error; 422 reserved for validation shape)
     bad = client.post(
-        "/api/open-pair", json={"local_path": str(tmp_path / "nope"), "performer_id": pid}
+        "/api/open-pair", json={"local_dir": base, "subdir": "nope", "performer_id": pid}
     )
-    assert bad.status_code == 422
+    assert bad.status_code == 400
+    # 400 relative dir / path-traversal subdir
+    assert (
+        client.post(
+            "/api/open-pair", json={"local_dir": "downloads", "subdir": "配对", "performer_id": pid}
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            "/api/open-pair", json={"local_dir": base, "subdir": "..", "performer_id": pid}
+        ).status_code
+        == 400
+    )
     # 404 performer unknown
     assert (
-        client.post("/api/open-pair", json={"local_path": str(local), "performer_id": "x"})
-        .status_code
+        client.post(
+            "/api/open-pair", json={"local_dir": base, "subdir": "配对", "performer_id": "x"}
+        ).status_code
         == 404
     )
     # 409 performer missing
@@ -240,8 +259,9 @@ def test_open_pair_semantics(client, source_dir, tmp_path, opened) -> None:
     shutil.rmtree(source_dir / "配对")
     client.post(f"/api/sources/{sid}/scan")
     assert (
-        client.post("/api/open-pair", json={"local_path": str(local), "performer_id": pid})
-        .status_code
+        client.post(
+            "/api/open-pair", json={"local_dir": base, "subdir": "配对", "performer_id": pid}
+        ).status_code
         == 409
     )
 
@@ -261,6 +281,17 @@ def test_local_subdirs_and_settings(client, tmp_path) -> None:
     assert first["db_path"]  # settings carries the db path for the UI footer
     client.put("/api/settings", json={"last_local_dir": str(root)})
     assert client.get("/api/settings").json()["last_local_dir"] == str(root)
+
+    # Kimi R4: the anchor is validated on save (it is the containment boundary)
+    assert client.put("/api/settings", json={"last_local_dir": "relative\dir"}).status_code == 400
+    assert (
+        client.put("/api/settings", json={"last_local_dir": str(root / "missing")}).status_code
+        == 400
+    )
+    import os as _os
+
+    drive_root = _os.path.splitdrive(str(root))[0] + _os.sep
+    assert client.put("/api/settings", json={"last_local_dir": drive_root}).status_code == 400
 
 
 # ------------------------------------------------------------ delete/purge
@@ -337,3 +368,30 @@ def test_open_clears_missing_when_folder_is_back(client, source_dir, opened) -> 
     assert client.post(f"/api/performers/{pid}/open").status_code == 204
     assert _items(client)["items"][0]["is_missing"] is False  # un-flagged
     assert len(opened) == 1
+
+
+def test_open_pair_rejects_paths_outside_approved_dir(client, source_dir, tmp_path, opened) -> None:
+    """Kimi P2: containment — arbitrary directories must not be openable."""
+    add_performer_folder(source_dir, "越界")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+
+    outside = tmp_path / "elsewhere" / "越界"
+    outside.mkdir(parents=True)
+
+    r0 = client.post(
+        "/api/open-pair",
+        json={"local_dir": str(tmp_path / "elsewhere"), "subdir": "越界", "performer_id": pid},
+    )
+    assert r0.status_code == 400  # no approved dir yet (400 = app-level, 422 = validation)
+
+    (tmp_path / "downloads").mkdir(exist_ok=True)
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
+    r = client.post(
+        "/api/open-pair",
+        json={"local_dir": str(tmp_path / "elsewhere"), "subdir": "越界", "performer_id": pid},
+    )
+    assert r.status_code == 400
+    assert "不在已选择" in r.json()["detail"]
+    assert opened == []
