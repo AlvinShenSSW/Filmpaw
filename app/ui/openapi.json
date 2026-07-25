@@ -15,11 +15,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "additionalProperties": {
-          "type": "string"
-         },
-         "type": "object",
-         "title": "Response Health Api Health Get"
+         "$ref": "#/components/schemas/HealthOut"
         }
        }
       }
@@ -38,8 +34,7 @@
        "application/json": {
         "schema": {
          "items": {
-          "additionalProperties": true,
-          "type": "object"
+          "$ref": "#/components/schemas/SourceOut"
          },
          "type": "array",
          "title": "Response List Sources Api Sources Get"
@@ -68,9 +63,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "additionalProperties": true,
-         "type": "object",
-         "title": "Response Add Source Api Sources Post"
+         "$ref": "#/components/schemas/SourceCreated"
         }
        }
       }
@@ -141,9 +134,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "type": "object",
-         "additionalProperties": true,
-         "title": "Response Scan One Api Sources  Source Id  Scan Post"
+         "$ref": "#/components/schemas/ScanSummary"
         }
        }
       }
@@ -172,8 +163,7 @@
        "application/json": {
         "schema": {
          "items": {
-          "additionalProperties": true,
-          "type": "object"
+          "$ref": "#/components/schemas/ScanAllItem"
          },
          "type": "array",
          "title": "Response Scan All Api Scan All Post"
@@ -254,9 +244,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "type": "object",
-         "additionalProperties": true,
-         "title": "Response List Performers Api Performers Get"
+         "$ref": "#/components/schemas/PerformerListOut"
         }
        }
       }
@@ -342,9 +330,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "type": "object",
-         "additionalProperties": true,
-         "title": "Response Add Alias Api Performers  Performer Id  Aliases Post"
+         "$ref": "#/components/schemas/AliasOut"
         }
        }
       }
@@ -437,9 +423,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "additionalProperties": true,
-         "type": "object",
-         "title": "Response Purge Missing Api Performers Purge Missing Post"
+         "$ref": "#/components/schemas/PurgeOut"
         }
        }
       }
@@ -457,9 +441,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "additionalProperties": true,
-         "type": "object",
-         "title": "Response Get Settings Api Settings Get"
+         "$ref": "#/components/schemas/SettingsOut"
         }
        }
       }
@@ -485,9 +467,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "additionalProperties": true,
-         "type": "object",
-         "title": "Response Put Settings Api Settings Put"
+         "$ref": "#/components/schemas/SettingsOut"
         }
        }
       }
@@ -558,9 +538,7 @@
       "content": {
        "application/json": {
         "schema": {
-         "type": "object",
-         "additionalProperties": true,
-         "title": "Response Local Subdirs Api Local Subdirs Get"
+         "$ref": "#/components/schemas/SubdirsOut"
         }
        }
       }
@@ -625,6 +603,24 @@
     ],
     "title": "AliasIn"
    },
+   "AliasOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "alias": {
+      "type": "string",
+      "title": "Alias"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "alias"
+    ],
+    "title": "AliasOut"
+   },
    "HTTPValidationError": {
     "properties": {
      "detail": {
@@ -637,6 +633,24 @@
     },
     "type": "object",
     "title": "HTTPValidationError"
+   },
+   "HealthOut": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "version": {
+      "type": "string",
+      "title": "Version"
+     }
+    },
+    "type": "object",
+    "required": [
+     "status",
+     "version"
+    ],
+    "title": "HealthOut"
    },
    "OpenPairIn": {
     "properties": {
@@ -656,6 +670,198 @@
     ],
     "title": "OpenPairIn"
    },
+   "PerformerListOut": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/PerformerOut"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "page": {
+      "type": "integer",
+      "title": "Page"
+     },
+     "page_size": {
+      "type": "integer",
+      "title": "Page Size"
+     },
+     "source_count": {
+      "type": "integer",
+      "title": "Source Count"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "total",
+     "page",
+     "page_size",
+     "source_count"
+    ],
+    "title": "PerformerListOut"
+   },
+   "PerformerOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "source_id": {
+      "type": "integer",
+      "title": "Source Id"
+     },
+     "source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Label"
+     },
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "is_missing": {
+      "type": "boolean",
+      "title": "Is Missing"
+     },
+     "has_thumb": {
+      "type": "boolean",
+      "title": "Has Thumb"
+     },
+     "aliases": {
+      "items": {
+       "$ref": "#/components/schemas/AliasOut"
+      },
+      "type": "array",
+      "title": "Aliases"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "source_id",
+     "source_label",
+     "unc_path",
+     "is_missing",
+     "has_thumb",
+     "aliases"
+    ],
+    "title": "PerformerOut"
+   },
+   "PurgeOut": {
+    "properties": {
+     "deleted": {
+      "type": "integer",
+      "title": "Deleted"
+     }
+    },
+    "type": "object",
+    "required": [
+     "deleted"
+    ],
+    "title": "PurgeOut"
+   },
+   "ScanAllItem": {
+    "properties": {
+     "source_id": {
+      "type": "integer",
+      "title": "Source Id"
+     },
+     "ok": {
+      "type": "boolean",
+      "title": "Ok"
+     },
+     "added": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Added"
+     },
+     "refreshed": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Refreshed"
+     },
+     "missing": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Missing"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "source_id",
+     "ok"
+    ],
+    "title": "ScanAllItem"
+   },
+   "ScanSummary": {
+    "properties": {
+     "added": {
+      "type": "integer",
+      "title": "Added"
+     },
+     "refreshed": {
+      "type": "integer",
+      "title": "Refreshed"
+     },
+     "missing": {
+      "type": "integer",
+      "title": "Missing"
+     }
+    },
+    "type": "object",
+    "required": [
+     "added",
+     "refreshed",
+     "missing"
+    ],
+    "title": "ScanSummary"
+   },
    "SettingsIn": {
     "properties": {
      "last_local_dir": {
@@ -672,6 +878,54 @@
     },
     "type": "object",
     "title": "SettingsIn"
+   },
+   "SettingsOut": {
+    "properties": {
+     "last_local_dir": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Local Dir"
+     },
+     "db_path": {
+      "type": "string",
+      "title": "Db Path"
+     }
+    },
+    "type": "object",
+    "required": [
+     "last_local_dir",
+     "db_path"
+    ],
+    "title": "SettingsOut"
+   },
+   "SourceCreated": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "unc_path",
+     "label"
+    ],
+    "title": "SourceCreated"
    },
    "SourceIn": {
     "properties": {
@@ -696,6 +950,79 @@
      "unc_path"
     ],
     "title": "SourceIn"
+   },
+   "SourceOut": {
+    "properties": {
+     "id": {
+      "type": "integer",
+      "title": "Id"
+     },
+     "unc_path": {
+      "type": "string",
+      "title": "Unc Path"
+     },
+     "label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Label"
+     },
+     "last_scan_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Scan At"
+     },
+     "performer_count": {
+      "type": "integer",
+      "title": "Performer Count"
+     },
+     "reachable": {
+      "type": "boolean",
+      "title": "Reachable"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "unc_path",
+     "label",
+     "last_scan_at",
+     "performer_count",
+     "reachable"
+    ],
+    "title": "SourceOut"
+   },
+   "SubdirsOut": {
+    "properties": {
+     "path": {
+      "type": "string",
+      "title": "Path"
+     },
+     "subdirs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Subdirs"
+     }
+    },
+    "type": "object",
+    "required": [
+     "path",
+     "subdirs"
+    ],
+    "title": "SubdirsOut"
    },
    "ValidationError": {
     "properties": {

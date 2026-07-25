@@ -28,6 +28,46 @@ PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
 
 
+class AliasOut(BaseModel):
+    id: int
+    alias: str
+
+
+class PerformerOut(BaseModel):
+    id: str
+    name: str
+    source_id: int
+    source_label: str | None
+    unc_path: str
+    is_missing: bool
+    has_thumb: bool
+    aliases: list[AliasOut]
+
+
+class PerformerListOut(BaseModel):
+    items: list[PerformerOut]
+    total: int
+    page: int
+    page_size: int
+    source_count: int
+
+
+class PurgeOut(BaseModel):
+    deleted: int
+
+
+class SettingsOut(BaseModel):
+    last_local_dir: str | None
+    db_path: str
+
+
+class SubdirsOut(BaseModel):
+    path: str
+    subdirs: list[str]
+
+
+
+
 def _conn(request: Request) -> sqlite3.Connection:
     return request.app.state.db
 
@@ -63,7 +103,7 @@ def _escape_like(s: str) -> str:
     return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
-@router.get("/performers")
+@router.get("/performers", response_model=PerformerListOut)
 def list_performers(
     request: Request,
     q: str = "",
@@ -172,7 +212,7 @@ class AliasIn(BaseModel):
     alias: str
 
 
-@router.post("/performers/{performer_id}/aliases", status_code=201)
+@router.post("/performers/{performer_id}/aliases", status_code=201, response_model=AliasOut)
 def add_alias(request: Request, performer_id: str, body: AliasIn) -> dict:
     alias = body.alias.strip()
     if not alias:
@@ -227,7 +267,7 @@ def delete_performer(request: Request, performer_id: str) -> None:
         conn.commit()
 
 
-@router.post("/performers/purge-missing")
+@router.post("/performers/purge-missing", response_model=PurgeOut)
 def purge_missing(request: Request) -> dict:
     conn = _conn(request)
     with _lock(request):
@@ -236,20 +276,23 @@ def purge_missing(request: Request) -> dict:
         return {"deleted": cur.rowcount}
 
 
-@router.get("/settings")
+@router.get("/settings", response_model=SettingsOut)
 def get_settings(request: Request) -> dict:
     with _lock(request):
         row = _conn(request).execute(
             "SELECT value FROM settings WHERE key='last_local_dir'"
         ).fetchone()
-    return {"last_local_dir": row["value"] if row else None}
+    return {
+        "last_local_dir": row["value"] if row else None,
+        "db_path": request.app.state.db_path,
+    }
 
 
 class SettingsIn(BaseModel):
     last_local_dir: str | None = None
 
 
-@router.put("/settings")
+@router.put("/settings", response_model=SettingsOut)
 def put_settings(request: Request, body: SettingsIn) -> dict:
     conn = _conn(request)
     with _lock(request):
@@ -259,7 +302,10 @@ def put_settings(request: Request, body: SettingsIn) -> dict:
             (body.last_local_dir,),
         )
         conn.commit()
-    return {"last_local_dir": body.last_local_dir}
+    return {
+        "last_local_dir": body.last_local_dir,
+        "db_path": request.app.state.db_path,
+    }
 
 
 # ------------------------------------------------------------- open / local
@@ -300,7 +346,7 @@ def open_performer(request: Request, performer_id: str) -> None:
     open_in_explorer(row["unc_path"])
 
 
-@router.get("/local/subdirs")
+@router.get("/local/subdirs", response_model=SubdirsOut)
 def local_subdirs(path: str) -> dict:
     try:
         names = list_subdirs(path)

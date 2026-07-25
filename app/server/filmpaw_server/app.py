@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from filmpaw_server import __version__
 from filmpaw_server.db import connect, default_db_path
@@ -17,6 +18,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = connect(db_path)
+        app.state.db_path = str(db_path or default_db_path())
         # One shared connection + one lock: FastAPI sync endpoints run on
         # worker threads, and overlapping requests (scan vs scan-all) must
         # not interleave on the connection. Single-user local app —
@@ -40,13 +42,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    @app.get("/api/health")
+    class HealthOut(BaseModel):
+        status: str
+        version: str
+
+    @app.get("/api/health", response_model=HealthOut)
     def health() -> dict[str, str]:
-        return {
-            "status": "ok",
-            "version": __version__,
-            "db_path": str(db_path or default_db_path()),
-        }
+        # NOTE: db_path deliberately NOT exposed here (Kimi review) — the
+        # settings endpoint carries it for the UI footer.
+        return {"status": "ok", "version": __version__}
 
     app.include_router(sources_router)
     app.include_router(performers_router)

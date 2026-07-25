@@ -40,7 +40,37 @@ class SourceIn(BaseModel):
     label: str | None = None
 
 
-@router.get("/sources")
+class SourceOut(BaseModel):
+    id: int
+    unc_path: str
+    label: str | None
+    last_scan_at: str | None
+    performer_count: int
+    reachable: bool
+
+
+class SourceCreated(BaseModel):
+    id: int
+    unc_path: str
+    label: str
+
+
+class ScanSummary(BaseModel):
+    added: int
+    refreshed: int
+    missing: int
+
+
+class ScanAllItem(BaseModel):
+    source_id: int
+    ok: bool
+    added: int | None = None
+    refreshed: int | None = None
+    missing: int | None = None
+    error: str | None = None
+
+
+@router.get("/sources", response_model=list[SourceOut])
 def list_sources(request: Request) -> list[dict]:
     with _lock(request):
         rows = _conn(request).execute(
@@ -60,7 +90,7 @@ def list_sources(request: Request) -> list[dict]:
     ]
 
 
-@router.post("/sources", status_code=201)
+@router.post("/sources", status_code=201, response_model=SourceCreated)
 def add_source(request: Request, body: SourceIn) -> dict:
     unc = _normalize_unc(body.unc_path)
     if not os.path.isdir(unc):
@@ -92,7 +122,7 @@ def delete_source(request: Request, source_id: int) -> None:
         conn.commit()
 
 
-@router.post("/sources/{source_id}/scan")
+@router.post("/sources/{source_id}/scan", response_model=ScanSummary)
 def scan_one(request: Request, source_id: int) -> dict:
     with _lock(request):
         try:
@@ -106,7 +136,7 @@ def scan_one(request: Request, source_id: int) -> dict:
     return _result_dict(result)
 
 
-@router.post("/scan-all")
+@router.post("/scan-all", response_model=list[ScanAllItem])
 def scan_all(request: Request) -> list[dict]:
     out: list[dict] = []
     conn = _conn(request)

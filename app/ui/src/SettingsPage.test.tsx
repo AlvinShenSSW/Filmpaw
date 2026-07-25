@@ -12,14 +12,15 @@ vi.mock("./client", () => ({
   addSourceApiSourcesPost: vi.fn(),
   deleteSourceApiSourcesSourceIdDelete: vi.fn(),
   scanOneApiSourcesSourceIdScanPost: vi.fn(),
-}));
-vi.mock("./api", () => ({
-  fetchHealth: vi.fn(async () => ({ status: "ok", version: "0.1.0", db_path: "X:\\db" })),
+  healthApiHealthGet: vi.fn(),
+  getSettingsApiSettingsGet: vi.fn(),
 }));
 
 import {
   addSourceApiSourcesPost,
   deleteSourceApiSourcesSourceIdDelete,
+  getSettingsApiSettingsGet,
+  healthApiHealthGet,
   listSourcesApiSourcesGet,
   scanOneApiSourcesSourceIdScanPost,
 } from "./client";
@@ -47,6 +48,12 @@ function renderPage() {
 
 beforeEach(() => {
   vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({ data: [SRC] } as never);
+  vi.mocked(healthApiHealthGet).mockResolvedValue({
+    data: { status: "ok", version: "0.1.0" },
+  } as never);
+  vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+    data: { last_local_dir: null, db_path: "X:\\db" },
+  } as never);
 });
 
 describe("SettingsPage", () => {

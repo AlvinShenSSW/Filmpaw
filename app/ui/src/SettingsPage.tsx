@@ -13,10 +13,11 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { fetchHealth } from "./api";
 import {
   addSourceApiSourcesPost,
   deleteSourceApiSourcesSourceIdDelete,
+  getSettingsApiSettingsGet,
+  healthApiHealthGet,
   listSourcesApiSourcesGet,
   scanOneApiSourcesSourceIdScanPost,
 } from "./client";
@@ -50,7 +51,24 @@ export function SettingsPage() {
       return r.data ?? [];
     },
   });
-  const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth, retry: 1 });
+  const health = useQuery({
+    queryKey: ["health"],
+    queryFn: async () => {
+      const r = await healthApiHealthGet();
+      if (r.error) throw r.error;
+      return r.data;
+    },
+    retry: 1,
+  });
+  const settings = useQuery({
+    queryKey: ["app-settings"],
+    queryFn: async () => {
+      const r = await getSettingsApiSettingsGet();
+      if (r.error) throw r.error;
+      return r.data;
+    },
+    retry: 1,
+  });
 
   const refetchSources = () => queryClient.invalidateQueries({ queryKey: ["sources"] });
 
@@ -74,8 +92,8 @@ export function SettingsPage() {
       const r = await scanOneApiSourcesSourceIdScanPost({
         path: { source_id: sourceId },
       });
-      if (r.error) throw r.error;
-      return { sourceId, data: r.data as { added: number; refreshed: number; missing: number } };
+      if (r.error || !r.data) throw r.error ?? new Error("scan");
+      return { sourceId, data: r.data };
     },
     onSuccess: ({ sourceId, data }) => {
       setScanStates((s) => ({
@@ -142,10 +160,10 @@ export function SettingsPage() {
 
       <Box sx={{ mt: 2.5, display: "flex", flexDirection: "column", gap: 1 }}>
         {sources.data?.map((s) => {
-          const scan = scanStates[s.id as number] ?? { kind: "idle" };
+          const scan = scanStates[s.id] ?? { kind: "idle" };
           return (
             <Box
-              key={s.id as number}
+              key={s.id}
               sx={{
                 border: "1px solid",
                 borderColor:
@@ -174,7 +192,7 @@ export function SettingsPage() {
                   sx={{ fontWeight: 600, fontFamily: "Consolas, monospace" }}
                   noWrap
                 >
-                  {s.unc_path as string}
+                  {s.unc_path}
                 </Typography>
                 <Typography
                   variant="caption"
@@ -205,7 +223,7 @@ export function SettingsPage() {
                 variant="outlined"
                 color="inherit"
                 startIcon={<RefreshIcon />}
-                onClick={() => scanOne.mutate(s.id as number)}
+                onClick={() => scanOne.mutate(s.id)}
                 disabled={scan.kind === "scanning"}
                 sx={{ color: "text.secondary", borderColor: "#DDD9D1" }}
               >
@@ -216,9 +234,9 @@ export function SettingsPage() {
                 aria-label="删除源"
                 onClick={() =>
                   setConfirmDelete({
-                    id: s.id as number,
-                    unc_path: s.unc_path as string,
-                    performer_count: s.performer_count as number,
+                    id: s.id,
+                    unc_path: s.unc_path,
+                    performer_count: s.performer_count,
                   })
                 }
               >
@@ -235,7 +253,7 @@ export function SettingsPage() {
       </Box>
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 3 }}>
-        数据库: {health.data?.db_path ?? "…"} · v{health.data?.version ?? "…"}
+        数据库: {settings.data?.db_path ?? "…"} · v{health.data?.version ?? "…"}
       </Typography>
 
       <Dialog open={confirmDelete !== null} onClose={() => setConfirmDelete(null)}>
