@@ -241,14 +241,23 @@ export function PerformersPage() {
 
   return (
     <Box sx={{ p: 3, display: "flex", flexDirection: "column", height: "100%" }}>
-      <Box sx={{ display: "flex", gap: 1.5, alignItems: "center", mb: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          alignItems: "center",
+          mb: 1.5,
+          flexWrap: "wrap",
+          "& > .MuiButtonBase-root, & > .MuiFormControlLabel-root": { flexShrink: 0 },
+        }}
+      >
         <TextField
-          fullWidth
           size="small"
           placeholder="搜索名字或别名(支持繁简互搜)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "搜索表演者" } }}
+          sx={{ flex: 1, minWidth: 200 }}
         />
         <TextField
           select
