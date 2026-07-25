@@ -224,6 +224,23 @@ def list_performers(
 # ---------------------------------------------------------------------- thumb
 
 
+def _etag_matches(header: str | None, etag: str) -> bool:
+    """RFC 7232 If-None-Match: a comma-separated list, entries may be weak
+    (W/"..."), and "*" matches anything. Plain string equality would make a
+    conforming client re-download the full JPEG every time."""
+    if not header:
+        return False
+    for raw in header.split(","):
+        candidate = raw.strip()
+        if candidate == "*":
+            return True
+        if candidate.startswith(("W/", "w/")):
+            candidate = candidate[2:]
+        if candidate == etag:
+            return True
+    return False
+
+
 @router.get("/performers/{performer_id}/thumb")
 def get_thumb(request: Request, performer_id: str) -> Response:
     with _lock(request):
@@ -241,7 +258,7 @@ def get_thumb(request: Request, performer_id: str) -> Response:
     # thumbnail for up to a day without ever asking. Revalidation is cheap —
     # a matching tag short-circuits to a header-only 304 below.
     headers = {"Cache-Control": "private, no-cache", "ETag": etag}
-    if request.headers.get("if-none-match") == etag:
+    if _etag_matches(request.headers.get("if-none-match"), etag):
         return Response(status_code=304, headers=headers)
     return Response(content=row["thumb"], media_type="image/jpeg", headers=headers)
 

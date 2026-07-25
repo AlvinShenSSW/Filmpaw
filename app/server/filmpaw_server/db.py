@@ -70,15 +70,34 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+
+    # Read the version BEFORE touching the file: a DB written by a future
+    # build must be refused untouched. Running our DDL first could recreate
+    # objects that a newer schema had dropped.
+    existing = _read_version(conn)
+    if existing is not None and existing > SCHEMA_VERSION:
+        conn.close()
+        raise RuntimeError(
+            f"unsupported DB schema version {existing} (expected {SCHEMA_VERSION})"
+        )
+
     conn.executescript(DDL)
-    cur = conn.execute("SELECT version FROM schema_version")
-    row = cur.fetchone()
-    if row is None:
-        conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
-        conn.commit()
-    elif row["version"] != SCHEMA_VERSION:
-        _migrate(conn, row["version"])
+    if existing is None:
+        if _read_version(conn) is None:
+            conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
+            conn.commit()
+    elif existing != SCHEMA_VERSION:
+        _migrate(conn, existing)
     return conn
+
+
+def _read_version(conn: sqlite3.Connection) -> int | None:
+    """Current schema version, or None for a fresh/unversioned database."""
+    try:
+        row = conn.execute("SELECT version FROM schema_version").fetchone()
+    except sqlite3.OperationalError:  # table does not exist yet
+        return None
+    return row["version"] if row is not None else None
 
 
 def _migrate(conn: sqlite3.Connection, from_version: int) -> None:

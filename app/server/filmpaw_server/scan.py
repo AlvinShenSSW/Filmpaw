@@ -109,8 +109,9 @@ def _refresh_thumb(
         mtime = jpg.stat().st_mtime
     except OSError:
         # folder.jpg gone -> clear thumb (D9); skip the write when there was
-        # nothing stored anyway.
-        if cached_mtime is not None:
+        # nothing stored anyway. Either field being set means there is state
+        # to clear (a half-written row must not keep a stale thumb_side).
+        if cached_mtime is not None or cached_side is not None:
             conn.execute(
                 "UPDATE performers SET thumb=NULL, thumb_mtime=NULL, thumb_side=NULL"
                 " WHERE id=?",

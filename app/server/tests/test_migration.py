@@ -169,3 +169,44 @@ def test_thumb_etag_changes_when_size_changes(tmp_path, source_dir) -> None:
             "/api/performers/old-1/thumb", headers={"If-None-Match": after.headers["etag"]}
         )
         assert revalidated.status_code == 304 and not revalidated.content
+
+
+def test_future_version_db_is_left_untouched(tmp_path) -> None:
+    """Kimi P2: refuse a newer schema BEFORE running our DDL — replaying old
+    DDL over a future schema could recreate objects it had dropped."""
+    db = tmp_path / "future.db"
+    conn = connect(db)
+    conn.execute("UPDATE schema_version SET version = 999")
+    conn.execute("DROP TABLE settings")  # pretend a future schema removed it
+    conn.commit()
+    conn.close()
+
+    with pytest.raises(RuntimeError, match="999"):
+        connect(db)
+
+    raw = sqlite3.connect(db)
+    tables = {r[0] for r in raw.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "settings" not in tables  # our DDL did not resurrect it
+    raw.close()
+
+
+def test_weak_and_list_etags_still_short_circuit(tmp_path, source_dir) -> None:
+    """Kimi P2: If-None-Match may be weak or a list (RFC 7232)."""
+    from fastapi.testclient import TestClient
+
+    from filmpaw_server.app import create_app
+
+    add_performer_folder(source_dir, "缓存", with_jpg=True)
+    db = tmp_path / "c.db"
+    with TestClient(create_app(db_path=db)) as c:
+        sid = c.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+        c.post(f"/api/sources/{sid}/scan")
+        pid = c.get("/api/performers").json()["items"][0]["id"]
+        etag = c.get(f"/api/performers/{pid}/thumb").headers["etag"]
+
+        for header in [etag, f"W/{etag}", f'"other", {etag}', "*"]:
+            r = c.get(f"/api/performers/{pid}/thumb", headers={"If-None-Match": header})
+            assert r.status_code == 304, header
+        assert c.get(
+            f"/api/performers/{pid}/thumb", headers={"If-None-Match": '"stale"'}
+        ).status_code == 200
