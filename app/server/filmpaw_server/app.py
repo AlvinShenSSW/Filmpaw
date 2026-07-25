@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from filmpaw_server import __version__
-from filmpaw_server.db import connect
+from filmpaw_server.db import connect, default_db_path
 from filmpaw_server.routes_performers import router as performers_router
 from filmpaw_server.routes_sources import router as sources_router
 
@@ -28,7 +28,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
-        return {"status": "ok", "version": __version__}
+        return {
+            "status": "ok",
+            "version": __version__,
+            "db_path": str(db_path or default_db_path()),
+        }
 
     app.include_router(sources_router)
     app.include_router(performers_router)

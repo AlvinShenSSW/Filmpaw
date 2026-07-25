@@ -1,0 +1,97 @@
+/** Issue #4 behavior tests: invalid-UNC error, scan states, delete confirm. */
+
+import { ThemeProvider } from "@mui/material/styles";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { theme } from "./theme";
+
+vi.mock("./client", () => ({
+  listSourcesApiSourcesGet: vi.fn(),
+  addSourceApiSourcesPost: vi.fn(),
+  deleteSourceApiSourcesSourceIdDelete: vi.fn(),
+  scanOneApiSourcesSourceIdScanPost: vi.fn(),
+}));
+vi.mock("./api", () => ({
+  fetchHealth: vi.fn(async () => ({ status: "ok", version: "0.1.0", db_path: "X:\\db" })),
+}));
+
+import {
+  addSourceApiSourcesPost,
+  deleteSourceApiSourcesSourceIdDelete,
+  listSourcesApiSourcesGet,
+  scanOneApiSourcesSourceIdScanPost,
+} from "./client";
+import { SettingsPage } from "./SettingsPage";
+
+const SRC = {
+  id: 1,
+  unc_path: "\\\\Ant\\Video Station\\女优VI\\",
+  label: "女优VI",
+  last_scan_at: "2026-07-24T21:03:00",
+  performer_count: 31,
+  reachable: true,
+};
+
+function renderPage() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <ThemeProvider theme={theme}>
+        <SettingsPage />
+      </ThemeProvider>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({ data: [SRC] } as never);
+});
+
+describe("SettingsPage", () => {
+  it("shows red error on invalid UNC and adds nothing", async () => {
+    vi.mocked(addSourceApiSourcesPost).mockResolvedValue({
+      error: { detail: "路径不可达或不是目录: Z:\\bad\\" },
+    } as never);
+    renderPage();
+    await userEvent.type(await screen.findByLabelText("新扫描源路径"), "Z:\\bad");
+    await userEvent.click(screen.getByRole("button", { name: /添加源/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("路径不可达");
+  });
+
+  it("scan shows summary on success and red state on 503", async () => {
+    vi.mocked(scanOneApiSourcesSourceIdScanPost).mockResolvedValue({
+      data: { added: 2, refreshed: 29, missing: 1 },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /扫描/ }));
+    expect(await screen.findByText("新增 2 · 更新 29 · 失效 1")).toBeInTheDocument();
+
+    vi.mocked(scanOneApiSourcesSourceIdScanPost).mockResolvedValue({
+      error: { detail: "源不可达" },
+    } as never);
+    await userEvent.click(screen.getByRole("button", { name: /扫描/ }));
+    expect(await screen.findByText(/源不可达/)).toBeInTheDocument();
+  });
+
+  it("delete asks for confirmation showing the performer count", async () => {
+    vi.mocked(deleteSourceApiSourcesSourceIdDelete).mockResolvedValue({} as never);
+    renderPage();
+    await userEvent.click(await screen.findByLabelText("删除源"));
+    expect(await screen.findByText("删除扫描源?")).toBeInTheDocument();
+    expect(screen.getByText("31")).toBeInTheDocument(); // record count in dialog
+
+    await userEvent.click(screen.getByRole("button", { name: "删除" }));
+    await waitFor(() =>
+      expect(deleteSourceApiSourcesSourceIdDelete).toHaveBeenCalledWith({
+        path: { source_id: 1 },
+      }),
+    );
+  });
+
+  it("renders db path and version in the footer", async () => {
+    renderPage();
+    expect(await screen.findByText(/X:\\db · v0\.1\.0/)).toBeInTheDocument();
+  });
+});
