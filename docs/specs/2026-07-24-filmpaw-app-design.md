@@ -6,8 +6,9 @@
 ## 0. 执行与评审链 (操作者已指定)
 
 - 所有实现任务经 **AFK** 跑:每 issue 走完整瀑布(design→TDD→CI→评审→merge)
-- 评审链: **CTO 自审 = Claude (cto-pr-review) → 外门 = Codex (codex-review) → 终审 = GLM 5.2 (kilo-review, 操作者显式选定的实验性 final gate)**
-- Kimi 不在本项目主链;若 GLM 不可用 → 降级运行并按 AFK 规则向操作者报告
+- 评审链: **CTO 自审 = Claude (cto-pr-review) → 外门 = Codex (codex-review) → 终审 = Kimi (kimi-review)**
+  (2026-07-25 操作者变更: GLM/kilo 因 40 分钟仍无法完成 6 轨汇总退出主链, 终审改回 AFK 默认的 Kimi)
+- 若 Kimi 不可用 → 降级运行并按 AFK 规则向操作者报告
 - merge 策略: **`merge-when-green`**(操作者已确认: CI 绿 + 三层评审全过 → 自动合并)
 - **Issue 前置门**: issues 建立后,先由 **Codex 评审 issue 本身**(拆分粒度、依赖、验收标准、与本设计的一致性),
   发现的问题修正到 issue 后,**才允许开跑 AFK**。

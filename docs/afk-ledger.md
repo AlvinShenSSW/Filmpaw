@@ -7,7 +7,7 @@
 
 - Scope: issues #1-#8, 波次 **1 → 2 → (3∥4) → (5,6) → 8 → 7**, 不越界
 - Merge 策略: **merge-when-green** (评审链全过 + 检查绿 → 自动合并; #7 之前"绿"=本地 pytest/typecheck/biome 全过并在 PR 记录)
-- 评审链: CTO 自审(Claude) → 外门 Codex (`codex exec --sandbox read-only`, **stdin 必须 `< /dev/null`**) → 终审 GLM (`node skill/kilo-review/kilo-gate.mjs`, `KILO_REVIEW_MODEL=zai-coding-plan/glm-5.2`); **Kimi 不参与**; 某 gate 不可用 → 降级运行并在 PR + 报告标注
+- 评审链: CTO 自审(Claude) → 外门 Codex (`codex exec --sandbox read-only`, **stdin 必须 `< /dev/null`**) → **终审 Kimi** (`node skill/kimi-review/kimi-gate.mjs`); 某 gate 不可用 → 降级运行并在 PR + 报告标注 (2026-07-25 操作者变更: GLM 超时不收敛退出主链)
 - 每 issue: 分支 `issue-N-<slug>` off origin/main → 轻量设计段(写入 PR 描述) → TDD → 提交推送 → PR → CTO 自审 → Codex 外门(批量修) → GLM 终审 → merge → 更新台账
 - 遵守 AGENTS.md「CLI invocation discipline」防挂规则
 - 停机: 队列完成 → CronDelete + 最终报告; 连续 2 tick 无实质进展 → CronDelete + 状态报告 + STOP
@@ -37,3 +37,4 @@
 - (#2) Codex 外门: P1 sqlite 并发竞态→全 handler 串行锁+并发回归测试; P2 大小写改名重复建档→casefold 匹配。
 - (gate) kilo review 固定起 6 轨多 agent 流程, 10 分钟工具上限不够 → 解法: detached 进程 + KILO_REVIEW_TIMEOUT_MS=1500000 + Monitor 监听。后续终审一律用此模式。
 - (#2) GLM P1: 扫描异常未回滚→共享连接脏事务被后续 commit 持久化(毁库级)。已修+回归测试。延后: off-lock 缩略图解码、格式预检。
+- (2026-07-25) 操作者指令: 终审 GLM→Kimi。GLM 两次超时(25/40min 皆死在 6 轨汇总), kilo 孤儿泄露已修。#3 起终审 = Kimi。
