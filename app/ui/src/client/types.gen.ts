@@ -57,9 +57,13 @@ export type HealthOut = {
  */
 export type OpenPairIn = {
     /**
-     * Local Path
+     * Local Dir
      */
-    local_path: string;
+    local_dir: string;
+    /**
+     * Subdir
+     */
+    subdir: string;
     /**
      * Performer Id
      */
@@ -673,6 +677,12 @@ export type PutSettingsApiSettingsPutData = {
 };
 
 export type PutSettingsApiSettingsPutErrors = {
+    /**
+     * 错误
+     */
+    400: {
+        detail?: string;
+    };
     /**
      * Validation Error
      */

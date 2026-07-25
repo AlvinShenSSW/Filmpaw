@@ -315,18 +315,30 @@ class SettingsIn(BaseModel):
     last_local_dir: str | None = None
 
 
-@router.put("/settings", response_model=SettingsOut)
+@router.put("/settings", response_model=SettingsOut, responses={400: _ERR})
 def put_settings(request: Request, body: SettingsIn) -> dict:
+    # last_local_dir is the SECURITY ANCHOR of the open-pair containment
+    # guard — validate on save (absolute, existing directory, never a
+    # filesystem root) and store the canonical realpath.
+    value = body.last_local_dir
+    if value is not None:
+        if not os.path.isabs(value):
+            raise HTTPException(status_code=400, detail="必须是绝对路径")
+        value = os.path.realpath(value)
+        if not os.path.isdir(value):
+            raise HTTPException(status_code=400, detail="目录不存在")
+        if os.path.dirname(value) == value:
+            raise HTTPException(status_code=400, detail="不能选择磁盘根目录")
     conn = _conn(request)
     with _lock(request):
         conn.execute(
             "INSERT INTO settings(key, value) VALUES ('last_local_dir', ?)"
             " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (body.last_local_dir,),
+            (value,),
         )
         conn.commit()
     return {
-        "last_local_dir": body.last_local_dir,
+        "last_local_dir": value,
         "db_path": request.app.state.db_path,
     }
 
@@ -382,7 +394,8 @@ def local_subdirs(path: str) -> dict:
 
 
 class OpenPairIn(BaseModel):
-    local_path: str
+    local_dir: str  # the picked base dir (must equal the approved anchor)
+    subdir: str  # plain folder name — server joins, no client-side separators
     performer_id: str
 
 
@@ -390,28 +403,33 @@ class OpenPairIn(BaseModel):
 def open_pair(request: Request, body: OpenPairIn) -> None:
     # Containment guard (Kimi review): only paths inside the user-approved
     # last_local_dir may be opened — the CORS surface must never grant
-    # arbitrary directory opens. realpath resolves symlinks/junctions so a
-    # link inside the approved dir cannot escape it; application-level
-    # errors use 400 (422 stays reserved for validation-error shape).
-    with _lock(request):
-        approved_row = _conn(request).execute(
-            "SELECT value FROM settings WHERE key='last_local_dir'"
-        ).fetchone()
-    approved = approved_row["value"] if approved_row and approved_row["value"] else None
-    if approved is None:
-        raise HTTPException(status_code=400, detail="尚未选择本地目录")
-    real_local = os.path.realpath(body.local_path)
-    real_approved = os.path.realpath(approved)
-    try:
-        inside = os.path.commonpath([real_local, real_approved]) == real_approved
-    except ValueError:  # different drives
-        inside = False
-    if not inside:
-        raise HTTPException(status_code=400, detail="路径不在已选择的本地目录内")
-    if not os.path.isdir(real_local):
-        raise HTTPException(status_code=400, detail="本地目录不存在 — 请重新选择")
+    # arbitrary directory opens. The server joins local_dir + subdir itself
+    # (no client separator heuristics); realpath resolves symlinks/junctions
+    # so a link inside the approved dir cannot escape; the whole guard —
+    # anchor read, resolution, checks — runs under the lock so a concurrent
+    # PUT /settings cannot swap the boundary mid-check (TOCTOU).
+    if not os.path.isabs(body.local_dir):
+        raise HTTPException(status_code=400, detail="必须是绝对路径")
+    if body.subdir in ("", ".", "..") or os.path.basename(body.subdir) != body.subdir:
+        raise HTTPException(status_code=400, detail="无效的子目录名")
     conn = _conn(request)
     with _lock(request):
+        approved_row = conn.execute(
+            "SELECT value FROM settings WHERE key='last_local_dir'"
+        ).fetchone()
+        approved = approved_row["value"] if approved_row and approved_row["value"] else None
+        if approved is None:
+            raise HTTPException(status_code=400, detail="尚未选择本地目录")
+        real_local = os.path.realpath(os.path.join(body.local_dir, body.subdir))
+        real_approved = os.path.realpath(approved)
+        try:
+            inside = os.path.commonpath([real_local, real_approved]) == real_approved
+        except ValueError:  # different drives
+            inside = False
+        if not inside:
+            raise HTTPException(status_code=400, detail="路径不在已选择的本地目录内")
+        if not os.path.isdir(real_local):
+            raise HTTPException(status_code=400, detail="本地目录不存在 — 请重新选择")
         row = conn.execute(
             "SELECT unc_path, is_missing FROM performers WHERE id=?", (body.performer_id,)
         ).fetchone()

@@ -104,12 +104,10 @@ export function ArchivePage() {
   const openPair = useMutation({
     mutationFn: async (performerId: string) => {
       if (!localDir || !selected) throw new Error("no-selection");
-      // Separator follows the picked dir (tauri may hand back / on some
-      // platforms); never hardcode a backslash.
-      const sep = localDir.includes("/") ? "/" : "\\";
-      const base = localDir.endsWith(sep) ? localDir.slice(0, -1) : localDir;
+      // The server joins local_dir + subdir itself — no client-side
+      // separator knowledge (Kimi R4).
       const r = await openPairApiOpenPairPost({
-        body: { local_path: `${base}${sep}${selected}`, performer_id: performerId },
+        body: { local_dir: localDir, subdir: selected, performer_id: performerId },
       });
       if (r.error) throw r.error;
       return performerId;

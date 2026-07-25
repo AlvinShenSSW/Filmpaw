@@ -94,7 +94,8 @@ describe("ArchivePage", () => {
     await waitFor(() =>
       expect(openPairApiOpenPairPost).toHaveBeenCalledWith({
         body: {
-          local_path: "D:\\Downloads\\新片\\小红", // left selection, not search text
+          local_dir: "D:\\Downloads\\新片",
+          subdir: "小红", // left selection, not search text
           performer_id: REC.id,
         },
       }),
@@ -151,7 +152,7 @@ describe("Kimi verify fixes", () => {
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
   });
 
-  it("forward-slash localDir joins with forward slash", async () => {
+  it("pair sends dir and subdir separately (server joins, Kimi R4)", async () => {
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: "/mnt/downloads", db_path: "X:db" },
     } as never);
@@ -161,7 +162,7 @@ describe("Kimi verify fixes", () => {
     await userEvent.click(pairButtons[0]);
     await waitFor(() =>
       expect(openPairApiOpenPairPost).toHaveBeenCalledWith({
-        body: { local_path: "/mnt/downloads/小红", performer_id: REC.id },
+        body: { local_dir: "/mnt/downloads", subdir: "小红", performer_id: REC.id },
       }),
     );
   });
