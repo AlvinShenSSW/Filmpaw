@@ -113,6 +113,14 @@ export function PerformersPage() {
     },
   });
 
+  // A deleted source must not linger as the active filter (its id would
+  // 422 every subsequent fetch and strand the page).
+  useEffect(() => {
+    if (sourceFilter !== "" && sources.data && !sources.data.some((s) => s.id === sourceFilter)) {
+      setSourceFilter("");
+    }
+  }, [sources.data, sourceFilter]);
+
   const performers = useInfiniteQuery({
     queryKey: ["performers", q, showMissing, sourceFilter],
     queryFn: async ({ pageParam }) => {
@@ -217,6 +225,9 @@ export function PerformersPage() {
           (bad ? ` · ${bad} 个源不可达已跳过` : ""),
       );
       refetch();
+      // counts/last-scan changed; a deleted source also falls out of the
+      // filter dropdown via the stale-filter effect
+      queryClient.invalidateQueries({ queryKey: ["sources"] });
     },
     onError: (e) => setToast(detailOf(e, "重扫失败")),
   });
@@ -245,6 +256,9 @@ export function PerformersPage() {
           value={sourceFilter}
           onChange={(e) => setSourceFilter(e.target.value === "" ? "" : Number(e.target.value))}
           sx={{ minWidth: 150 }}
+          disabled={sources.isError}
+          error={sources.isError}
+          helperText={sources.isError ? "来源列表加载失败" : undefined}
           slotProps={{
             htmlInput: { "aria-label": "来源筛选" },
             select: { displayEmpty: true },

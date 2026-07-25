@@ -239,3 +239,33 @@ describe("source filter (#8)", () => {
     ).toBe(true);
   });
 });
+
+describe("source filter resilience (Kimi)", () => {
+  it("resets the filter when the selected source disappears (P2)", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const combo = await screen.findByRole("combobox");
+    await user.click(combo);
+    await user.click(await within(await screen.findByRole("listbox")).findByText("女优VI"));
+    expect(await screen.findByText(/当前来源: 女优VI/)).toBeInTheDocument();
+
+    // the source gets deleted server-side; next sources fetch omits it
+    vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({
+      data: [
+        {
+          id: 2,
+          unc_path: "\\EAGLEVS女优V\\",
+          label: "女优V",
+          last_scan_at: null,
+          performer_count: 1,
+          reachable: true,
+        },
+      ],
+    } as never);
+    // simulate a sources refetch (rescan success invalidates ["sources"])
+    const { scanAllApiScanAllPost } = await import("./client");
+    vi.mocked(scanAllApiScanAllPost).mockResolvedValue({ data: [] } as never);
+    await user.click(screen.getByRole("button", { name: "全部重扫" }));
+    expect(await screen.findByText(/2 个来源/)).toBeInTheDocument(); // reset to all
+  });
+});
