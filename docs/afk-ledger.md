@@ -54,7 +54,7 @@
 
 | Issue | 状态 | 分支 | PR | 备注 |
 |---|---|---|---|---|
-| #17 console 窗口 | issue-gate | — | — | Codex 前置门评审中 |
-| #18 目录不可访问 | issue-gate | — | — | 需打包版复现定位 |
+| #17 console 窗口 | **merged** ✅ | issue-17-no-console(已删) | #21 | CREATE_NO_WINDOW; Codex CLEAN/Kimi APPROVE; 冒烟3/3 |
+| #18 目录不可访问 | next | issue-18-local-dir-bug | — | 先冻结sidecar路径矩阵取证 |
 | #19 源路径选择器 | issue-gate | — | — | |
 | #20 UI/UX 打磨 | issue-gate | — | — | 收尾, 用 ui-ux-pro-max |
