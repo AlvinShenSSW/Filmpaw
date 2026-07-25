@@ -21,8 +21,8 @@
 | #3 Server API | **merged** ✅ | issue-3-performers-api(已删) | [#11](https://github.com/AlvinShenSSW/Filmpaw/pull/11) | 42 tests; CTO 2fix / Codex 1驳回 / Kimi R1 1P1+2 R2 APPROVE-WC |
 | #4 UI 设置页 | **merged** ✅ | issue-4-settings-ui(已删) | [#12](https://github.com/AlvinShenSSW/Filmpaw/pull/12) | Codex P1 CORS / Kimi P1 biome-CI + 类型化API; vitest 设施落地 |
 | #5 UI 表演者库 | **merged** ✅ | issue-5-performers-ui(已删) | [#13](https://github.com/AlvinShenSSW/Filmpaw/pull/13) | Codex P1 清理范围+P2 分页; Kimi 错误浮现; 14 UI tests |
-| #6 UI 归档对比 | next | issue-6-archive-ui | — | PosterAvatar 复用; 双开配对解耦规则 |
-| #8 来源筛选 | pending | — | — | 在 #5 之后 |
+| #6 UI 归档对比 | **merged** ✅ | issue-6-archive-ui(已删) | [#14](https://github.com/AlvinShenSSW/Filmpaw/pull/14) | Codex CLEAN; Kimi 5轮(symlink逃逸/锚点/TOCTOU/服务端join); R5 无P1 收敛 |
+| #8 来源筛选 | next | issue-8-source-filter | — | server source_id 参数已在 #3 落地, 纯 UI |
 | #7 打包+CI | pending | — | — | 收口 |
 
 ## 决策日志
