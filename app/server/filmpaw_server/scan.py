@@ -33,7 +33,7 @@ from filmpaw_server.normalize import normalize
 
 log = logging.getLogger(__name__)
 
-THUMB_MAX_SIDE = 256
+THUMB_MAX_SIDE = 512
 THUMB_QUALITY = 80
 
 
@@ -91,9 +91,19 @@ def make_thumb(jpg_path: Path) -> bytes:
 
 
 def _refresh_thumb(
-    conn: sqlite3.Connection, performer_id: str, folder: Path, cached_mtime: float | None
+    conn: sqlite3.Connection,
+    performer_id: str,
+    folder: Path,
+    cached_mtime: float | None,
+    cached_side: int | None,
 ) -> None:
-    """cached_mtime comes from the single per-source SELECT (no N+1)."""
+    """cached_* come from the single per-source SELECT (no N+1).
+
+    Rebuild when the source changed (mtime) OR when the stored thumbnail was
+    generated at a different max side than we now want. The side comparison is
+    done HERE in Python — as SQL, `thumb_side != 512` would evaluate to NULL
+    (not true) for pre-migration rows and silently never rebuild them.
+    """
     jpg = folder / "folder.jpg"
     try:
         mtime = jpg.stat().st_mtime
@@ -102,20 +112,22 @@ def _refresh_thumb(
         # nothing stored anyway.
         if cached_mtime is not None:
             conn.execute(
-                "UPDATE performers SET thumb=NULL, thumb_mtime=NULL WHERE id=?",
+                "UPDATE performers SET thumb=NULL, thumb_mtime=NULL, thumb_side=NULL"
+                " WHERE id=?",
                 (performer_id,),
             )
         return
-    if cached_mtime == mtime:
-        return  # unchanged, skip regen
+    if cached_mtime == mtime and cached_side == THUMB_MAX_SIDE:
+        return  # unchanged source AND already at the current size
     try:
         blob = make_thumb(jpg)
     except Exception as e:  # unreadable/corrupt image: keep old value, warn
+        # thumb_side is deliberately left as-is, so the next scan retries.
         log.warning("thumbnail failed for %s: %s", jpg, e)
         return
     conn.execute(
-        "UPDATE performers SET thumb=?, thumb_mtime=? WHERE id=?",
-        (blob, mtime, performer_id),
+        "UPDATE performers SET thumb=?, thumb_mtime=?, thumb_side=? WHERE id=?",
+        (blob, mtime, THUMB_MAX_SIDE, performer_id),
     )
 
 
@@ -130,7 +142,7 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
     result = ScanResult()
     try:
         db_rows = conn.execute(
-            "SELECT id, folder_name, thumb_mtime, is_missing FROM performers"
+            "SELECT id, folder_name, thumb_mtime, thumb_side, is_missing FROM performers"
             " WHERE source_id=?",
             (source_id,),
         ).fetchall()
@@ -147,6 +159,7 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
             if row is not None:
                 pid = row["id"]
                 cached_mtime = row["thumb_mtime"]
+                cached_side = row["thumb_side"]
                 conn.execute(
                     "UPDATE performers SET last_seen_at=?, is_missing=0 WHERE id=?",
                     (now, pid),
@@ -161,6 +174,7 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
             else:
                 pid = str(uuid.uuid4())
                 cached_mtime = None
+                cached_side = None
                 conn.execute(
                     "INSERT INTO performers(id, name, name_norm, source_id, folder_name,"
                     " unc_path, first_seen_at, last_seen_at, is_missing)"
@@ -168,7 +182,7 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
                     (pid, name, normalize(name), source_id, name, folder_path, now, now),
                 )
                 result.added += 1
-            _refresh_thumb(conn, pid, Path(root) / name, cached_mtime)
+            _refresh_thumb(conn, pid, Path(root) / name, cached_mtime, cached_side)
 
         for key, row in by_folder.items():
             if key not in disk_set and not row["is_missing"]:
