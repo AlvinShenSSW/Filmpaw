@@ -138,6 +138,7 @@ export function PerformersPage() {
       if (r.error) throw r.error;
     },
     onSuccess: refetch,
+    onError: (e) => setToast(detailOf(e, "删除别名失败")),
   });
 
   const openFolder = useMutation({
@@ -164,6 +165,7 @@ export function PerformersPage() {
       setConfirmDelete(null);
       refetch();
     },
+    onError: (e) => setToast(detailOf(e, "删除失败")), // dialog stays open
   });
 
   const purge = useMutation({
@@ -177,6 +179,7 @@ export function PerformersPage() {
       setToast(`已清理 ${d.deleted} 条失效记录`);
       refetch();
     },
+    onError: (e) => setToast(detailOf(e, "清理失败")), // dialog stays open
   });
 
   const rescanAll = useMutation({
@@ -197,6 +200,7 @@ export function PerformersPage() {
       );
       refetch();
     },
+    onError: (e) => setToast(detailOf(e, "重扫失败")),
   });
 
   const pages = performers.data?.pages;
@@ -371,7 +375,21 @@ export function PerformersPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {pages && items.length === 0 && (
+            {performers.isError && (
+              <TableRow>
+                <TableCell colSpan={7}>
+                  <Box sx={{ textAlign: "center", py: 6 }} role="alert">
+                    <Typography variant="body2" sx={{ color: "#A32D2D", mb: 1 }}>
+                      列表加载失败 — 请确认 server 正在运行
+                    </Typography>
+                    <Button size="small" onClick={() => performers.refetch()}>
+                      重试
+                    </Button>
+                  </Box>
+                </TableCell>
+              </TableRow>
+            )}
+            {!performers.isError && pages && items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7}>
                   <Box sx={{ textAlign: "center", py: 6, color: "text.secondary" }}>

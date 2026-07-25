@@ -171,3 +171,13 @@ describe("pagination", () => {
     expect(await screen.findByText(/全库共 7 条失效记录将被删除/)).toBeInTheDocument();
   });
 });
+
+describe("error surfacing (Kimi P2)", () => {
+  it("list failure shows an error alert with retry, not the empty state", async () => {
+    vi.mocked(listPerformersApiPerformersGet).mockRejectedValue(new Error("ECONNREFUSED"));
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("列表加载失败");
+    expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+    expect(screen.queryByText(/还没有表演者/)).not.toBeInTheDocument();
+  });
+});

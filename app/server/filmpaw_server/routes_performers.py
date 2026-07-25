@@ -2,7 +2,8 @@
 
 Contract highlights:
 - GET /api/performers returns the pagination envelope {items, total, page,
-  page_size, source_count}; page is 1-based, page_size default 50 max 200
+  page_size, source_count, missing_total (GLOBAL, filter-independent — the
+  purge scope)}; page is 1-based, page_size default 50 max 200
   (422 above), stable sort name_norm ASC then id ASC; total/source_count
   are computed on the filtered set ignoring pagination.
 - D5 group-level aliases: aliases live on name_norm. A query hit on an
