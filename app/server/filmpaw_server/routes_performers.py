@@ -12,6 +12,7 @@ Contract highlights:
 - All handlers serialize on app.state.db_lock (shared sqlite connection).
 """
 
+import logging
 import os
 import sqlite3
 import subprocess
@@ -22,6 +23,8 @@ from pydantic import BaseModel
 
 from filmpaw_server.normalize import normalize
 from filmpaw_server.scan import SourceUnreachable, list_subdirs
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
 
@@ -89,11 +92,27 @@ def _lock(request: Request):
 
 
 def open_in_explorer(path: str) -> None:
-    """Open a folder in the OS file manager. Split out for test injection."""
-    if sys.platform == "win32":
-        subprocess.Popen(["explorer", path])
-    else:  # dev convenience on other platforms
-        subprocess.Popen(["xdg-open" if sys.platform.startswith("linux") else "open", path])
+    """Open a folder in the OS file manager. Split out for test injection.
+
+    Windows uses os.startfile (ShellExecuteW) rather than
+    ``Popen(["explorer", path])``: explorer.exe treats a COMMA as an argument
+    separator and Python's list2cmdline only quotes on whitespace, so a folder
+    like ``沙月恵奈,月野かすみ`` was truncated at the comma — explorer then got
+    a non-existent path and fell back to Documents (#28). ShellExecuteW takes
+    the path as a single value, no command-line parsing involved.
+
+    Launch stays fire-and-forget: os.startfile raises OSError for an
+    unreachable path (offline NAS between scans) where Popen did not, so it is
+    swallowed to preserve the existing 204 contract — the OS surfaces its own
+    error dialog, exactly as before.
+    """
+    try:
+        if sys.platform == "win32":
+            os.startfile(path)  # type: ignore[attr-defined]  # Windows-only
+        else:  # dev convenience on other platforms
+            subprocess.Popen(["xdg-open" if sys.platform.startswith("linux") else "open", path])
+    except OSError as e:
+        log.warning("could not launch file manager for %s: %s", path, e)
 
 
 # ---------------------------------------------------------------- list/search
