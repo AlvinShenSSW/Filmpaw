@@ -22,8 +22,8 @@
 | #4 UI 设置页 | **merged** ✅ | issue-4-settings-ui(已删) | [#12](https://github.com/AlvinShenSSW/Filmpaw/pull/12) | Codex P1 CORS / Kimi P1 biome-CI + 类型化API; vitest 设施落地 |
 | #5 UI 表演者库 | **merged** ✅ | issue-5-performers-ui(已删) | [#13](https://github.com/AlvinShenSSW/Filmpaw/pull/13) | Codex P1 清理范围+P2 分页; Kimi 错误浮现; 14 UI tests |
 | #6 UI 归档对比 | **merged** ✅ | issue-6-archive-ui(已删) | [#14](https://github.com/AlvinShenSSW/Filmpaw/pull/14) | Codex CLEAN; Kimi 5轮(symlink逃逸/锚点/TOCTOU/服务端join); R5 无P1 收敛 |
-| #8 来源筛选 | next | issue-8-source-filter | — | server source_id 参数已在 #3 落地, 纯 UI |
-| #7 打包+CI | pending | — | — | 收口 |
+| #8 来源筛选 | **merged** ✅ | issue-8-source-filter(已删) | [#15](https://github.com/AlvinShenSSW/Filmpaw/pull/15) | Codex CLEAN×2连; Kimi 失效重置; 26 UI tests |
+| #7 打包+CI | next | issue-7-packaging | — | 收官: PyInstaller+NSIS+CI+openapi漂移+评审延后加固 |
 
 ## 决策日志
 
