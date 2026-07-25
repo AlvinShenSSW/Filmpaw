@@ -12,7 +12,12 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
-from filmpaw_server.scan import SourceUnreachable, scan_source
+from filmpaw_server.scan import ScanResult, SourceUnreachable, scan_source
+
+
+def _result_dict(r: ScanResult) -> dict:
+    """Single source of truth for the scan-summary JSON shape."""
+    return {"added": r.added, "refreshed": r.refreshed, "missing": r.missing}
 
 router = APIRouter(prefix="/api")
 
@@ -68,6 +73,9 @@ def add_source(request: Request, body: SourceIn) -> dict:
                 "INSERT INTO sources(unc_path, label) VALUES (?, ?)", (unc, label)
             )
         except sqlite3.IntegrityError:
+            # Keep the shared-connection invariant: never release the lock
+            # with an open transaction (statement rolled back, txn not).
+            conn.rollback()
             raise HTTPException(status_code=409, detail="该源已存在") from None
         conn.commit()
         return {"id": cur.lastrowid, "unc_path": unc, "label": label}
@@ -94,7 +102,7 @@ def scan_one(request: Request, source_id: int) -> dict:
             raise HTTPException(
                 status_code=503, detail="源不可达 — 已跳过, 记录未变动"
             ) from None
-    return {"added": result.added, "refreshed": result.refreshed, "missing": result.missing}
+    return _result_dict(result)
 
 
 @router.post("/scan-all")
@@ -110,15 +118,7 @@ def scan_all(request: Request) -> list[dict]:
         with _lock(request):
             try:
                 r = scan_source(conn, sid)
-                out.append(
-                    {
-                        "source_id": sid,
-                        "ok": True,
-                        "added": r.added,
-                        "refreshed": r.refreshed,
-                        "missing": r.missing,
-                    }
-                )
+                out.append({"source_id": sid, "ok": True, **_result_dict(r)})
             except KeyError:
                 out.append({"source_id": sid, "ok": False, "error": "源已被删除"})
             except SourceUnreachable:
