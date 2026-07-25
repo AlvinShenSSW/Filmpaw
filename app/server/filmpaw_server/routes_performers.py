@@ -275,13 +275,21 @@ def open_performer(request: Request, performer_id: str) -> None:
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="表演者不存在")
-        if not os.path.isdir(row["unc_path"]):
-            # Folder is gone: flag it and tell the UI (§6).
-            conn.execute(
-                "UPDATE performers SET is_missing=1 WHERE id=?", (performer_id,)
-            )
-            conn.commit()
-            raise HTTPException(status_code=404, detail="文件夹已不存在, 已标记失效")
+    # Reachability check OUTSIDE the lock: an unreachable UNC path can block
+    # for the whole network timeout and must not freeze every other request.
+    if not os.path.isdir(row["unc_path"]):
+        with _lock(request):
+            # Re-check the row still exists before flagging (it may have been
+            # deleted while we probed the share).
+            still = conn.execute(
+                "SELECT 1 FROM performers WHERE id=?", (performer_id,)
+            ).fetchone()
+            if still is not None:
+                conn.execute(
+                    "UPDATE performers SET is_missing=1 WHERE id=?", (performer_id,)
+                )
+                conn.commit()
+        raise HTTPException(status_code=404, detail="文件夹已不存在, 已标记失效")
     open_in_explorer(row["unc_path"])
 
 

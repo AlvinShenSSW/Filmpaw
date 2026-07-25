@@ -161,13 +161,16 @@ if (res.error && res.error.code === 'ENOENT') {
 if (res.error && (res.error.code === 'ETIMEDOUT' || res.signal)) {
   // Reap kilo's orphaned children: SIGKILL on the shell wrapper does not
   // kill the node process tree on Windows, leaking ~5 processes per timeout.
+  // Target only the kilo CLI itself (@kilocode package path / kilo shims) and
+  // never this gate process — a bare 'kilo' match would suicide the gate
+  // (its own cmdline contains kilo-gate.mjs) and could hit unrelated tools.
   if (isWin) {
     spawnSync(
       'powershell',
       [
         '-NoProfile',
         '-Command',
-        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | Where-Object { $_.CommandLine -match 'kilo' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+        `Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.ProcessId -ne ${process.pid} -and $_.CommandLine -match '@kilocode|kilo\\.cmd|kilo\\.ps1' -and $_.CommandLine -notmatch 'kilo-gate' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
       ],
       { timeout: 30_000 },
     );
