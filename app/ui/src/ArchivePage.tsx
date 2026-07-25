@@ -160,7 +160,7 @@ export function ArchivePage() {
         sx={{
           width: 260,
           flexShrink: 0,
-          borderRight: "1px solid #ECEAE4",
+          borderRight: `1px solid ${tokens.line}`,
           p: 2,
           display: "flex",
           flexDirection: "column",

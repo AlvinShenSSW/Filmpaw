@@ -32,6 +32,8 @@ export const tokens = {
   bad: "#A32D2D",
   badBg: "#FCEBEB",
   badBorder: "#F0B8B8",
+  white: "#FFFFFF",
+  disabled: "#B3AFA6", // decorative/disabled only (not body text)
   mono: '"Cascadia Mono", Consolas, monospace',
 } as const;
 
@@ -47,8 +49,8 @@ export const theme = createTheme({
     primary: { main: tokens.orange, dark: tokens.orangeDeep, contrastText: tokens.ink },
     success: { main: tokens.ok },
     error: { main: tokens.bad },
-    background: { default: "#FFFFFF", paper: tokens.paper },
-    text: { primary: tokens.ink, secondary: tokens.muted, disabled: "#B3AFA6" },
+    background: { default: tokens.white, paper: tokens.paper },
+    text: { primary: tokens.ink, secondary: tokens.muted, disabled: tokens.disabled },
     divider: tokens.line,
   },
   shape: { borderRadius: 9 },

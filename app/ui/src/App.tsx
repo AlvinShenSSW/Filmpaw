@@ -55,7 +55,7 @@ function Shell() {
         sx={{
           width: RAIL_WIDTH,
           flexShrink: 0,
-          borderRight: "1px solid #ECEAE4",
+          borderRight: `1px solid ${tokens.line}`,
           bgcolor: "background.paper",
           display: "flex",
           flexDirection: "column",

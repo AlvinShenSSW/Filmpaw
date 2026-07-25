@@ -316,7 +316,7 @@ export function PerformersPage() {
       </Box>
 
       <TableContainer
-        sx={{ border: "1px solid #ECEAE4", borderRadius: "10px", flex: 1, minHeight: 0 }}
+        sx={{ border: `1px solid ${tokens.line}`, borderRadius: "10px", flex: 1, minHeight: 0 }}
       >
         <Table size="small" stickyHeader aria-label="表演者列表">
           <TableHead>

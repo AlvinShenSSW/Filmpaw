@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { theme, tokens } from "./theme";
 
 function luminance(hex: string): number {
+  if (!/^#[0-9A-Fa-f]{6}$/.test(hex)) throw new Error(`not a 6-digit hex: ${hex}`);
   const n = Number.parseInt(hex.slice(1), 16);
   const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
     const c = v / 255;
@@ -23,6 +24,11 @@ describe("token contrast (WCAG AA >= 4.5:1 for text)", () => {
 
   it("filled-button hover stays light enough for ink text", () => {
     expect(ratio(tokens.ink, tokens.orangeHover)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("selected-folder text and deep-orange marks pass", () => {
+    expect(ratio(tokens.orangeText, tokens.orangeSoft)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(tokens.orangeDeep, tokens.white)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("secondary/caption muted text on white passes", () => {
