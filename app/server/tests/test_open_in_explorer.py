@@ -43,9 +43,10 @@ def test_full_path_reaches_the_os_call_untruncated(monkeypatch, tmp_path, name) 
 def test_unc_and_drive_root_pass_through_unchanged(monkeypatch) -> None:
     seen: list[str] = []
     monkeypatch.setattr(rp.os, "startfile", lambda p: seen.append(p), raising=False)
-    for p in ["\\Eagle\Video Station\女优III\沙月恵奈,月野かすみ", "C:\\"]:
+    paths = [r"\\Eagle\Video Station\女优III\沙月恵奈,月野かすみ", "C:\\"]
+    for p in paths:
         rp.open_in_explorer(p)
-    assert seen == ["\\Eagle\Video Station\女优III\沙月恵奈,月野かすみ", "C:\\"]
+    assert seen == paths
 
 
 def test_unreachable_path_does_not_raise_real_impl(tmp_path) -> None:
