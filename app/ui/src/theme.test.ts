@@ -30,7 +30,9 @@ describe("token contrast (WCAG AA >= 4.5:1 for text)", () => {
     expect(ratio(tokens.muted, tokens.paper)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it("status text passes on its own tint background", () => {
+  it("status text passes on its own tint background (the real pairing)", () => {
+    expect(ratio(tokens.ok, tokens.okBg)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(tokens.bad, tokens.badBg)).toBeGreaterThanOrEqual(4.5);
     expect(ratio(tokens.ok, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
     expect(ratio(tokens.bad, "#FFFFFF")).toBeGreaterThanOrEqual(4.5);
   });

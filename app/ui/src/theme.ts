@@ -65,11 +65,12 @@ export const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
-        // Reduce only transitions (decorative); leave keyframe animations
-        // like the loading spinner functional. No !important — component
-        // styles that opt out can still win.
+        // Reduce only transitions (decorative). !important is required —
+        // component `transition` shorthands (e.g. MuiButton) otherwise win.
+        // Keyframe animations (loading spinner) use animationDuration and
+        // are intentionally left running.
         "@media (prefers-reduced-motion: reduce)": {
-          "*": { transitionDuration: "0.01ms" },
+          "*": { transitionDuration: "0.01ms !important" },
         },
       },
     },

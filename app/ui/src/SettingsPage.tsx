@@ -153,14 +153,21 @@ export function SettingsPage() {
         设置
       </Typography>
 
-      <Box sx={{ display: "flex", gap: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          flexWrap: "wrap",
+          "& > .MuiButtonBase-root": { flexShrink: 0 },
+        }}
+      >
         <TextField
-          fullWidth
           size="small"
           placeholder="\\NAS名\共享\目录\"
           value={uncInput}
           onChange={(e) => setUncInput(e.target.value)}
           slotProps={{ htmlInput: { "aria-label": "新扫描源路径" } }}
+          sx={{ flex: 1, minWidth: 220 }}
         />
         <Button
           variant="outlined"

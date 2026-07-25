@@ -33,7 +33,7 @@ function RailButton({
               width: 40,
               height: 40,
               borderRadius: "10px",
-              color: isActive ? "#FFF" : "text.secondary",
+              color: isActive ? tokens.ink : "text.secondary",
               bgcolor: isActive ? "primary.main" : "transparent",
               "&:hover": { bgcolor: isActive ? "primary.main" : tokens.hoverBg },
             }}

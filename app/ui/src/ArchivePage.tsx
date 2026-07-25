@@ -267,7 +267,7 @@ export function ArchivePage() {
                   sx={{
                     border: "1px solid",
                     borderColor: flashId === p.id ? tokens.orange : tokens.line,
-                    boxShadow: flashId === p.id ? "0 0 0 3px #EF9F2733" : "none",
+                    boxShadow: flashId === p.id ? `0 0 0 3px ${tokens.orange}33` : "none",
                     borderRadius: "11px",
                     p: "12px 14px",
                     mb: 1,
