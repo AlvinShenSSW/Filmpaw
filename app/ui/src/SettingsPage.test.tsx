@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "./theme";
 
+vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
 vi.mock("./client", () => ({
   listSourcesApiSourcesGet: vi.fn(),
   addSourceApiSourcesPost: vi.fn(),
@@ -24,6 +25,7 @@ import {
   listSourcesApiSourcesGet,
   scanOneApiSourcesSourceIdScanPost,
 } from "./client";
+import { pickDirectory } from "./pickDirectory";
 import { SettingsPage } from "./SettingsPage";
 
 const SRC = {
@@ -47,6 +49,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({ data: [SRC] } as never);
   vi.mocked(healthApiHealthGet).mockResolvedValue({
     data: { status: "ok", version: "0.1.0" },
@@ -112,5 +115,26 @@ describe("scan transport failure", () => {
     await userEvent.click(btn);
     expect(await screen.findByText(/源不可达/)).toBeInTheDocument();
     expect(btn).toBeEnabled(); // not stuck in scanning
+  });
+});
+
+describe("browse for source (#19)", () => {
+  it("fills the input from the picker without a separate UI validation", async () => {
+    vi.mocked(pickDirectory).mockResolvedValue("\\AntVideo Station女优VI");
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "浏览" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("新扫描源路径")).toHaveValue("\\AntVideo Station女优VI"),
+    );
+    // add still uses the server-side validating endpoint (not touched yet)
+    expect(addSourceApiSourcesPost).not.toHaveBeenCalled();
+  });
+
+  it("cancel (null) leaves the input unchanged", async () => {
+    vi.mocked(pickDirectory).mockResolvedValue(null);
+    renderPage();
+    await userEvent.type(await screen.findByLabelText("新扫描源路径"), "typed");
+    await userEvent.click(screen.getByRole("button", { name: "浏览" }));
+    expect(screen.getByLabelText("新扫描源路径")).toHaveValue("typed");
   });
 });
