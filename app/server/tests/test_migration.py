@@ -132,3 +132,28 @@ def test_unknown_future_version_is_still_refused(tmp_path) -> None:
     conn.close()
     with pytest.raises(RuntimeError, match="999"):
         connect(db)
+
+
+def test_thumb_etag_changes_when_size_changes(tmp_path, source_dir) -> None:
+    """Kimi P2: the rebuilt 512 blob must not be masked by a cached 256 one.
+    folder.jpg's mtime is unchanged across the upgrade, so an mtime-only ETag
+    would let browsers keep the old image forever."""
+    from fastapi.testclient import TestClient
+
+    from filmpaw_server.app import create_app
+
+    add_performer_folder(source_dir, "旧人", with_jpg=True)
+    db = tmp_path / "old.db"
+    _make_v1_db(db, source_dir)
+
+    with TestClient(create_app(db_path=db)) as c:
+        before = c.get("/api/performers/old-1/thumb")
+        assert before.status_code == 200
+        etag_256 = before.headers["etag"]
+
+        sid = c.get("/api/sources").json()[0]["id"]
+        c.post(f"/api/sources/{sid}/scan")  # rebuilds at 512, mtime untouched
+
+        after = c.get("/api/performers/old-1/thumb")
+        assert after.headers["etag"] != etag_256
+        assert max(Image.open(io.BytesIO(after.content)).size) == THUMB_MAX_SIDE

@@ -228,7 +228,7 @@ def list_performers(
 def get_thumb(request: Request, performer_id: str) -> Response:
     with _lock(request):
         row = _conn(request).execute(
-            "SELECT thumb, thumb_mtime FROM performers WHERE id=?", (performer_id,)
+            "SELECT thumb, thumb_mtime, thumb_side FROM performers WHERE id=?", (performer_id,)
         ).fetchone()
     if row is None or row["thumb"] is None:
         raise HTTPException(status_code=404, detail="无缩略图")
@@ -237,7 +237,10 @@ def get_thumb(request: Request, performer_id: str) -> Response:
         media_type="image/jpeg",
         headers={
             "Cache-Control": "private, max-age=86400",
-            "ETag": f'"{row["thumb_mtime"]}"',
+            # thumb_side is part of the tag: raising THUMB_MAX_SIDE rebuilds the
+            # blob while folder.jpg's mtime is unchanged, so an mtime-only ETag
+            # would let browsers keep serving the old, smaller image.
+            "ETag": f'"{row["thumb_mtime"]}-{row["thumb_side"]}"',
         },
     )
 
