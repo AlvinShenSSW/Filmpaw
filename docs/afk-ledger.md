@@ -61,3 +61,11 @@
 
 ## v1.1 运行结束 (2026-07-25)
 队列 #17-#20 全部 merged。调度器已清理。重新打包新安装包中。
+
+## v1.2 运行 (2026-07-25, issue #25)
+
+| Issue | 状态 | PR | 备注 |
+|---|---|---|---|
+| #25 归档本地目录刷新 + 版本 0.2.0 | **merged** ✅ | #26 | 前置门 BLOCK→PASS(版本范围); Codex 外门 CLEAN; Kimi P2 stale-closure→APPROVE |
+
+产物: Filmpaw_0.2.0_x64-setup.exe · 冒烟: 版本一致(health/openapi 0.2.0)、无黑窗、关窗零残留。调度器已清理。
