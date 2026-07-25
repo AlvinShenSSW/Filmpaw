@@ -51,8 +51,9 @@ fn spawn_server() -> (Child, u16) {
     let mut command = Command::new(&program);
     command.args(&args);
     // Dev-server CORS origins are trusted only when the shell says so.
-    #[cfg(debug_assertions)]
-    command.env("FILMPAW_DEV", "1");
+    // Always set explicitly: a release build must override any inherited
+    // FILMPAW_DEV=1 from the parent environment.
+    command.env("FILMPAW_DEV", if cfg!(debug_assertions) { "1" } else { "0" });
     let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())

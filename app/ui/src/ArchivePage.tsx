@@ -24,7 +24,8 @@ function detailOf(error: unknown, fallback: string): string {
 
 /** Tauri native dir picker; dev fallback = prompt for a path. */
 async function pickDirectory(): Promise<string | null> {
-  if (window.__TAURI_INTERNALS__) {
+  const { isTauri } = await import("@tauri-apps/api/core");
+  if (isTauri()) {
     const { open } = await import("@tauri-apps/plugin-dialog");
     const r = await open({ directory: true, title: "选择本地下载目录" });
     return typeof r === "string" ? r : null;
@@ -120,7 +121,7 @@ export function ArchivePage() {
     },
     onError: (e) => {
       setToast(detailOf(e, "双开失败"));
-      // 422 = local dir vanished; force a re-pick prompt state
+      // 400 = local dir vanished/outside approved; force a re-pick prompt state
       if (detailOf(e, "").includes("本地目录不存在")) {
         queryClient.invalidateQueries({ queryKey: ["local-subdirs"] });
       }
@@ -234,75 +235,76 @@ export function ArchivePage() {
         )}
 
         <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-          {items.map((p) => {
-            const pairDisabled = p.is_missing || !selected;
-            const pairTooltip = p.is_missing
-              ? "文件夹已失效"
-              : !selected
-                ? "先选择左侧本地文件夹"
-                : "";
-            return (
-              <Box
-                key={p.id}
-                sx={{
-                  border: "1px solid",
-                  borderColor: flashId === p.id ? "#EF9F27" : "#ECEAE4",
-                  boxShadow: flashId === p.id ? "0 0 0 3px #EF9F2733" : "none",
-                  borderRadius: "11px",
-                  p: "12px 14px",
-                  mb: 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 1.5,
-                  opacity: p.is_missing ? 0.55 : 1,
-                  transition: "border-color .3s, box-shadow .3s",
-                }}
-              >
-                <PosterAvatar performer={p} big />
-                <Box sx={{ minWidth: 0, flex: 1 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {p.name}
-                    {p.aliases.length > 0 && (
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ ml: 1 }}
-                      >
-                        {p.aliases.map((a) => a.alias).join(" · ")}
-                      </Typography>
-                    )}
-                  </Typography>
-                  <Typography
-                    variant="caption"
-                    noWrap
-                    sx={{
-                      fontFamily: "Consolas, monospace",
-                      color: "text.secondary",
-                      display: "block",
-                    }}
-                  >
-                    {p.unc_path}
-                  </Typography>
-                </Box>
-                <Tooltip title={pairTooltip}>
-                  <span>
-                    <Button
-                      variant="contained"
-                      disableElevation
-                      size="small"
-                      startIcon={<SwapHorizIcon />}
-                      disabled={pairDisabled || openPair.isPending}
-                      onClick={() => openPair.mutate(p.id)}
-                      sx={{ fontWeight: 600, whiteSpace: "nowrap" }}
+          {q.trim() !== "" &&
+            items.map((p) => {
+              const pairDisabled = p.is_missing || !selected;
+              const pairTooltip = p.is_missing
+                ? "文件夹已失效"
+                : !selected
+                  ? "先选择左侧本地文件夹"
+                  : "";
+              return (
+                <Box
+                  key={p.id}
+                  sx={{
+                    border: "1px solid",
+                    borderColor: flashId === p.id ? "#EF9F27" : "#ECEAE4",
+                    boxShadow: flashId === p.id ? "0 0 0 3px #EF9F2733" : "none",
+                    borderRadius: "11px",
+                    p: "12px 14px",
+                    mb: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    opacity: p.is_missing ? 0.55 : 1,
+                    transition: "border-color .3s, box-shadow .3s",
+                  }}
+                >
+                  <PosterAvatar performer={p} big />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {p.name}
+                      {p.aliases.length > 0 && (
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ ml: 1 }}
+                        >
+                          {p.aliases.map((a) => a.alias).join(" · ")}
+                        </Typography>
+                      )}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      noWrap
+                      sx={{
+                        fontFamily: "Consolas, monospace",
+                        color: "text.secondary",
+                        display: "block",
+                      }}
                     >
-                      双开
-                    </Button>
-                  </span>
-                </Tooltip>
-              </Box>
-            );
-          })}
+                      {p.unc_path}
+                    </Typography>
+                  </Box>
+                  <Tooltip title={pairTooltip}>
+                    <span>
+                      <Button
+                        variant="contained"
+                        disableElevation
+                        size="small"
+                        startIcon={<SwapHorizIcon />}
+                        disabled={pairDisabled || openPair.isPending}
+                        onClick={() => openPair.mutate(p.id)}
+                        sx={{ fontWeight: 600, whiteSpace: "nowrap" }}
+                      >
+                        双开
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Box>
+              );
+            })}
 
           {q.trim() === "" && (
             <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>

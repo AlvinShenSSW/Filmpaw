@@ -619,6 +619,21 @@
      "204": {
       "description": "Successful Response"
      },
+     "400": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
      "404": {
       "description": "错误",
       "content": {
@@ -650,16 +665,11 @@
       }
      },
      "422": {
-      "description": "错误",
+      "description": "Validation Error",
       "content": {
        "application/json": {
         "schema": {
-         "properties": {
-          "detail": {
-           "type": "string"
-          }
-         },
-         "type": "object"
+         "$ref": "#/components/schemas/HTTPValidationError"
         }
        }
       }

@@ -386,29 +386,30 @@ class OpenPairIn(BaseModel):
     performer_id: str
 
 
-@router.post("/open-pair", status_code=204, responses={404: _ERR, 409: _ERR, 422: _ERR})
+@router.post("/open-pair", status_code=204, responses={400: _ERR, 404: _ERR, 409: _ERR})
 def open_pair(request: Request, body: OpenPairIn) -> None:
     # Containment guard (Kimi review): only paths inside the user-approved
     # last_local_dir may be opened — the CORS surface must never grant
-    # arbitrary directory opens.
+    # arbitrary directory opens. realpath resolves symlinks/junctions so a
+    # link inside the approved dir cannot escape it; application-level
+    # errors use 400 (422 stays reserved for validation-error shape).
     with _lock(request):
         approved_row = _conn(request).execute(
             "SELECT value FROM settings WHERE key='last_local_dir'"
         ).fetchone()
     approved = approved_row["value"] if approved_row and approved_row["value"] else None
     if approved is None:
-        raise HTTPException(status_code=422, detail="尚未选择本地目录")
+        raise HTTPException(status_code=400, detail="尚未选择本地目录")
+    real_local = os.path.realpath(body.local_path)
+    real_approved = os.path.realpath(approved)
     try:
-        inside = (
-            os.path.commonpath([os.path.abspath(body.local_path), os.path.abspath(approved)])
-            == os.path.abspath(approved)
-        )
+        inside = os.path.commonpath([real_local, real_approved]) == real_approved
     except ValueError:  # different drives
         inside = False
     if not inside:
-        raise HTTPException(status_code=422, detail="路径不在已选择的本地目录内")
-    if not os.path.isdir(body.local_path):
-        raise HTTPException(status_code=422, detail="本地目录不存在 — 请重新选择")
+        raise HTTPException(status_code=400, detail="路径不在已选择的本地目录内")
+    if not os.path.isdir(real_local):
+        raise HTTPException(status_code=400, detail="本地目录不存在 — 请重新选择")
     conn = _conn(request)
     with _lock(request):
         row = conn.execute(
@@ -418,5 +419,5 @@ def open_pair(request: Request, body: OpenPairIn) -> None:
             raise HTTPException(status_code=404, detail="表演者不存在")
         if row["is_missing"]:
             raise HTTPException(status_code=409, detail="该记录已失效, 无法双开")
-    open_in_explorer(body.local_path)
+    open_in_explorer(real_local)  # resolved path — what the guard validated
     open_in_explorer(row["unc_path"])

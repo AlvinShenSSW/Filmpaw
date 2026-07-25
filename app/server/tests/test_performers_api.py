@@ -225,11 +225,11 @@ def test_open_pair_semantics(client, source_dir, tmp_path, opened) -> None:
     assert ok.status_code == 204
     assert len(opened) == 2  # both folders
 
-    # 422 local gone
+    # 400 local gone (app-level error; 422 reserved for validation shape)
     bad = client.post(
-        "/api/open-pair", json={"local_path": str(tmp_path / "nope"), "performer_id": pid}
+        "/api/open-pair", json={"local_path": str(tmp_path / "downloads" / "nope"), "performer_id": pid}
     )
-    assert bad.status_code == 422
+    assert bad.status_code == 400
     # 404 performer unknown
     assert (
         client.post("/api/open-pair", json={"local_path": str(local), "performer_id": "x"})
@@ -352,10 +352,10 @@ def test_open_pair_rejects_paths_outside_approved_dir(client, source_dir, tmp_pa
     outside.mkdir(parents=True)
 
     r0 = client.post("/api/open-pair", json={"local_path": str(outside), "performer_id": pid})
-    assert r0.status_code == 422  # no approved dir yet
+    assert r0.status_code == 400  # no approved dir yet (400 = app-level, 422 = validation)
 
     client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
     r = client.post("/api/open-pair", json={"local_path": str(outside), "performer_id": pid})
-    assert r.status_code == 422
+    assert r.status_code == 400
     assert "不在已选择" in r.json()["detail"]
     assert opened == []

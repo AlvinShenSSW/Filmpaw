@@ -767,6 +767,12 @@ export type OpenPairApiOpenPairPostErrors = {
     /**
      * 错误
      */
+    400: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
     404: {
         detail?: string;
     };
@@ -777,11 +783,9 @@ export type OpenPairApiOpenPairPostErrors = {
         detail?: string;
     };
     /**
-     * 错误
+     * Validation Error
      */
-    422: {
-        detail?: string;
-    };
+    422: HttpValidationError;
 };
 
 export type OpenPairApiOpenPairPostError = OpenPairApiOpenPairPostErrors[keyof OpenPairApiOpenPairPostErrors];

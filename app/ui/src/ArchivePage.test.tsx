@@ -166,3 +166,14 @@ describe("Kimi verify fixes", () => {
     );
   });
 });
+
+describe("stale results (Kimi R3)", () => {
+  it("clearing the search hides previous results with the empty prompt", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /倉木華/ }));
+    expect(await screen.findByText(/2 条匹配/)).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("匹配搜索"));
+    expect(await screen.findByText(/选择左侧文件夹开始匹配/)).toBeInTheDocument();
+    expect(screen.queryAllByRole("button", { name: /双开/ })).toHaveLength(0);
+  });
+});
