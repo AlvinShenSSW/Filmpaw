@@ -190,7 +190,7 @@ describe("chooseDir forensics (#18)", () => {
       data: { last_local_dir: null, db_path: "X:db" },
     } as never);
     vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValueOnce({
-      error: undefined, // network/CORS reject shape
+      error: new Error("Failed to fetch"), // realistic network/CORS reject
     } as never);
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
@@ -246,6 +246,21 @@ describe("chooseDir forensics (#18)", () => {
 describe("drive-root normalization (Codex #18)", () => {
   it("keeps the separator for a drive root instead of making it drive-relative", async () => {
     vi.spyOn(window, "prompt").mockReturnValue("C:/");
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: "C:\\", subdirs: [] },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    await waitFor(() =>
+      expect(localSubdirsApiLocalSubdirsGet).toHaveBeenCalledWith({ query: { path: "C:\\" } }),
+    );
+  });
+
+  it("collapses multiple trailing separators on a drive root to one", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("C:////");
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:db" },
     } as never);

@@ -95,7 +95,9 @@ export function ArchivePage() {
     // "C:\\" must keep its separator, else "C:" is drive-relative and the
     // server would mis-report "must be absolute" instead of rejecting a root.
     const back = raw.replace(/\//g, "\\");
-    const dir = /^[A-Za-z]:\\$/.test(back) ? back : back.replace(/\\+$/, "");
+    // Drive root (any number of trailing separators, e.g. C:\ or C://) keeps
+    // a single separator; everything else drops trailing separators.
+    const dir = /^[A-Za-z]:\\+$/.test(back) ? `${back[0]}:\\` : back.replace(/\\+$/, "");
     // Validate before persisting: a bad pick must not poison the saved dir.
     const probe = await localSubdirsApiLocalSubdirsGet({ query: { path: dir } });
     if (probe.error || !probe.data) {
