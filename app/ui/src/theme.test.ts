@@ -22,7 +22,7 @@ describe("token contrast (WCAG AA >= 4.5:1 for text)", () => {
   });
 
   it("filled-button hover stays light enough for ink text", () => {
-    expect(ratio(tokens.ink, "#E2921D")).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(tokens.ink, tokens.orangeHover)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("secondary/caption muted text on white passes", () => {

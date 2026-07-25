@@ -16,8 +16,11 @@ import { createTheme } from "@mui/material/styles";
 
 export const tokens = {
   orange: "#EF9F27",
+  orangeHover: "#E2921D", // filled-button hover; keeps ink text at AA
   orangeDeep: "#B45E14",
+  orangeText: "#7A4A0C", // selected-item label on orangeSoft
   orangeSoft: "#FDF3E3",
+  hoverBg: "#F7F5F1", // neutral row/button hover
   ink: "#33322F",
   muted: "#6B675E", // WCAG AA on white (5.67:1); was #8A867E (3.4:1, failed)
   line: "#ECEAE4",
@@ -84,7 +87,7 @@ export const theme = createTheme({
         },
         // Hover must stay light so INK text keeps AA contrast (the MUI
         // default darkens to primary.dark, which would drop the ratio).
-        containedPrimary: { "&:hover": { backgroundColor: "#E2921D" } },
+        containedPrimary: { "&:hover": { backgroundColor: tokens.orangeHover } },
         outlinedInherit: { borderColor: tokens.lineStrong, color: tokens.muted },
         sizeSmall: { paddingTop: 5, paddingBottom: 5 },
       },

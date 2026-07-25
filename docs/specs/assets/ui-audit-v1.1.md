@@ -11,7 +11,7 @@ prefers-reduced-motion)。**配色不采纳其 teal**——保留操作者指定
 所有颜色/字号/行高/间距/按钮尺寸集中到 theme; 组件不再散落硬编码。
 - palette: primary 橘 #EF9F27 / deep #B45E14, success/error, warm-gray 中性
 - typography scale: h6 18 / subtitle2 14 / body2 13 / caption 12 / button 13, 统一行高
-- MuiButton: `minWidth:0` + padding 14 + `whiteSpace:nowrap`(根治 CJK 文案裁切)+
+- MuiButton: `minWidth:44`(触达目标下限) + padding 14 + `whiteSpace:nowrap`(根治 CJK 文案裁切)+
   focus-visible outline + 180ms transition
 - MuiCssBaseline: prefers-reduced-motion 全局降级
 - 工具栏窄屏 `flexWrap` + 主按钮 `flexShrink:0`; 搜索框 `flex:1 minWidth:200`

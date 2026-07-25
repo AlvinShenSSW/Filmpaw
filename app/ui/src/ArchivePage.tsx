@@ -17,6 +17,7 @@ import {
 } from "./client";
 import { PosterAvatar } from "./PerformersPage";
 import { pickDirectory } from "./pickDirectory";
+import { tokens } from "./theme";
 
 function detailOf(error: unknown, fallback: string): string {
   const detail = (error as { detail?: unknown } | undefined)?.detail;
@@ -177,8 +178,8 @@ export function ArchivePage() {
             justifyContent: "flex-start",
             textTransform: "none",
             color: "text.secondary",
-            borderColor: "#DDD9D1",
-            fontFamily: "Consolas, monospace",
+            borderColor: tokens.lineStrong,
+            fontFamily: tokens.mono,
             fontSize: 12,
           }}
         >
@@ -188,7 +189,7 @@ export function ArchivePage() {
         </Button>
 
         {subdirs.isError && localDir && (
-          <Typography variant="caption" sx={{ color: "#A32D2D" }} role="alert">
+          <Typography variant="caption" sx={{ color: tokens.bad }} role="alert">
             读取失败: {detailOf(subdirs.error, "server 未响应")} — 请重新选择
           </Typography>
         )}
@@ -206,12 +207,12 @@ export function ArchivePage() {
               textTransform: "none",
               borderRadius: "9px",
               px: 1.5,
-              color: selected === name ? "#7A4A0C" : "text.primary",
-              bgcolor: selected === name ? "#FDF3E3" : "transparent",
+              color: selected === name ? tokens.orangeText : "text.primary",
+              bgcolor: selected === name ? tokens.orangeSoft : "transparent",
               fontWeight: selected === name ? 600 : 400,
-              "&:hover": { bgcolor: selected === name ? "#FDF3E3" : "#F7F5F1" },
+              "&:hover": { bgcolor: selected === name ? tokens.orangeSoft : tokens.hoverBg },
             }}
-            startIcon={<FolderIcon sx={{ color: "#B45E14" }} />}
+            startIcon={<FolderIcon sx={{ color: tokens.orangeDeep }} />}
           >
             {name}
           </Button>
@@ -234,7 +235,7 @@ export function ArchivePage() {
         />
         {results.isError && (
           <Box sx={{ my: 1 }} role="alert">
-            <Typography variant="caption" sx={{ color: "#A32D2D", mr: 1 }}>
+            <Typography variant="caption" sx={{ color: tokens.bad, mr: 1 }}>
               匹配加载失败 — 请确认 server 正在运行
             </Typography>
             <Button size="small" onClick={() => results.refetch()}>
@@ -265,7 +266,7 @@ export function ArchivePage() {
                   key={p.id}
                   sx={{
                     border: "1px solid",
-                    borderColor: flashId === p.id ? "#EF9F27" : "#ECEAE4",
+                    borderColor: flashId === p.id ? tokens.orange : tokens.line,
                     boxShadow: flashId === p.id ? "0 0 0 3px #EF9F2733" : "none",
                     borderRadius: "11px",
                     p: "12px 14px",
@@ -296,7 +297,7 @@ export function ArchivePage() {
                       variant="caption"
                       noWrap
                       sx={{
-                        fontFamily: "Consolas, monospace",
+                        fontFamily: tokens.mono,
                         color: "text.secondary",
                         display: "block",
                       }}
@@ -325,7 +326,7 @@ export function ArchivePage() {
 
           {q.trim() === "" && (
             <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>
-              <SwapHorizIcon sx={{ fontSize: 36, color: "#B3AFA6" }} />
+              <SwapHorizIcon sx={{ fontSize: 36, color: "text.disabled" }} />
               <Typography variant="body2" sx={{ mt: 1 }}>
                 选择左侧文件夹开始匹配, 或在上方手动输入
               </Typography>
