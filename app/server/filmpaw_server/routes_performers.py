@@ -232,17 +232,18 @@ def get_thumb(request: Request, performer_id: str) -> Response:
         ).fetchone()
     if row is None or row["thumb"] is None:
         raise HTTPException(status_code=404, detail="无缩略图")
-    return Response(
-        content=row["thumb"],
-        media_type="image/jpeg",
-        headers={
-            "Cache-Control": "private, max-age=86400",
-            # thumb_side is part of the tag: raising THUMB_MAX_SIDE rebuilds the
-            # blob while folder.jpg's mtime is unchanged, so an mtime-only ETag
-            # would let browsers keep serving the old, smaller image.
-            "ETag": f'"{row["thumb_mtime"]}-{row["thumb_side"]}"',
-        },
-    )
+    # thumb_side is part of the tag: raising THUMB_MAX_SIDE rebuilds the blob
+    # while folder.jpg's mtime is unchanged, so an mtime-only ETag would let
+    # browsers keep serving the old, smaller image.
+    etag = f'"{row["thumb_mtime"]}-{row["thumb_side"]}"'
+    # no-cache (not no-store): the client may keep the bytes but MUST
+    # revalidate. With max-age the WebView would serve a pre-upgrade 256px
+    # thumbnail for up to a day without ever asking. Revalidation is cheap —
+    # a matching tag short-circuits to a header-only 304 below.
+    headers = {"Cache-Control": "private, no-cache", "ETag": etag}
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=row["thumb"], media_type="image/jpeg", headers=headers)
 
 
 # -------------------------------------------------------------------- aliases

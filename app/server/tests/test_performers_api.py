@@ -188,7 +188,10 @@ def test_thumb_endpoint(client, source_dir) -> None:
     ok = client.get(f"/api/performers/{items['有图']['id']}/thumb")
     assert ok.status_code == 200
     assert ok.headers["content-type"] == "image/jpeg"
-    assert "max-age" in ok.headers["cache-control"]
+    # revalidate-always: a rebuilt thumbnail must never be masked by a cached
+    # pre-upgrade one (#27); repeat views short-circuit to 304 via the ETag
+    assert "no-cache" in ok.headers["cache-control"]
+    assert ok.headers["etag"]
     assert client.get(f"/api/performers/{items['无图']['id']}/thumb").status_code == 404
 
 

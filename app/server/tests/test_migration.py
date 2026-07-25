@@ -157,3 +157,15 @@ def test_thumb_etag_changes_when_size_changes(tmp_path, source_dir) -> None:
         after = c.get("/api/performers/old-1/thumb")
         assert after.headers["etag"] != etag_256
         assert max(Image.open(io.BytesIO(after.content)).size) == THUMB_MAX_SIDE
+
+        # must revalidate every time — max-age would serve the pre-upgrade
+        # 256px image from cache for up to a day without ever asking
+        assert "no-cache" in after.headers["cache-control"]
+        # a stale tag gets the new bytes, the current tag short-circuits to 304
+        assert c.get(
+            "/api/performers/old-1/thumb", headers={"If-None-Match": etag_256}
+        ).status_code == 200
+        revalidated = c.get(
+            "/api/performers/old-1/thumb", headers={"If-None-Match": after.headers["etag"]}
+        )
+        assert revalidated.status_code == 304 and not revalidated.content
