@@ -10,6 +10,7 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({ open: () => openMock() }));
 describe("pickDirectory (dev fallback)", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    openMock.mockReset();
     tauri = false;
   });
 
@@ -36,6 +37,16 @@ describe("pickDirectory (tauri branch)", () => {
     expect(await pickDirectory("t")).toBeNull();
     openMock.mockResolvedValue("D:Movies");
     expect(await pickDirectory("t")).toBe("D:Movies");
+    tauri = false;
+  });
+});
+
+describe("pickDirectory (failure path)", () => {
+  it("resolves to null (never throws) when the tauri dialog rejects", async () => {
+    tauri = true;
+    openMock.mockRejectedValue(new Error("permission denied"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(pickDirectory("t")).resolves.toBeNull();
     tauri = false;
   });
 });
