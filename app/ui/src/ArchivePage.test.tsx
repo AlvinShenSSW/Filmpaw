@@ -276,3 +276,66 @@ describe("drive-root normalization (Codex #18)", () => {
     );
   });
 });
+
+describe("local dir refresh (#25)", () => {
+  it("refetches on click; a deleted selected folder is cleared, search kept", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /^小红$/ }));
+    expect(screen.getByLabelText("匹配搜索")).toHaveValue("小红");
+
+    // 小红 was uploaded and its local folder deleted
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: "D:Downloads新片", subdirs: ["倉木華"] },
+    } as never);
+    await userEvent.click(screen.getByRole("button", { name: "刷新本地目录" }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /^小红$/ })).not.toBeInTheDocument(),
+    );
+    // search term survives (left/right independence, design §7.3)
+    expect(screen.getByLabelText("匹配搜索")).toHaveValue("小红");
+    // no selection -> pair disabled
+    for (const b of await screen.findAllByRole("button", { name: /双开/ })) {
+      expect(b).toBeDisabled();
+    }
+  });
+
+  it("disables the button and shows a spinner while refreshing", async () => {
+    let release!: (v: unknown) => void;
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockReturnValueOnce(
+      new Promise((r) => {
+        release = r;
+      }) as never,
+    );
+    renderPage();
+    const btn = await screen.findByRole("button", { name: "刷新本地目录" });
+    await waitFor(() => expect(btn).toBeDisabled()); // in-flight
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    release({ data: { path: "D:Downloads新片", subdirs: ["倉木華", "小红"] } });
+    await waitFor(() => expect(btn).toBeEnabled());
+  });
+
+  it("a failed refresh keeps the list and the selection (retryable)", async () => {
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /^小红$/ }));
+
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      error: { detail: "目录不存在或不可访问" },
+    } as never);
+    await userEvent.click(screen.getByRole("button", { name: "刷新本地目录" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("目录不存在或不可访问");
+    // list + selection intact so the user can retry
+    expect(screen.getByRole("button", { name: /^小红$/ })).toBeInTheDocument();
+    const pairButtons = await screen.findAllByRole("button", { name: /双开/ });
+    expect(pairButtons[0]).toBeEnabled();
+  });
+
+  it("refresh is disabled when no local dir is chosen", async () => {
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    renderPage();
+    expect(await screen.findByRole("button", { name: "刷新本地目录" })).toBeDisabled();
+  });
+});

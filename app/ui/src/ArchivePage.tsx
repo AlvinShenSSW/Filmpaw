@@ -1,7 +1,10 @@
 import FolderIcon from "@mui/icons-material/Folder";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
 import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
@@ -65,6 +68,17 @@ export function ArchivePage() {
       return r.data;
     },
   });
+
+  // A folder deleted after upload must not linger as the selection (pair
+  // would target a gone directory). Keyed off subdirs.data, which only
+  // updates on SUCCESS — a failed refresh keeps the list and the selection
+  // intact so the user can retry. The search term is deliberately left
+  // alone (design §7.3: left selection and right search are independent).
+  useEffect(() => {
+    if (selected && subdirs.data && !subdirs.data.subdirs.includes(selected)) {
+      setSelected(null);
+    }
+  }, [subdirs.data, selected]);
 
   const results = useQuery({
     queryKey: ["archive-match", q],
@@ -168,25 +182,46 @@ export function ArchivePage() {
           overflowY: "auto",
         }}
       >
-        <Button
-          variant="outlined"
-          color="inherit"
-          startIcon={<FolderIcon />}
-          onClick={chooseDir}
-          disabled={isPicking}
-          sx={{
-            justifyContent: "flex-start",
-            textTransform: "none",
-            color: "text.secondary",
-            borderColor: tokens.lineStrong,
-            fontFamily: tokens.mono,
-            fontSize: 12,
-          }}
-        >
-          <Typography variant="caption" noWrap sx={{ maxWidth: 180 }}>
-            {localDir ?? "选择本地目录…"}
-          </Typography>
-        </Button>
+        <Box sx={{ display: "flex", gap: 0.5, alignItems: "center" }}>
+          <Button
+            variant="outlined"
+            color="inherit"
+            startIcon={<FolderIcon />}
+            onClick={chooseDir}
+            disabled={isPicking}
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              justifyContent: "flex-start",
+              textTransform: "none",
+              color: "text.secondary",
+              borderColor: tokens.lineStrong,
+              fontFamily: tokens.mono,
+              fontSize: 12,
+            }}
+          >
+            <Typography variant="caption" noWrap sx={{ maxWidth: 150 }}>
+              {localDir ?? "选择本地目录…"}
+            </Typography>
+          </Button>
+          <Tooltip title="刷新本地目录">
+            <span>
+              <IconButton
+                size="small"
+                aria-label="刷新本地目录"
+                onClick={() => subdirs.refetch()}
+                disabled={!localDir || subdirs.isFetching}
+                sx={{ color: tokens.orangeDeep, flexShrink: 0 }}
+              >
+                {subdirs.isFetching ? (
+                  <CircularProgress size={16} color="inherit" />
+                ) : (
+                  <RefreshIcon fontSize="small" />
+                )}
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
 
         {subdirs.isError && localDir && (
           <Typography variant="caption" sx={{ color: tokens.bad }} role="alert">
