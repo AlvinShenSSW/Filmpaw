@@ -19,8 +19,8 @@
 | #1 Scaffold + 全局壳 | **merged** ✅ | issue-1-scaffold(已删) | [#9](https://github.com/AlvinShenSSW/Filmpaw/pull/9) | 全评审链过: CTO 3fix / Codex 1P2 / GLM 两轮(R1 5项修, R2 无P1) → squash 合并 |
 | #2 Server 扫描引擎 | **merged** ✅ | issue-2-scan-engine(已删) | [#10](https://github.com/AlvinShenSSW/Filmpaw/pull/10) | 27 tests; CTO/Codex×2/GLM×2 全链, GLM R1 抓到 P1 脏事务, R2 APPROVE WITH COMMENTS |
 | #3 Server API | **merged** ✅ | issue-3-performers-api(已删) | [#11](https://github.com/AlvinShenSSW/Filmpaw/pull/11) | 42 tests; CTO 2fix / Codex 1驳回 / Kimi R1 1P1+2 R2 APPROVE-WC |
-| #4 UI 设置页 | next | issue-4-settings-ui | — | server 全部就绪, TS client 生成链在此打通 |
-| #5 UI 表演者库 | pending | — | — | |
+| #4 UI 设置页 | **merged** ✅ | issue-4-settings-ui(已删) | [#12](https://github.com/AlvinShenSSW/Filmpaw/pull/12) | Codex P1 CORS / Kimi P1 biome-CI + 类型化API; vitest 设施落地 |
+| #5 UI 表演者库 | next | issue-5-performers-ui | — | 全类型 client 就绪; poster 头像+别名chips+失效清理 |
 | #6 UI 归档对比 | pending | — | — | |
 | #8 来源筛选 | pending | — | — | 在 #5 之后 |
 | #7 打包+CI | pending | — | — | 收口 |
@@ -39,3 +39,4 @@
 - (#2) GLM P1: 扫描异常未回滚→共享连接脏事务被后续 commit 持久化(毁库级)。已修+回归测试。延后: off-lock 缩略图解码、格式预检。
 - (2026-07-25) 操作者指令: 终审 GLM→Kimi。GLM 两次超时(25/40min 皆死在 6 轨汇总), kilo 孤儿泄露已修。#3 起终审 = Kimi。
 - (2026-07-25) 断流根治: 常驻 Monitor 心跳(20min)上线, session cron 降级为参考。规则: 每轮收尾必留在途唤醒源, 心跳兜底。
+- (#4) 教训: 管道 `| tail` 会吞掉退出码 — 检查命令一律显式验证 $? 或不接管道。openapi 漂移防护+本地端点加固已转 #7。
