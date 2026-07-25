@@ -75,3 +75,4 @@
 - **#28** [BUG] 含逗号文件夹名双开失败 — 根因已实测复现: explorer 把逗号当参数分隔符, Python list2cmdline 仅对空格加引号 → 路径在逗号处截断 → 目标不存在 → explorer 回退到"文档"。修法: os.startfile(ShellExecuteW), 已验证正确。
 - **#27** 头像太小 → 表演者库改 poster 网格(110×156, 3.2×) + 归档卡片 156×222 + 缩略图 512 + schema 1→2 真迁移 + 版本 0.3.0
 - **评审链临时变更**: Codex 服务端 503 熔断(`biscuit_baker_service_me_circuit_open`, 非用量/非调用方式问题; CLI 已升 0.144.3→0.145.0 无效)→ 操作者指令: **外门改 GLM 5.2 (kilo)**, 终审仍 Kimi。Codex 恢复后切回。
+- (2026-07-25) 评审链恢复: Codex 503 熔断约 40 分钟后自愈(探针验证), 外门切回 Codex。熔断期间 GLM 完成了 issue 前置门(质量高: #28 抓到 os.startfile 会把 204 变 500, #27 抓到迁移非原子 + NULL 谓词导致旧图永不重建), 但对 PR diff 评审 25 分钟仍未产出(读文件阶段超时)——结论: **GLM 适合 issue 级评审, 不适合 diff 级评审**。
