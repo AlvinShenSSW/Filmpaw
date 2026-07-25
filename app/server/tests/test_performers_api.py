@@ -301,3 +301,14 @@ def test_404_paths_leave_no_open_transaction(client, source_dir) -> None:
     # oddly; assert a clean write cycle works and reads see consistent state
     _seed(client, source_dir, ["正常"])
     assert _items(client)["total"] == 1
+
+
+def test_single_char_alias_no_reverse_noise(client, source_dir) -> None:
+    """Codex outer-gate finding (refuted, locked in as regression): the
+    >=2-char reverse guard applies to aliases identically to names — a
+    1-char alias must not reverse-match longer queries containing it."""
+    _seed(client, source_dir, ["小白花"])
+    pid = _items(client)["items"][0]["id"]
+    assert client.post(f"/api/performers/{pid}/aliases", json={"alias": "白"}).status_code == 201
+    assert _items(client, q="大白鲨(新)")["items"] == []   # no reverse noise
+    assert _items(client, q="白")["items"][0]["name"] == "小白花"  # forward OK
