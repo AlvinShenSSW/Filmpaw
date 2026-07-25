@@ -17,3 +17,14 @@ def test_health_ok() -> None:
 def test_health_unknown_route_404() -> None:
     client = TestClient(create_app())
     assert client.get("/api/nope").status_code == 404
+
+
+def test_cors_allows_ui_origins() -> None:
+    """Codex P1 regression: UI origins (dev + Tauri) must receive CORS
+    headers or every sidecar call is browser-blocked."""
+    client = TestClient(create_app())
+    for origin in ("http://localhost:3000", "http://tauri.localhost"):
+        r = client.get("/api/health", headers={"Origin": origin})
+        assert r.headers.get("access-control-allow-origin") == origin
+    r = client.get("/api/health", headers={"Origin": "http://evil.example"})
+    assert "access-control-allow-origin" not in r.headers

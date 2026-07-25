@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from filmpaw_server import __version__
 from filmpaw_server.db import connect, default_db_path
@@ -25,6 +26,19 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         app.state.db.close()
 
     app = FastAPI(title="filmpaw-server", version=__version__, lifespan=lifespan)
+    # The UI runs on a different origin than the sidecar (rsbuild dev
+    # localhost:3000; packaged Tauri http://tauri.localhost) — without CORS
+    # every browser fetch to 127.0.0.1:<port> is blocked.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://tauri.localhost",
+            "tauri://localhost",
+        ],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
