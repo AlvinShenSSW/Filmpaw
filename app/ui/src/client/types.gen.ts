@@ -90,6 +90,10 @@ export type PerformerListOut = {
      * Source Count
      */
     source_count: number;
+    /**
+     * Missing Total
+     */
+    missing_total: number;
 };
 
 /**

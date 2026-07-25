@@ -50,6 +50,7 @@ class PerformerListOut(BaseModel):
     page: int
     page_size: int
     source_count: int
+    missing_total: int  # GLOBAL missing count (filter-independent) — purge scope
 
 
 class PurgeOut(BaseModel):
@@ -142,6 +143,11 @@ def list_performers(
             f" FROM performers p WHERE {cond}",
             params,
         ).fetchone()
+        # Global (unfiltered) missing count: the purge endpoint deletes ALL
+        # missing rows, so its confirmation must not be scoped by q/filters.
+        missing_total = conn.execute(
+            "SELECT COUNT(*) AS c FROM performers WHERE is_missing=1"
+        ).fetchone()["c"]
 
         rows = conn.execute(
             f"{prefix}SELECT p.*, s.label AS source_label FROM performers p"
@@ -181,6 +187,7 @@ def list_performers(
         "page": page,
         "page_size": page_size,
         "source_count": stats["source_count"],
+        "missing_total": missing_total,
     }
 
 

@@ -53,7 +53,7 @@ const MISSING = {
   aliases: [],
 };
 
-function envelope(items: unknown[]) {
+function envelope(items: unknown[], extra?: Partial<Record<string, unknown>>) {
   return {
     data: {
       items,
@@ -61,6 +61,8 @@ function envelope(items: unknown[]) {
       page: 1,
       page_size: 200,
       source_count: 2,
+      missing_total: (items as { is_missing?: boolean }[]).filter((i) => i.is_missing).length,
+      ...extra,
     },
   };
 }
@@ -123,7 +125,7 @@ describe("PerformersPage", () => {
     } as never);
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: "清理失效" }));
-    expect(await screen.findByText(/共 1 条失效记录将被删除/)).toBeInTheDocument();
+    expect(await screen.findByText(/全库共 1 条失效记录将被删除/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "清理" }));
     expect(await screen.findByText("已清理 1 条失效记录")).toBeInTheDocument();
   });
@@ -136,5 +138,36 @@ describe("PerformersPage", () => {
     vi.mocked(listPerformersApiPerformersGet).mockResolvedValue(envelope([]) as never);
     await userEvent.type(screen.getByLabelText("搜索表演者"), "不存在的人");
     expect(await screen.findByText(/没有匹配「不存在的人」的记录/)).toBeInTheDocument();
+  });
+});
+
+describe("pagination", () => {
+  it("offers load-more when total exceeds the fetched page (Codex P2)", async () => {
+    vi.mocked(listPerformersApiPerformersGet).mockResolvedValue(
+      envelope([P1, P2], { total: 450, missing_total: 0 }) as never,
+    );
+    renderPage();
+    expect(await screen.findByText(/共 450 条 · 2 个来源 · 已显示 2/)).toBeInTheDocument();
+    const more = screen.getByRole("button", { name: "加载更多" });
+    await userEvent.click(more);
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(listPerformersApiPerformersGet)
+          .mock.calls.some((c) => (c[0] as { query?: { page?: number } })?.query?.page === 2),
+      ).toBe(true),
+    );
+  });
+
+  it("purge confirm reports the GLOBAL missing count, not the view (Codex P1)", async () => {
+    vi.mocked(listPerformersApiPerformersGet).mockResolvedValue(
+      envelope([P1], { missing_total: 7 }) as never,
+    );
+    vi.mocked(purgeMissingApiPerformersPurgeMissingPost).mockResolvedValue({
+      data: { deleted: 7 },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: "清理失效" }));
+    expect(await screen.findByText(/全库共 7 条失效记录将被删除/)).toBeInTheDocument();
   });
 });

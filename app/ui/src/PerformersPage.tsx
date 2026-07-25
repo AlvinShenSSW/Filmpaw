@@ -21,7 +21,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { serverBase } from "./api";
 import type { PerformerOut } from "./client";
@@ -101,15 +101,18 @@ export function PerformersPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const performers = useQuery({
+  const performers = useInfiniteQuery({
     queryKey: ["performers", q, showMissing],
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       const r = await listPerformersApiPerformersGet({
-        query: { q, include_missing: showMissing, page_size: 200 },
+        query: { q, include_missing: showMissing, page: pageParam, page_size: 200 },
       });
       if (r.error || !r.data) throw r.error ?? new Error("list");
       return r.data;
     },
+    initialPageParam: 1,
+    getNextPageParam: (last) =>
+      last.page * last.page_size < last.total ? last.page + 1 : undefined,
   });
   const refetch = () => queryClient.invalidateQueries({ queryKey: ["performers"] });
 
@@ -196,8 +199,12 @@ export function PerformersPage() {
     },
   });
 
-  const data = performers.data;
-  const missingCount = data?.items.filter((i) => i.is_missing).length ?? 0;
+  const pages = performers.data?.pages;
+  const items = pages?.flatMap((p) => p.items) ?? [];
+  const stats = pages?.[0];
+  // GLOBAL missing count from the envelope — the purge endpoint deletes ALL
+  // missing rows regardless of the current search/filter view.
+  const missingTotal = stats?.missing_total ?? 0;
 
   return (
     <Box sx={{ p: 3, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -226,7 +233,7 @@ export function PerformersPage() {
           color="inherit"
           size="small"
           onClick={() => setConfirmPurge(true)}
-          disabled={missingCount === 0}
+          disabled={missingTotal === 0}
           sx={{ whiteSpace: "nowrap", color: "text.secondary", borderColor: "#DDD9D1" }}
         >
           清理失效
@@ -260,7 +267,7 @@ export function PerformersPage() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {data?.items.map((p) => (
+            {items.map((p) => (
               <TableRow key={p.id} sx={{ opacity: p.is_missing ? 0.55 : 1 }}>
                 <TableCell>
                   <PosterAvatar performer={p} />
@@ -364,7 +371,7 @@ export function PerformersPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {data && data.items.length === 0 && (
+            {pages && items.length === 0 && (
               <TableRow>
                 <TableCell colSpan={7}>
                   <Box sx={{ textAlign: "center", py: 6, color: "text.secondary" }}>
@@ -385,9 +392,22 @@ export function PerformersPage() {
         </Table>
       </TableContainer>
 
-      <Typography variant="caption" color="text.secondary" sx={{ mt: 1 }}>
-        共 {data?.total ?? 0} 条 · {data?.source_count ?? 0} 个来源
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 1 }}>
+        <Typography variant="caption" color="text.secondary">
+          共 {stats?.total ?? 0} 条 · {stats?.source_count ?? 0} 个来源
+          {items.length < (stats?.total ?? 0) ? ` · 已显示 ${items.length}` : ""}
+        </Typography>
+        {performers.hasNextPage && (
+          <Button
+            size="small"
+            onClick={() => performers.fetchNextPage()}
+            disabled={performers.isFetchingNextPage}
+            sx={{ color: "#B45E14", fontSize: 12 }}
+          >
+            加载更多
+          </Button>
+        )}
+      </Box>
 
       <Dialog open={confirmDelete !== null} onClose={() => setConfirmDelete(null)}>
         <DialogTitle>删除失效记录?</DialogTitle>
@@ -410,7 +430,7 @@ export function PerformersPage() {
         <DialogTitle>清理全部失效记录?</DialogTitle>
         <DialogContent>
           <Typography variant="body2">
-            当前列表共 {missingCount} 条失效记录将被删除, 组别名保留。
+            全库共 {missingTotal} 条失效记录将被删除(不受当前搜索/筛选影响), 组别名保留。
           </Typography>
         </DialogContent>
         <DialogActions>
