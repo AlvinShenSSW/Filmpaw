@@ -75,6 +75,17 @@ fn spawn_server() -> (Child, u16) {
     // Always set explicitly: a release build must override any inherited
     // FILMPAW_DEV=1 from the parent environment.
     command.env("FILMPAW_DEV", if cfg!(debug_assertions) { "1" } else { "0" });
+    // The sidecar is a console-subsystem exe (PyInstaller default); spawned
+    // from this GUI-subsystem shell Windows would allocate a visible console
+    // window (#17). CREATE_NO_WINDOW suppresses it while keeping the stdout
+    // pipe (the FILMPAW_PORT handshake) intact — chosen over PyInstaller
+    // --noconsole, which detaches stdio and risks the handshake.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     let mut child = command
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
