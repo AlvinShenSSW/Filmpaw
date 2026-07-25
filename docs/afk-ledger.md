@@ -69,3 +69,9 @@
 | #25 归档本地目录刷新 + 版本 0.2.0 | **merged** ✅ | #26 | 前置门 BLOCK→PASS(版本范围); Codex 外门 CLEAN; Kimi P2 stale-closure→APPROVE |
 
 产物: Filmpaw_0.2.0_x64-setup.exe · 冒烟: 版本一致(health/openapi 0.2.0)、无黑窗、关窗零残留。调度器已清理。
+
+## v1.3 运行 (2026-07-25, issues #28 优先 + #27)
+
+- **#28** [BUG] 含逗号文件夹名双开失败 — 根因已实测复现: explorer 把逗号当参数分隔符, Python list2cmdline 仅对空格加引号 → 路径在逗号处截断 → 目标不存在 → explorer 回退到"文档"。修法: os.startfile(ShellExecuteW), 已验证正确。
+- **#27** 头像太小 → 表演者库改 poster 网格(110×156, 3.2×) + 归档卡片 156×222 + 缩略图 512 + schema 1→2 真迁移 + 版本 0.3.0
+- **评审链临时变更**: Codex 服务端 503 熔断(`biscuit_baker_service_me_circuit_open`, 非用量/非调用方式问题; CLI 已升 0.144.3→0.145.0 无效)→ 操作者指令: **外门改 GLM 5.2 (kilo)**, 终审仍 Kimi。Codex 恢复后切回。
