@@ -121,6 +121,7 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(state)
         .setup(move |app| {
             // Init script runs before page scripts on EVERY page load — no
