@@ -157,3 +157,45 @@ def test_case_only_rename_refreshes_same_record(db, source_dir) -> None:
     assert rows["ALICE"]["id"] == old_id    # same identity
     assert rows["ALICE"]["is_missing"] == 0
     assert rows["ALICE"]["unc_path"].endswith("ALICE")
+
+
+def test_scan_exception_rolls_back_partial_writes(db, source_dir, monkeypatch) -> None:
+    """GLM P1 regression: an exception mid-scan must roll back the open
+    transaction — otherwise a later unrelated commit on the shared
+    connection persists the partial scan (silent corruption)."""
+    import filmpaw_server.scan as scan_mod
+
+    for i in range(3):
+        add_performer_folder(source_dir, f"R{i}")
+    sid = _add_source(db, source_dir)
+
+    calls = {"n": 0}
+    real = scan_mod._refresh_thumb
+
+    def exploding(conn, pid, folder, cached):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("simulated disk failure mid-scan")
+        return real(conn, pid, folder, cached)
+
+    monkeypatch.setattr(scan_mod, "_refresh_thumb", exploding)
+    with pytest.raises(RuntimeError):
+        scan_source(db, sid)
+
+    assert not db.in_transaction  # no dirty transaction left behind
+    db.commit()  # an unrelated later commit must persist nothing partial
+    assert db.execute("SELECT COUNT(*) c FROM performers").fetchone()["c"] == 0
+
+
+def test_schema_version_mismatch_refuses_to_start(tmp_path) -> None:
+    """GLM P2 regression: a mismatched schema_version must fail loudly
+    instead of silently running against a legacy DB shape."""
+    from filmpaw_server.db import connect
+
+    path = tmp_path / "mismatch.db"
+    conn = connect(path)
+    conn.execute("UPDATE schema_version SET version = 999")
+    conn.commit()
+    conn.close()
+    with pytest.raises(RuntimeError, match="schema version 999"):
+        connect(path)

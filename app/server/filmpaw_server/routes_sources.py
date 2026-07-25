@@ -100,10 +100,14 @@ def scan_one(request: Request, source_id: int) -> dict:
 @router.post("/scan-all")
 def scan_all(request: Request) -> list[dict]:
     out: list[dict] = []
+    conn = _conn(request)
     with _lock(request):
-        conn = _conn(request)
         ids = [r["id"] for r in conn.execute("SELECT id FROM sources ORDER BY id").fetchall()]
-        for sid in ids:
+    # Acquire the lock per source (not across the whole sweep) so reads —
+    # e.g. the UI refreshing GET /api/sources — stay responsive between
+    # sources during a long multi-NAS scan.
+    for sid in ids:
+        with _lock(request):
             try:
                 r = scan_source(conn, sid)
                 out.append(
@@ -115,6 +119,8 @@ def scan_all(request: Request) -> list[dict]:
                         "missing": r.missing,
                     }
                 )
+            except KeyError:
+                out.append({"source_id": sid, "ok": False, "error": "源已被删除"})
             except SourceUnreachable:
                 out.append({"source_id": sid, "ok": False, "error": "源不可达"})
     return out

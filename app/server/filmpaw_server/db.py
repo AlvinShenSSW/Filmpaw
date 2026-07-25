@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS performers (
   thumb_mtime REAL
 );
 CREATE INDEX IF NOT EXISTS idx_performers_name_norm ON performers(name_norm);
+CREATE INDEX IF NOT EXISTS idx_performers_source ON performers(source_id);
 CREATE TABLE IF NOT EXISTS aliases (
   id INTEGER PRIMARY KEY,
   name_norm TEXT NOT NULL,
@@ -73,4 +74,11 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     if row is None:
         conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
         conn.commit()
+    elif row["version"] != SCHEMA_VERSION:
+        # CREATE TABLE IF NOT EXISTS would silently accept a mismatched
+        # legacy DB — refuse to run against one instead.
+        conn.close()
+        raise RuntimeError(
+            f"unsupported DB schema version {row['version']} (expected {SCHEMA_VERSION})"
+        )
     return conn
