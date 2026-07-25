@@ -224,6 +224,7 @@ describe("chooseDir forensics (#18)", () => {
 
   it("reverts and reports when the server rejects the anchor", async () => {
     vi.spyOn(window, "prompt").mockReturnValue("C:\\");
+    // drive root keeps its separator (not drive-relative "C:")
     vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
       data: { last_local_dir: null, db_path: "X:db" },
     } as never);
@@ -239,5 +240,22 @@ describe("chooseDir forensics (#18)", () => {
     expect(await screen.findByText(/保存目录失败: 不能选择磁盘根目录/)).toBeInTheDocument();
     // localDir not applied -> still the empty-prompt hint
     expect(screen.getByText(/选择你新下载电影所在的目录/)).toBeInTheDocument();
+  });
+});
+
+describe("drive-root normalization (Codex #18)", () => {
+  it("keeps the separator for a drive root instead of making it drive-relative", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("C:/");
+    vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
+      data: { last_local_dir: null, db_path: "X:db" },
+    } as never);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      data: { path: "C:\\", subdirs: [] },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /选择本地目录/ }));
+    await waitFor(() =>
+      expect(localSubdirsApiLocalSubdirsGet).toHaveBeenCalledWith({ query: { path: "C:\\" } }),
+    );
   });
 });

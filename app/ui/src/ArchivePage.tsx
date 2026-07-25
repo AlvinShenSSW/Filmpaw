@@ -90,9 +90,12 @@ export function ArchivePage() {
     const raw = await pickDirectory();
     if (!raw) return;
     // Defensive normalization: some pickers/platforms hand back forward
-    // slashes or a trailing separator; the server is tolerant but keep the
-    // stored anchor canonical (Windows backslashes, no trailing slash).
-    const dir = raw.replace(/\//g, "\\").replace(/\\+$/, "");
+    // slashes or a trailing separator; keep the stored anchor canonical
+    // (Windows backslashes, no trailing slash) — EXCEPT a drive root like
+    // "C:\\" must keep its separator, else "C:" is drive-relative and the
+    // server would mis-report "must be absolute" instead of rejecting a root.
+    const back = raw.replace(/\//g, "\\");
+    const dir = /^[A-Za-z]:\\$/.test(back) ? back : back.replace(/\\+$/, "");
     // Validate before persisting: a bad pick must not poison the saved dir.
     const probe = await localSubdirsApiLocalSubdirsGet({ query: { path: dir } });
     if (probe.error || !probe.data) {
