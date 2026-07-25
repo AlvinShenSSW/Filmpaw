@@ -80,3 +80,19 @@ def test_delete_source_cascades_performers(client, source_dir: Path) -> None:
     assert client.get("/api/sources").json()[0]["performer_count"] == 1
     client.delete(f"/api/sources/{sid}")
     assert client.get("/api/sources").json() == []
+
+
+def test_concurrent_scans_do_not_race(client, source_dir: Path) -> None:
+    """Codex P1 regression: overlapping scan requests must serialize on the
+    db lock instead of racing the shared connection into a 500."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    for i in range(8):
+        add_performer_folder(source_dir, f"P{i}")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = [pool.submit(client.post, f"/api/sources/{sid}/scan") for _ in range(4)]
+        futures += [pool.submit(client.post, "/api/scan-all") for _ in range(2)]
+        codes = [f.result().status_code for f in futures]
+    assert all(c == 200 for c in codes), codes
