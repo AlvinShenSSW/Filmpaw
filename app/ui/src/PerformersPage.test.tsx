@@ -3,13 +3,14 @@
 
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "./theme";
 
 vi.mock("./client", () => ({
   listPerformersApiPerformersGet: vi.fn(),
+  listSourcesApiSourcesGet: vi.fn(),
   addAliasApiPerformersPerformerIdAliasesPost: vi.fn(),
   deleteAliasApiAliasesAliasIdDelete: vi.fn(),
   deletePerformerApiPerformersPerformerIdDelete: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 import {
   addAliasApiPerformersPerformerIdAliasesPost,
   listPerformersApiPerformersGet,
+  listSourcesApiSourcesGet,
   openPerformerApiPerformersPerformerIdOpenPost,
   purgeMissingApiPerformersPurgeMissingPost,
 } from "./client";
@@ -79,7 +81,28 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   vi.mocked(listPerformersApiPerformersGet).mockResolvedValue(envelope([P1, P2, MISSING]) as never);
+  vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({
+    data: [
+      {
+        id: 1,
+        unc_path: "\\\\Ant\\VS\\女优VI\\",
+        label: "女优VI",
+        last_scan_at: null,
+        performer_count: 2,
+        reachable: true,
+      },
+      {
+        id: 2,
+        unc_path: "\\\\EAGLE\\VS\\女优V\\",
+        label: "女优V",
+        last_scan_at: null,
+        performer_count: 1,
+        reachable: true,
+      },
+    ],
+  } as never);
 });
 
 describe("PerformersPage", () => {
@@ -179,5 +202,70 @@ describe("error surfacing (Kimi P2)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("列表加载失败");
     expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
     expect(screen.queryByText(/还没有表演者/)).not.toBeInTheDocument();
+  });
+});
+
+describe("source filter (#8)", () => {
+  it("passes source_id and updates footer to the selected source", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("共 3 条 · 2 个来源");
+
+    const combo = await screen.findByRole("combobox");
+    await user.click(combo);
+    const listbox = await screen.findByRole("listbox");
+    await user.click(await within(listbox).findByText("女优VI"));
+
+    await waitFor(() =>
+      expect(
+        vi
+          .mocked(listPerformersApiPerformersGet)
+          .mock.calls.some(
+            (c) => (c[0] as { query?: { source_id?: number } })?.query?.source_id === 1,
+          ),
+      ).toBe(true),
+    );
+    expect(await screen.findByText(/当前来源: 女优VI/)).toBeInTheDocument();
+  });
+
+  it("default shows all sources (no source_id param)", async () => {
+    renderPage();
+    await screen.findByText("共 3 条 · 2 个来源");
+    const calls = vi.mocked(listPerformersApiPerformersGet).mock.calls;
+    expect(
+      calls.every(
+        (c) => (c[0] as { query?: { source_id?: number } })?.query?.source_id === undefined,
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("source filter resilience (Kimi)", () => {
+  it("resets the filter when the selected source disappears (P2)", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const combo = await screen.findByRole("combobox");
+    await user.click(combo);
+    await user.click(await within(await screen.findByRole("listbox")).findByText("女优VI"));
+    expect(await screen.findByText(/当前来源: 女优VI/)).toBeInTheDocument();
+
+    // the source gets deleted server-side; next sources fetch omits it
+    vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({
+      data: [
+        {
+          id: 2,
+          unc_path: "\\EAGLEVS女优V\\",
+          label: "女优V",
+          last_scan_at: null,
+          performer_count: 1,
+          reachable: true,
+        },
+      ],
+    } as never);
+    // simulate a sources refetch (rescan success invalidates ["sources"])
+    const { scanAllApiScanAllPost } = await import("./client");
+    vi.mocked(scanAllApiScanAllPost).mockResolvedValue({ data: [] } as never);
+    await user.click(screen.getByRole("button", { name: "全部重扫" }));
+    expect(await screen.findByText(/2 个来源/)).toBeInTheDocument(); // reset to all
   });
 });
