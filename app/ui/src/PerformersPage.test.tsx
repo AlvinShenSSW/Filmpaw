@@ -269,3 +269,31 @@ describe("source filter resilience (Kimi)", () => {
     expect(await screen.findByText(/2 个来源/)).toBeInTheDocument(); // reset to all
   });
 });
+
+describe("poster grid (#27)", () => {
+  it("renders poster tiles at the enlarged size with all row features kept", async () => {
+    renderPage();
+    // poster ~3x the old 34x48
+    const img = (await screen.findAllByAltText("倉木華 头像"))[0];
+    expect(img).toHaveStyle({ width: "110px", height: "156px" });
+    // first-char fallback scales too
+    expect(await screen.findByLabelText("小红 首字头像")).toHaveStyle({ width: "110px" });
+
+    // every table-era affordance survives the grid rewrite
+    expect(await screen.findAllByText("华姐")).toHaveLength(2); // shared alias chips
+    expect(screen.getAllByRole("button", { name: /＋ 别名/ }).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText("打开 小红 的文件夹")).toBeInTheDocument();
+    expect(screen.getByLabelText("删除失效记录 小红")).toBeInTheDocument();
+    expect(screen.getAllByText("● 在线").length).toBeGreaterThan(0);
+    expect(screen.getByText("○ 失效")).toBeInTheDocument();
+    expect(screen.getByText("共 3 条 · 2 个来源")).toBeInTheDocument(); // footer stats
+  });
+
+  it("archive cards use the larger card poster", async () => {
+    // covered in ArchivePage.test.tsx render; here assert the size table itself
+    const { POSTER } = await import("./PerformersPage");
+    expect(POSTER.card.w).toBe(156);
+    expect(POSTER.card.h).toBe(222);
+    expect(POSTER.grid.w / 34).toBeGreaterThanOrEqual(3); // "至少大三倍"
+  });
+});

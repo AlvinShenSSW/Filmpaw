@@ -316,7 +316,7 @@ export function ArchivePage() {
                     transition: "border-color .3s, box-shadow .3s",
                   }}
                 >
-                  <PosterAvatar performer={p} big />
+                  <PosterAvatar performer={p} size="card" />
                   <Box sx={{ minWidth: 0, flex: 1 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
                       {p.name}

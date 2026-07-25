@@ -224,22 +224,43 @@ def list_performers(
 # ---------------------------------------------------------------------- thumb
 
 
+def _etag_matches(header: str | None, etag: str) -> bool:
+    """RFC 7232 If-None-Match: a comma-separated list, entries may be weak
+    (W/"..."), and "*" matches anything. Plain string equality would make a
+    conforming client re-download the full JPEG every time."""
+    if not header:
+        return False
+    for raw in header.split(","):
+        candidate = raw.strip()
+        if candidate == "*":
+            return True
+        if candidate.startswith(("W/", "w/")):
+            candidate = candidate[2:]
+        if candidate == etag:
+            return True
+    return False
+
+
 @router.get("/performers/{performer_id}/thumb")
 def get_thumb(request: Request, performer_id: str) -> Response:
     with _lock(request):
         row = _conn(request).execute(
-            "SELECT thumb, thumb_mtime FROM performers WHERE id=?", (performer_id,)
+            "SELECT thumb, thumb_mtime, thumb_side FROM performers WHERE id=?", (performer_id,)
         ).fetchone()
     if row is None or row["thumb"] is None:
         raise HTTPException(status_code=404, detail="无缩略图")
-    return Response(
-        content=row["thumb"],
-        media_type="image/jpeg",
-        headers={
-            "Cache-Control": "private, max-age=86400",
-            "ETag": f'"{row["thumb_mtime"]}"',
-        },
-    )
+    # thumb_side is part of the tag: raising THUMB_MAX_SIDE rebuilds the blob
+    # while folder.jpg's mtime is unchanged, so an mtime-only ETag would let
+    # browsers keep serving the old, smaller image.
+    etag = f'"{row["thumb_mtime"]}-{row["thumb_side"]}"'
+    # no-cache (not no-store): the client may keep the bytes but MUST
+    # revalidate. With max-age the WebView would serve a pre-upgrade 256px
+    # thumbnail for up to a day without ever asking. Revalidation is cheap —
+    # a matching tag short-circuits to a header-only 304 below.
+    headers = {"Cache-Control": "private, no-cache", "ETag": etag}
+    if _etag_matches(request.headers.get("if-none-match"), etag):
+        return Response(status_code=304, headers=headers)
+    return Response(content=row["thumb"], media_type="image/jpeg", headers=headers)
 
 
 # -------------------------------------------------------------------- aliases

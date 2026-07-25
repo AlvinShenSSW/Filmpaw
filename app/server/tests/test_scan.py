@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from filmpaw_server.scan import SourceUnreachable, list_subdirs, scan_source
+from filmpaw_server.scan import THUMB_MAX_SIDE, SourceUnreachable, list_subdirs, scan_source
 from tests.conftest import add_performer_folder
 
 
@@ -98,7 +98,7 @@ def test_thumbnail_generated_and_mtime_skip(db, source_dir) -> None:
     row = _rows(db)["F子"]
     assert row["thumb"] is not None and row["thumb_mtime"] is not None
     img = Image.open(__import__("io").BytesIO(row["thumb"]))
-    assert max(img.size) <= 256 and img.format == "JPEG"
+    assert max(img.size) <= THUMB_MAX_SIDE and img.format == "JPEG"
     # second scan with unchanged mtime must not regenerate (same blob object)
     scan_source(db, sid)
     row2 = _rows(db)["F子"]
@@ -172,11 +172,11 @@ def test_scan_exception_rolls_back_partial_writes(db, source_dir, monkeypatch) -
     calls = {"n": 0}
     real = scan_mod._refresh_thumb
 
-    def exploding(conn, pid, folder, cached):
+    def exploding(conn, pid, folder, cached, cached_side):
         calls["n"] += 1
         if calls["n"] == 2:
             raise RuntimeError("simulated disk failure mid-scan")
-        return real(conn, pid, folder, cached)
+        return real(conn, pid, folder, cached, cached_side)
 
     monkeypatch.setattr(scan_mod, "_refresh_thumb", exploding)
     with pytest.raises(RuntimeError):

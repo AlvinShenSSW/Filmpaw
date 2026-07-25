@@ -13,12 +13,6 @@ import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Snackbar from "@mui/material/Snackbar";
 import Switch from "@mui/material/Switch";
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -38,19 +32,25 @@ import {
 } from "./client";
 import { tokens } from "./theme";
 
+/** Poster sizes (issue #27 — the old 34×48 / 52×74 were unreadable).
+ * 2:3 poster ratio; `grid` is the library tile, `card` the archive match. */
+export const POSTER = {
+  grid: { w: 110, h: 156, font: 40 },
+  card: { w: 156, h: 222, font: 56 },
+} as const;
+
 export function PosterAvatar({
   performer,
-  big,
+  size = "grid",
 }: {
   performer: Pick<PerformerOut, "id" | "name" | "has_thumb" | "is_missing">;
-  big?: boolean;
+  size?: keyof typeof POSTER;
 }) {
-  const w = big ? 52 : 34;
-  const h = big ? 74 : 48;
+  const { w, h, font } = POSTER[size];
   const common = {
     width: w,
     height: h,
-    borderRadius: "7px",
+    borderRadius: "10px",
     flexShrink: 0,
     opacity: performer.is_missing ? 0.45 : 1,
   } as const;
@@ -75,7 +75,7 @@ export function PosterAvatar({
         alignItems: "center",
         justifyContent: "center",
         fontWeight: 700,
-        fontSize: big ? 19 : 15,
+        fontSize: font,
       }}
     >
       {performer.name.charAt(0)}
@@ -315,160 +315,153 @@ export function PerformersPage() {
         </Button>
       </Box>
 
-      <TableContainer
-        sx={{ border: `1px solid ${tokens.line}`, borderRadius: "10px", flex: 1, minHeight: 0 }}
-      >
-        <Table size="small" stickyHeader aria-label="表演者列表">
-          <TableHead>
-            <TableRow>
-              <TableCell sx={{ width: 56 }}>头像</TableCell>
-              <TableCell sx={{ width: 64 }}>ID</TableCell>
-              <TableCell sx={{ width: 140 }}>名字</TableCell>
-              <TableCell>别名</TableCell>
-              <TableCell sx={{ width: 280 }}>位置</TableCell>
-              <TableCell sx={{ width: 76 }}>状态</TableCell>
-              <TableCell sx={{ width: 88 }} />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {items.map((p) => (
-              <TableRow key={p.id} sx={{ opacity: p.is_missing ? 0.55 : 1 }}>
-                <TableCell>
-                  <PosterAvatar performer={p} />
-                </TableCell>
-                <TableCell>
-                  <Tooltip title={p.id}>
-                    <Typography
-                      variant="caption"
-                      sx={{ fontFamily: tokens.mono, color: "text.secondary" }}
-                    >
-                      {p.id.slice(0, 4)}
-                    </Typography>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {p.name}
-                  </Typography>
-                </TableCell>
-                <TableCell>
-                  {p.aliases.map((a) => (
-                    <Chip
-                      key={a.id}
-                      label={a.alias}
-                      size="small"
-                      onDelete={() => deleteAlias.mutate(a.id)}
-                      sx={{ mr: 0.5, mb: 0.25 }}
-                    />
-                  ))}
-                  {aliasEditFor === p.id ? (
-                    <TextField
-                      size="small"
-                      autoFocus
-                      value={aliasInput}
-                      placeholder="别名后回车"
-                      onChange={(e) => setAliasInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && aliasInput.trim()) {
-                          addAlias.mutate({ performerId: p.id, alias: aliasInput.trim() });
-                        }
-                        if (e.key === "Escape") setAliasEditFor(null);
-                      }}
-                      slotProps={{ htmlInput: { "aria-label": `为 ${p.name} 添加别名` } }}
-                      sx={{ width: 130, "& input": { py: 0.4, fontSize: 12 } }}
-                    />
-                  ) : (
-                    <Button
-                      size="small"
-                      onClick={() => {
-                        setAliasEditFor(p.id);
-                        setAliasInput("");
-                      }}
-                      sx={{ color: tokens.orangeDeep, fontSize: 12, minWidth: 0 }}
-                    >
-                      ＋ 别名
-                    </Button>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Tooltip title={p.unc_path}>
-                    <Typography
-                      variant="caption"
-                      noWrap
-                      sx={{
-                        fontFamily: tokens.mono,
-                        color: "text.secondary",
-                        display: "block",
-                        maxWidth: 270,
-                      }}
-                    >
-                      {p.unc_path}
-                    </Typography>
-                  </Tooltip>
-                </TableCell>
-                <TableCell>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", pr: 0.5 }}>
+        {performers.isError && (
+          <Box sx={{ textAlign: "center", py: 6 }} role="alert">
+            <Typography variant="body2" sx={{ color: tokens.bad, mb: 1 }}>
+              列表加载失败 — 请确认 server 正在运行
+            </Typography>
+            <Button size="small" onClick={() => performers.refetch()}>
+              重试
+            </Button>
+          </Box>
+        )}
+        {!performers.isError && pages && items.length === 0 && (
+          <Box sx={{ textAlign: "center", py: 6, color: "text.secondary" }}>
+            <Typography variant="body2">
+              {q
+                ? `没有匹配「${q}」的记录 — 名字与别名均未命中`
+                : "还没有表演者 — 先在设置里添加 NAS 扫描源, 再点扫描建立索引"}
+            </Typography>
+          </Box>
+        )}
+        <Box
+          aria-label="表演者列表"
+          sx={{
+            display: "grid",
+            gridTemplateColumns: `repeat(auto-fill, minmax(${POSTER.grid.w + 40}px, 1fr))`,
+            gap: 2,
+            alignItems: "start",
+          }}
+        >
+          {items.map((p) => (
+            <Box
+              key={p.id}
+              sx={{
+                border: `1px solid ${tokens.line}`,
+                borderRadius: "12px",
+                p: 1.5,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 0.75,
+                opacity: p.is_missing ? 0.55 : 1,
+                transition: "border-color 180ms ease",
+                "&:hover": { borderColor: tokens.lineStrong },
+              }}
+            >
+              <Tooltip title={p.unc_path} placement="top">
+                <Box sx={{ position: "relative", display: "flex" }}>
+                  <PosterAvatar performer={p} size="grid" />
+                </Box>
+              </Tooltip>
+
+              <Typography
+                variant="subtitle2"
+                noWrap
+                title={p.name}
+                sx={{ maxWidth: "100%", textAlign: "center" }}
+              >
+                {p.name}
+              </Typography>
+
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: p.is_missing ? tokens.muted : tokens.ok }}
+                >
+                  {p.is_missing ? "○ 失效" : "● 在线"}
+                </Typography>
+                <Tooltip title={p.id}>
                   <Typography
                     variant="caption"
-                    sx={{ color: p.is_missing ? tokens.muted : tokens.ok }}
+                    sx={{ fontFamily: tokens.mono, color: "text.secondary" }}
                   >
-                    {p.is_missing ? "○ 失效" : "● 在线"}
+                    {p.id.slice(0, 4)}
                   </Typography>
-                </TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>
+                </Tooltip>
+              </Box>
+
+              <Box
+                sx={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: 0.5,
+                  width: "100%",
+                }}
+              >
+                {p.aliases.map((a) => (
+                  <Chip
+                    key={a.id}
+                    label={a.alias}
+                    size="small"
+                    onDelete={() => deleteAlias.mutate(a.id)}
+                  />
+                ))}
+                {aliasEditFor === p.id ? (
+                  <TextField
+                    size="small"
+                    autoFocus
+                    value={aliasInput}
+                    placeholder="别名后回车"
+                    onChange={(e) => setAliasInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && aliasInput.trim()) {
+                        addAlias.mutate({ performerId: p.id, alias: aliasInput.trim() });
+                      }
+                      if (e.key === "Escape") setAliasEditFor(null);
+                    }}
+                    slotProps={{ htmlInput: { "aria-label": `为 ${p.name} 添加别名` } }}
+                    sx={{ width: "100%", "& input": { py: 0.4, fontSize: 12 } }}
+                  />
+                ) : (
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      setAliasEditFor(p.id);
+                      setAliasInput("");
+                    }}
+                    sx={{ color: tokens.orangeDeep, fontSize: 12, minWidth: 0, px: 1 }}
+                  >
+                    ＋ 别名
+                  </Button>
+                )}
+              </Box>
+
+              <Box sx={{ display: "flex", gap: 0.5 }}>
+                <IconButton
+                  size="small"
+                  aria-label={`打开 ${p.name} 的文件夹`}
+                  onClick={() => openFolder.mutate(p.id)}
+                  sx={{ color: tokens.orangeDeep }}
+                >
+                  <FolderOpenIcon fontSize="small" />
+                </IconButton>
+                {p.is_missing && (
                   <IconButton
                     size="small"
-                    aria-label={`打开 ${p.name} 的文件夹`}
-                    onClick={() => openFolder.mutate(p.id)}
-                    sx={{ color: tokens.orangeDeep }}
+                    aria-label={`删除失效记录 ${p.name}`}
+                    onClick={() => setConfirmDelete(p)}
                   >
-                    <FolderOpenIcon fontSize="small" />
+                    <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
-                  {p.is_missing && (
-                    <IconButton
-                      size="small"
-                      aria-label={`删除失效记录 ${p.name}`}
-                      onClick={() => setConfirmDelete(p)}
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-            {performers.isError && (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <Box sx={{ textAlign: "center", py: 6 }} role="alert">
-                    <Typography variant="body2" sx={{ color: tokens.bad, mb: 1 }}>
-                      列表加载失败 — 请确认 server 正在运行
-                    </Typography>
-                    <Button size="small" onClick={() => performers.refetch()}>
-                      重试
-                    </Button>
-                  </Box>
-                </TableCell>
-              </TableRow>
-            )}
-            {!performers.isError && pages && items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7}>
-                  <Box sx={{ textAlign: "center", py: 6, color: "text.secondary" }}>
-                    {q ? (
-                      <Typography variant="body2">
-                        没有匹配「{q}」的记录 — 名字与别名均未命中
-                      </Typography>
-                    ) : (
-                      <Typography variant="body2">
-                        还没有表演者 — 先在设置里添加 NAS 扫描源, 再点扫描建立索引
-                      </Typography>
-                    )}
-                  </Box>
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+                )}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </Box>
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 2, mt: 1 }}>
         <Typography variant="caption" color="text.secondary">
