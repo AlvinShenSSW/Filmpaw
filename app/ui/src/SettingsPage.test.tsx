@@ -100,13 +100,14 @@ describe("SettingsPage", () => {
     );
   });
 
-  it("renders db path and version in the footer", async () => {
+  it("no longer carries the db/version footer — it moved to 关于 (#34)", async () => {
     renderPage();
-    // Version comes from the single source (tauri.conf.json via __APP_VERSION__),
-    // so a release bump must not break this assertion.
-    expect(
-      await screen.findByText(new RegExp(`X:\\\\db · v${__APP_VERSION__}`)),
-    ).toBeInTheDocument();
+    await screen.findByLabelText("新扫描源路径"); // page finished rendering
+    // Kept as a NEGATIVE assertion rather than deleted: this is what stops the
+    // self-check from quietly reappearing here and drifting from /about.
+    // The positive assertions now live in App.test.tsx, through the router.
+    expect(screen.queryByText(/数据库:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/server v/)).not.toBeInTheDocument();
   });
 });
 

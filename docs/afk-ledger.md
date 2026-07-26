@@ -121,3 +121,22 @@
 ### 顺带处理: 真实库被测试夹具覆盖
 `%APPDATA%\Filmpaw\library.db` 一度只剩早先 E2E 的夹具数据(4 个源指向 `Temp\fp20nas_*`)。杀掉全部进程 + 将夹具库改名备份后, 原 7.7MB 真实库(10 源 / 196 条 / 缩略图)完整恢复, **零丢失**(别名 0 条)。夹具库保留为 `library.db.fixture-2026-07-25.bak` —— 同名文件不该共存, 恢复机制未查清, 故不删。
 **规则**: 任何 E2E/打包验证必须显式设 `FILMPAW_DB` 指向临时库, 绝不落默认路径。
+
+## v1.5 运行 (2026-07-26, issue #34)
+
+**#34 关于页 + README/AGENTS/仓库简介同步** — scope: 左栏新增 `/about` 入口, 页面含名称、简介、双版本自检、服务库路径; 同批重写 README、AGENTS.md 首段与两条项目铁律、GitHub 仓库 description。并入 0.4.0。
+
+### 前置门(Codex, gpt-5.6-sol): PASS WITH FIXES → PASS
+第一轮 6×P1, 其中三条是**我把事实写错了**:
+1. 版本注入源写成 `package.json` —— 实际 `rsbuild.config.ts` 早已从 `tauri.conf.json` 注入 `__APP_VERSION__`(#7 定的单一版本源); 照写会让 UI 与安装包版本脱节, 而这页存在的意义正是识别不一致
+2. 没发现 `SettingsPage.tsx:293` 页脚**已经**在显示 `数据库/版本/server 版本` → 差点做出第二处重复; 已决定**迁移**而非并存
+3. 简介 107 字超标, 且"归类影片"(暗示动文件)、"NAS 同名目录"(匹配走别名/子串, 未必同名)、"不上传任何信息"(过于绝对)三处不准
+其余: `App.tsx:29` 是 `<a><button>` 嵌套(既有无障碍缺陷, 复用前先修)、`/api/settings` 失败态缺失、设计文档 §7.1 三入口冲突。
+
+### 本轮实现要点
+- **双版本自检**: 应用版本(构建期, `tauri.conf.json`)vs 服务版本(运行时, `/api/health`), 五态齐全且**加载中不与失败混同**; `isPackaged` 用 `NODE_ENV=production && window.__FILMPAW_PORT__` 判定 —— 只看 `isTauri()` 会把 `tauri dev` 也算成打包版, 从而把正常的版本差异误报成安装损坏
+- **局限如实写在页面上**: 双 SemVer 只能发现版本号不同的陈旧产物; 同版本号旧构建由 **CI frozen-sidecar smoke** 覆盖(新增: 比对 `/api/health` 与 `tauri.conf.json`, 带截止时间轮询 —— sidecar 打印 `FILMPAW_PORT` 早于 uvicorn 就绪, 直接请求会踩竞态; 且显式设临时 `FILMPAW_DB`, `finally` 收进程)
+- **导航无障碍**: `<Link><IconButton/></Link>` → 单一 `Link`, 保留 `aria-label`, 激活态改用 TanStack 的 `data-status="active"`(它同时给出 `aria-current="page"`), 补回 `:focus-visible` 焦点环(去掉 IconButton 后 MUI 的焦点样式一并消失)
+- 40×40 未改 44×44: 设计技能的 44 下限**限定于触摸 UI**, 本壳是鼠标驱动的桌面应用、导航栏仅 56px 宽
+- 设置页页脚删除后, 其 `health`/`settings` 两个查询也一并移除(它们只为那行存在)
+- 设置页原正向断言改为**负向断言**(Codex 建议), 正向断言移到 `App.test.tsx` 经真实 routeTree 验证 —— 单独渲染组件发现不了"路由没挂上"或"左栏没入口"

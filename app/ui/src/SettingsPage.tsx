@@ -17,8 +17,6 @@ import { useState } from "react";
 import {
   addSourceApiSourcesPost,
   deleteSourceApiSourcesSourceIdDelete,
-  getSettingsApiSettingsGet,
-  healthApiHealthGet,
   listSourcesApiSourcesGet,
   scanOneApiSourcesSourceIdScanPost,
 } from "./client";
@@ -54,24 +52,6 @@ export function SettingsPage() {
       if (r.error) throw r.error;
       return r.data ?? [];
     },
-  });
-  const health = useQuery({
-    queryKey: ["health"],
-    queryFn: async () => {
-      const r = await healthApiHealthGet();
-      if (r.error) throw r.error;
-      return r.data;
-    },
-    retry: 1,
-  });
-  const settings = useQuery({
-    queryKey: ["app-settings"],
-    queryFn: async () => {
-      const r = await getSettingsApiSettingsGet();
-      if (r.error) throw r.error;
-      return r.data;
-    },
-    retry: 1,
   });
 
   const refetchSources = () => queryClient.invalidateQueries({ queryKey: ["sources"] });
@@ -288,11 +268,6 @@ export function SettingsPage() {
           </Typography>
         )}
       </Box>
-
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 3 }}>
-        数据库: {settings.data?.db_path ?? "…"} · v{__APP_VERSION__} · server v
-        {health.data?.version ?? "…"}
-      </Typography>
 
       <Dialog open={confirmDelete !== null} onClose={() => setConfirmDelete(null)}>
         <DialogTitle>删除扫描源?</DialogTitle>

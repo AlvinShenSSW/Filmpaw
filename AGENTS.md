@@ -1,9 +1,16 @@
-# AGENTS.md — Filmpaw skill collection
+# AGENTS.md — Filmpaw
 
-This repo is a collection of **Claude Code skills** that together implement an
-autonomous, review-gated software-delivery pipeline (**AFK mode**) plus supporting
-design/planning skills. This file is the map: who the agents are, how they hand off,
-and what each needs to run.
+This repo holds **two things**:
+
+- [`app/`](app/) — **Filmpaw itself**, a Windows desktop app (Tauri 2 shell + React 19 UI
+  + FastAPI sidecar) that indexes performer directories across NAS shares. This is the
+  product; see [README.md](README.md).
+- [`skill/`](skill/) — the **review-gated delivery pipeline** (**AFK mode**) that builds
+  it: an autonomous executor plus external review gates.
+
+This file is the map for the second part: who the agents are, how they hand off, and what
+each needs to run. Per-round execution records live in
+[`docs/afk-ledger.md`](docs/afk-ledger.md).
 
 > Skills live under [`skill/`](skill/). To make them invocable as `/afk`,
 > `/codex-review`, etc., they must be registered into a `.claude/skills/` directory
@@ -90,6 +97,33 @@ Newly installed skills are picked up when Claude Code starts a fresh session.
 > Override per run with `CODEX_REVIEW_MODEL`; set it empty to inherit the global config.
 > **Raw `codex exec` calls made outside the gate must pass `-m gpt-5.6-sol` too** —
 > otherwise the ad-hoc review runs on a different model than the recorded gate verdict.
+
+## Project rules (learned the hard way — MUST follow)
+
+### `FILMPAW_DB` is mandatory for every E2E / packaging check
+
+Any run that starts the server outside `pytest` — an end-to-end probe, a packaging
+smoke, a manual API poke — **must** set `FILMPAW_DB` to a temp file. Never let it fall
+through to the default `%APPDATA%\Filmpaw\library.db`.
+
+On 2026-07-26 a fixture run did fall through, and the operator's real library (10 NAS
+sources, 196 records) was replaced by test data. It was recoverable only because the
+running sidecar still held the old file handle. There is no second warning built into
+the code — the default path is what the shipped app uses, so a stray run lands directly
+on real user data.
+
+### "It passed locally" is not evidence that CI will pass
+
+Local trees carry build artifacts that a clean checkout does not. A `cargo test` step
+added in #31 passed locally and failed in CI, because `src-tauri/binaries/` still held a
+sidecar from an earlier packaging run while CI had none yet.
+
+- When a reviewer reports a failure you cannot reproduce, **run an experiment or trust
+  CI** before accepting *or* dismissing the diagnosis. In that same case the reviewer's
+  conclusion was right and its stated cause was wrong — following the suggested fix
+  would have left CI red.
+- Before trusting a local pass for anything build-order-sensitive, ask what the clean
+  checkout lacks: `ui/dist`, `src-tauri/binaries/`, `target/`, `node_modules/`.
 
 ## CLI invocation discipline (anti-hang rules — MUST follow)
 
