@@ -36,6 +36,29 @@ The dual target deliberately keeps the **comma** in the local folder name, so th
 records double as a live #28 (comma truncation) regression check — both windows
 landed on the correct paths.
 
+## Post-fix result (2026-07-26, shell opens the folder)
+
+Same machine, same targets, same protocol. Build:
+`app/src-tauri/target/release/filmpaw.exe` with the freshly rebuilt sidecar —
+its `/openapi.json` was checked for `/api/resolve-pair` before the run, so these
+trials cannot have been served by a stale sidecar.
+
+| trial | mode | longest consecutive OK | foreground at steady state | verdict |
+|---|---|---|---|---|
+| fixed-single-1 | single | 20 / 9 | explorer · CabinetWClass · target | PASS |
+| fixed-single-2 | single | 19 / 9 | explorer · CabinetWClass · target | PASS |
+| fixed-single-3 | single | 19 / 9 | explorer · CabinetWClass · target | PASS |
+| fixed-dual-1 | dual | 19 / 9 | hwnds 3607914 + 791344, both visible | PASS |
+| fixed-dual-2 | dual | 19 / 9 | hwnds 3345386 + 2493006, both visible | PASS |
+| fixed-dual-3 | dual | 19 / 9 | hwnds 1576340 + 1379906, both visible | PASS |
+
+single **3/3**, dual **3/3** — meets the §D4 bar. Every dual trial put its two
+targets in DISTINCT windows (never two tabs of one), and the local target kept
+its comma intact.
+
+Activation lands at t≈0.25–0.50 s: the foreground is still Filmpaw at t=0 (the
+click) and Explorer from the next sample on.
+
 ## Reading a record
 
 Each sample carries the foreground window (`Hwnd`/`Pid`/`Process`/`Class`) and

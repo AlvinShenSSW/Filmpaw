@@ -1,0 +1,422 @@
+﻿{
+    "label":  "fixed-single-2",
+    "mode":  "single",
+    "targets":  [
+                    "\\\\Ant\\Video Station\\女优VIII\\Lisa"
+                ],
+    "targetsNormalized":  [
+                              "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA"
+                          ],
+    "click":  {
+                  "y":  619,
+                  "x":  405,
+                  "how":  "point"
+              },
+    "preClickForeground":  {
+                               "Hwnd":  983674,
+                               "Pid":  9016,
+                               "Process":  "filmpaw",
+                               "Class":  "Tauri Window",
+                               "Visible":  true,
+                               "Minimized":  false
+                           },
+    "longestConsecutiveOk":  19,
+    "requiredConsecutive":  9,
+    "pass":  true,
+    "samples":  [
+                    {
+                        "T":  0,
+                        "Hwnd":  983674,
+                        "Pid":  9016,
+                        "Process":  "filmpaw",
+                        "Class":  "Tauri Window",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "",
+                        "TargetWindows":  [
+
+                                          ],
+                        "Ok":  false
+                    },
+                    {
+                        "T":  0.25,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  false,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  false
+                    },
+                    {
+                        "T":  0.5,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  0.75,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  1,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  1.25,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  1.5,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  1.75,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  2,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  2.25,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  2.5,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  2.75,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  3,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  3.25,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  3.5,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  3.75,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  4,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  4.25,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  4.5,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  4.75,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    },
+                    {
+                        "T":  5,
+                        "Hwnd":  1118874,
+                        "Pid":  14060,
+                        "Process":  "explorer",
+                        "Class":  "CabinetWClass",
+                        "Visible":  true,
+                        "Minimized":  false,
+                        "FgPath":  "\\\\ANT\\VIDEO STATION\\女优VIII\\LISA",
+                        "TargetWindows":  [
+                                              {
+                                                  "Hwnd":  1118874,
+                                                  "Path":  "\\\\Ant\\Video Station\\女优VIII\\Lisa",
+                                                  "Visible":  true,
+                                                  "Minimized":  false
+                                              }
+                                          ],
+                        "Ok":  true
+                    }
+                ]
+}

@@ -229,4 +229,7 @@ if (-not ($samples | Where-Object { $_.TargetWindows.Count -gt 0 })) {
 }
 Write-Host "[probe] $Label ($mode): longest consecutive OK = $best / 9 required -> $(if ($pass) {'PASS'} else {'FAIL'})"
 Write-Host "[probe] record -> $OutFile"
-if (-not $pass) { exit 1 }
+# Always set the code explicitly: without an `exit 0` a passing run leaves
+# $LASTEXITCODE at whatever the PREVIOUS command set, so a batch runner would
+# report an earlier failure as this trial's result.
+if ($pass) { exit 0 } else { exit 1 }
