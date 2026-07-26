@@ -91,7 +91,11 @@ jobs:
           exe = glob.glob("../src-tauri/binaries/filmpaw-server-*.exe")[0]
           expected = json.load(open("../src-tauri/tauri.conf.json", encoding="utf-8"))["version"]
 
-          with tempfile.TemporaryDirectory() as tmp:
+          # ignore_cleanup_errors: PyInstaller onefile runs a bootloader that
+          # re-execs the real program, so the DB handle belongs to a GRANDCHILD.
+          # We kill the tree below, but Windows can still hold the file briefly
+          # and a disposable temp dir must never fail an otherwise-green check.
+          with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp:
               env = dict(os.environ)
               # NEVER let a check touch the default DB location — that is how a
               # real library got overwritten by fixtures once.
@@ -137,8 +141,14 @@ jobs:
                       )
                       sys.exit(1)
               finally:
-                  p.kill()
+                  # kill() only reaps the bootloader; the grandchild that holds
+                  # the DB survives it (same reason the shell uses taskkill /T).
+                  subprocess.run(
+                      ["taskkill", "/PID", str(p.pid), "/T", "/F"],
+                      capture_output=True,
+                  )
                   p.wait(timeout=10)
+                  time.sleep(1)  # let Windows release the file handle
           EOF
 
       - name: Tauri build (NSIS)
