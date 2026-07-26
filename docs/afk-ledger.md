@@ -140,3 +140,14 @@
 - 40×40 未改 44×44: 设计技能的 44 下限**限定于触摸 UI**, 本壳是鼠标驱动的桌面应用、导航栏仅 56px 宽
 - 设置页页脚删除后, 其 `health`/`settings` 两个查询也一并移除(它们只为那行存在)
 - 设置页原正向断言改为**负向断言**(Codex 建议), 正向断言移到 `App.test.tsx` 经真实 routeTree 验证 —— 单独渲染组件发现不了"路由没挂上"或"左栏没入口"
+
+### 评审与交付
+- 外门 Codex(gpt-5.6-sol): 对 diff **无 actionable 问题**
+- 终审 Kimi: **APPROVE**, 无结构性问题
+- CI 挂过一次, 但**挂的不是检查本身**: 新加的冒烟已验证通过(`health 0.4.0 == tauri.conf.json 0.4.0`), 失败在收尾 —— PyInstaller onefile 的引导进程 re-exec 真正的程序, 握着 `smoke.db` 的是**孙进程**, `p.kill()` 收不到, `TemporaryDirectory` 退出报 WinError 32。与 Tauri 壳关窗残留同源, 同样用 `taskkill /T /F` 收整棵树 + `ignore_cleanup_errors`。
+
+产物: **Filmpaw_0.4.0_x64-setup.exe**(25.9 MB)
+冒烟: health/openapi 版本均 0.4.0 · 无控制台黑窗 · 关窗零残留 · **关于页两处版本一致且无告警**(该页的自检首次自我验证通过) · 数据库路径正确显示
+
+## v1.5 运行结束 (2026-07-26)
+#31(前台激活)、0.4.0 版本、#34(关于页 + 文档同步)全部 merged。调度器/心跳待清理。
