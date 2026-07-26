@@ -52,6 +52,14 @@ jobs:
           ./node_modules/.bin/biome ci src
           ./node_modules/.bin/vitest run
 
+      # The shell now owns opening folders (#31), and its failure edges —
+      # dead sidecar, timeout, redirect, malformed reply, "never launch on
+      # error" — are only enforceable by these tests. Without this step the
+      # matrix silently rots.
+      - name: Shell tests (cargo)
+        working-directory: app/src-tauri
+        run: cargo test
+
       - name: Build sidecar (PyInstaller)
         working-directory: app/server
         run: uv run python build_sidecar.py

@@ -143,14 +143,25 @@ POST   /api/performers/{id}/aliases {alias}→ 201 | 409(同名组内重复, 或
 DELETE /api/aliases/{id}                   → 204
 DELETE /api/performers/{id}                → 204 (单条删除, UI 仅对失效行提供入口)
 POST   /api/performers/purge-missing       → {deleted} (批量清理全部失效记录)
-POST   /api/performers/{id}/open           → 打开 Explorer → 204 | 404(路径已不存在→顺带置 is_missing)
+POST   /api/performers/{id}/open           → server 打开 Explorer → 204 | 404(路径已不存在→顺带置 is_missing)
+POST   /api/performers/{id}/resolve        → {performer_path} → 200 | 404(错误与副作用同上)
 
 GET    /api/local/subdirs?path=            → 本地目录一级子文件夹名列表 (归档界面左栏)
-POST   /api/open-pair {local_path, performer_id} → 双开两个 Explorer → 204
+POST   /api/open-pair    {subdir, performer_id} → server 双开两个 Explorer → 204 | 400 | 404 | 409
+POST   /api/resolve-pair {subdir, performer_id} → {local_path, performer_path} → 200(错误矩阵同上)
 GET    /api/settings / PUT /api/settings   → {last_local_dir}   # 记住上次本地目录
 ```
 
-- 打开文件夹: `subprocess.Popen(['explorer', path])`;UNC 直接可用 (D6)
+- **谁来打开 (#31)**: 打包版由 **Tauri 壳**调 `ShellExecuteW`。Windows 只允许前台进程
+  (或它启动的进程)激活窗口;点击时这些权利属于 `filmpaw.exe`,而 sidecar 一个都不占,
+  所以由 sidecar 打开时 Explorer 只会在任务栏闪烁。壳走 `/resolve*` 拿路径, dev 浏览器
+  没有壳、走 `/open*` 由 server 打开。两组端点共用同一个内部校验函数, 语义不会分叉。
+- **server 始终是校验权威**: 壳命令只接受**意图参数**(id / subdir 名), 从不接受路径 ——
+  通用的 `open_path(path)` 会让 WebView 绕过 containment 守卫。双开的 `local_dir` 参数
+  已删除, server 直接用已保存的 anchor 解析; 旧客户端仍发该字段一律 **422**(pydantic
+  默认会忽略未知字段, 那会静默按新 anchor 打开同名目录)。
+- 打开文件夹用宽字符 `ShellExecuteW`, **不是** `explorer.exe <path>` —— explorer 把
+  **逗号**当参数分隔符, `…\沙月恵奈,月野かすみ` 会开错目录 (#28)。UNC 直接可用 (D6)
 - TS client 由 OpenAPI 生成 (hey-api, 同 MDCx 链路)
 
 ## 7. UI/UX 设计

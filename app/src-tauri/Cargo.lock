@@ -747,9 +747,12 @@ dependencies = [
 name = "filmpaw"
 version = "0.3.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

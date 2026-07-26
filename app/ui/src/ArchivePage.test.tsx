@@ -13,8 +13,10 @@ vi.mock("./client", () => ({
   putSettingsApiSettingsPut: vi.fn(),
   localSubdirsApiLocalSubdirsGet: vi.fn(),
   listPerformersApiPerformersGet: vi.fn(),
-  openPairApiOpenPairPost: vi.fn(),
 }));
+// The page no longer talks to the open endpoint directly — openTarget decides
+// whether the shell or the server launches (#31); its own test covers both.
+vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
 
@@ -23,8 +25,8 @@ import {
   getSettingsApiSettingsGet,
   listPerformersApiPerformersGet,
   localSubdirsApiLocalSubdirsGet,
-  openPairApiOpenPairPost,
 } from "./client";
+import { openArchivePair } from "./openTarget";
 import { pickDirectory } from "./pickDirectory";
 
 const REC = {
@@ -75,7 +77,7 @@ beforeEach(() => {
   vi.mocked(listPerformersApiPerformersGet).mockResolvedValue(
     envelope([REC, MISSING_REC]) as never,
   );
-  vi.mocked(openPairApiOpenPairPost).mockResolvedValue({ data: null } as never);
+  vi.mocked(openArchivePair).mockResolvedValue(undefined);
 });
 
 describe("ArchivePage", () => {
@@ -96,13 +98,8 @@ describe("ArchivePage", () => {
     const pairButtons = await screen.findAllByRole("button", { name: /双开/ });
     await userEvent.click(pairButtons[0]);
     await waitFor(() =>
-      expect(openPairApiOpenPairPost).toHaveBeenCalledWith({
-        body: {
-          local_dir: "D:\\Downloads\\新片",
-          subdir: "小红", // left selection, not search text
-          performer_id: REC.id,
-        },
-      }),
+      // subdir only — the approved anchor lives server-side since #31
+      expect(openArchivePair).toHaveBeenCalledWith("小红", REC.id),
     );
   });
 
@@ -120,9 +117,10 @@ describe("ArchivePage", () => {
   });
 
   it("open-pair 422 surfaces re-select prompt path", async () => {
-    vi.mocked(openPairApiOpenPairPost).mockResolvedValue({
-      error: { detail: "本地目录不存在 — 请重新选择" },
-    } as never);
+    vi.mocked(openArchivePair).mockRejectedValue({
+      status: 400,
+      detail: "本地目录不存在 — 请重新选择",
+    });
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: /倉木華/ }));
     const pairButtons = await screen.findAllByRole("button", { name: /双开/ });
@@ -164,11 +162,7 @@ describe("Kimi verify fixes", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^小红$/ }));
     const pairButtons = await screen.findAllByRole("button", { name: /双开/ });
     await userEvent.click(pairButtons[0]);
-    await waitFor(() =>
-      expect(openPairApiOpenPairPost).toHaveBeenCalledWith({
-        body: { local_dir: "/mnt/downloads", subdir: "小红", performer_id: REC.id },
-      }),
-    );
+    await waitFor(() => expect(openArchivePair).toHaveBeenCalledWith("小红", REC.id));
   });
 });
 

@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddAliasApiPerformersPerformerIdAliasesPostData, AddAliasApiPerformersPerformerIdAliasesPostErrors, AddAliasApiPerformersPerformerIdAliasesPostResponses, AddSourceApiSourcesPostData, AddSourceApiSourcesPostErrors, AddSourceApiSourcesPostResponses, DeleteAliasApiAliasesAliasIdDeleteData, DeleteAliasApiAliasesAliasIdDeleteErrors, DeleteAliasApiAliasesAliasIdDeleteResponses, DeletePerformerApiPerformersPerformerIdDeleteData, DeletePerformerApiPerformersPerformerIdDeleteErrors, DeletePerformerApiPerformersPerformerIdDeleteResponses, DeleteSourceApiSourcesSourceIdDeleteData, DeleteSourceApiSourcesSourceIdDeleteErrors, DeleteSourceApiSourcesSourceIdDeleteResponses, GetSettingsApiSettingsGetData, GetSettingsApiSettingsGetResponses, GetThumbApiPerformersPerformerIdThumbGetData, GetThumbApiPerformersPerformerIdThumbGetErrors, GetThumbApiPerformersPerformerIdThumbGetResponses, HealthApiHealthGetData, HealthApiHealthGetResponses, ListPerformersApiPerformersGetData, ListPerformersApiPerformersGetErrors, ListPerformersApiPerformersGetResponses, ListSourcesApiSourcesGetData, ListSourcesApiSourcesGetResponses, LocalSubdirsApiLocalSubdirsGetData, LocalSubdirsApiLocalSubdirsGetErrors, LocalSubdirsApiLocalSubdirsGetResponses, OpenPairApiOpenPairPostData, OpenPairApiOpenPairPostErrors, OpenPairApiOpenPairPostResponses, OpenPerformerApiPerformersPerformerIdOpenPostData, OpenPerformerApiPerformersPerformerIdOpenPostErrors, OpenPerformerApiPerformersPerformerIdOpenPostResponses, PurgeMissingApiPerformersPurgeMissingPostData, PurgeMissingApiPerformersPurgeMissingPostResponses, PutSettingsApiSettingsPutData, PutSettingsApiSettingsPutErrors, PutSettingsApiSettingsPutResponses, ScanAllApiScanAllPostData, ScanAllApiScanAllPostResponses, ScanOneApiSourcesSourceIdScanPostData, ScanOneApiSourcesSourceIdScanPostErrors, ScanOneApiSourcesSourceIdScanPostResponses } from './types.gen';
+import type { AddAliasApiPerformersPerformerIdAliasesPostData, AddAliasApiPerformersPerformerIdAliasesPostErrors, AddAliasApiPerformersPerformerIdAliasesPostResponses, AddSourceApiSourcesPostData, AddSourceApiSourcesPostErrors, AddSourceApiSourcesPostResponses, DeleteAliasApiAliasesAliasIdDeleteData, DeleteAliasApiAliasesAliasIdDeleteErrors, DeleteAliasApiAliasesAliasIdDeleteResponses, DeletePerformerApiPerformersPerformerIdDeleteData, DeletePerformerApiPerformersPerformerIdDeleteErrors, DeletePerformerApiPerformersPerformerIdDeleteResponses, DeleteSourceApiSourcesSourceIdDeleteData, DeleteSourceApiSourcesSourceIdDeleteErrors, DeleteSourceApiSourcesSourceIdDeleteResponses, GetSettingsApiSettingsGetData, GetSettingsApiSettingsGetResponses, GetThumbApiPerformersPerformerIdThumbGetData, GetThumbApiPerformersPerformerIdThumbGetErrors, GetThumbApiPerformersPerformerIdThumbGetResponses, HealthApiHealthGetData, HealthApiHealthGetResponses, ListPerformersApiPerformersGetData, ListPerformersApiPerformersGetErrors, ListPerformersApiPerformersGetResponses, ListSourcesApiSourcesGetData, ListSourcesApiSourcesGetResponses, LocalSubdirsApiLocalSubdirsGetData, LocalSubdirsApiLocalSubdirsGetErrors, LocalSubdirsApiLocalSubdirsGetResponses, OpenPairApiOpenPairPostData, OpenPairApiOpenPairPostErrors, OpenPairApiOpenPairPostResponses, OpenPerformerApiPerformersPerformerIdOpenPostData, OpenPerformerApiPerformersPerformerIdOpenPostErrors, OpenPerformerApiPerformersPerformerIdOpenPostResponses, PurgeMissingApiPerformersPurgeMissingPostData, PurgeMissingApiPerformersPurgeMissingPostResponses, PutSettingsApiSettingsPutData, PutSettingsApiSettingsPutErrors, PutSettingsApiSettingsPutResponses, ResolvePairApiResolvePairPostData, ResolvePairApiResolvePairPostErrors, ResolvePairApiResolvePairPostResponses, ResolvePerformerApiPerformersPerformerIdResolvePostData, ResolvePerformerApiPerformersPerformerIdResolvePostErrors, ResolvePerformerApiPerformersPerformerIdResolvePostResponses, ScanAllApiScanAllPostData, ScanAllApiScanAllPostResponses, ScanOneApiSourcesSourceIdScanPostData, ScanOneApiSourcesSourceIdScanPostErrors, ScanOneApiSourcesSourceIdScanPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -114,8 +114,20 @@ export const putSettingsApiSettingsPut = <ThrowOnError extends boolean = false>(
 
 /**
  * Open Performer
+ *
+ * Validate AND launch, server-side. Used by the dev browser, which has no
+ * Tauri shell to launch through; the packaged app uses /resolve instead so the
+ * launch happens in a process that holds foreground rights (#31).
  */
 export const openPerformerApiPerformersPerformerIdOpenPost = <ThrowOnError extends boolean = false>(options: Options<OpenPerformerApiPerformersPerformerIdOpenPostData, ThrowOnError>): RequestResult<OpenPerformerApiPerformersPerformerIdOpenPostResponses, OpenPerformerApiPerformersPerformerIdOpenPostErrors, ThrowOnError> => (options.client ?? client).post<OpenPerformerApiPerformersPerformerIdOpenPostResponses, OpenPerformerApiPerformersPerformerIdOpenPostErrors, ThrowOnError>({ url: '/api/performers/{performer_id}/open', ...options });
+
+/**
+ * Resolve Performer
+ *
+ * Same validation and is_missing side effects as /open, but returns the
+ * path instead of launching it — the caller (the Tauri shell) launches.
+ */
+export const resolvePerformerApiPerformersPerformerIdResolvePost = <ThrowOnError extends boolean = false>(options: Options<ResolvePerformerApiPerformersPerformerIdResolvePostData, ThrowOnError>): RequestResult<ResolvePerformerApiPerformersPerformerIdResolvePostResponses, ResolvePerformerApiPerformersPerformerIdResolvePostErrors, ThrowOnError> => (options.client ?? client).post<ResolvePerformerApiPerformersPerformerIdResolvePostResponses, ResolvePerformerApiPerformersPerformerIdResolvePostErrors, ThrowOnError>({ url: '/api/performers/{performer_id}/resolve', ...options });
 
 /**
  * Local Subdirs
@@ -124,9 +136,27 @@ export const localSubdirsApiLocalSubdirsGet = <ThrowOnError extends boolean = fa
 
 /**
  * Open Pair
+ *
+ * Validate AND launch, server-side (dev-browser fallback — see
+ * open_performer).
  */
 export const openPairApiOpenPairPost = <ThrowOnError extends boolean = false>(options: Options<OpenPairApiOpenPairPostData, ThrowOnError>): RequestResult<OpenPairApiOpenPairPostResponses, OpenPairApiOpenPairPostErrors, ThrowOnError> => (options.client ?? client).post<OpenPairApiOpenPairPostResponses, OpenPairApiOpenPairPostErrors, ThrowOnError>({
     url: '/api/open-pair',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Resolve Pair
+ *
+ * Same validation as /open-pair, but returns both paths instead of
+ * launching them — the caller (the Tauri shell) launches (#31).
+ */
+export const resolvePairApiResolvePairPost = <ThrowOnError extends boolean = false>(options: Options<ResolvePairApiResolvePairPostData, ThrowOnError>): RequestResult<ResolvePairApiResolvePairPostResponses, ResolvePairApiResolvePairPostErrors, ThrowOnError> => (options.client ?? client).post<ResolvePairApiResolvePairPostResponses, ResolvePairApiResolvePairPostErrors, ThrowOnError>({
+    url: '/api/resolve-pair',
     ...options,
     headers: {
         'Content-Type': 'application/json',

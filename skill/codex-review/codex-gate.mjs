@@ -103,10 +103,16 @@ const logFile = join(work, 'codex.log');
 //     rules), so stripping it loses more than it saves. So we do NOT override it by
 //     default — the reviewer keeps the 禁区. Opt in (e.g. `=0` for max lean, or `=16384`
 //     to cap) via CODEX_REVIEW_PROJECT_DOC_MAX_BYTES, mainly useful where AGENTS.md is large.
+//   - model: the gate pins its OWN model rather than inheriting ~/.codex/config.toml,
+//     so the 外门 verdict does not silently change when the operator retunes their
+//     interactive default. Operator decision (2026-07-26): gpt-5.6-sol. Override with
+//     CODEX_REVIEW_MODEL, or set it empty to fall back to the global config.
 const reasoning = (process.env.CODEX_REVIEW_REASONING || 'medium').trim();
 const projectDocMaxBytes = (process.env.CODEX_REVIEW_PROJECT_DOC_MAX_BYTES || '').trim();
+const model = (process.env.CODEX_REVIEW_MODEL ?? 'gpt-5.6-sol').trim();
 
 const reviewArgs = ['exec', 'review'];
+if (model) reviewArgs.push('-m', model);
 reviewArgs.push('-c', `model_reasoning_effort=${reasoning}`);
 if (projectDocMaxBytes) reviewArgs.push('-c', `project_doc_max_bytes=${projectDocMaxBytes}`);
 if (!hasTarget) reviewArgs.push('--base', detectBase());

@@ -10,8 +10,74 @@ use std::time::Duration;
 
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
+mod opener;
+use opener::{ApiError, ShellLauncher, TIMEOUT};
+
 struct ServerState {
     child: Mutex<Option<Child>>,
+    port: u16,
+}
+
+/// The sidecar must still be alive before we ask it anything: after it dies the
+/// port can be recycled by an unrelated process, and a stale port is exactly the
+/// input we must not send an open request to.
+fn live_port(state: &ServerState) -> Result<u16, ApiError> {
+    let mut guard = state.child.lock().map_err(|_| ApiError {
+        status: 0,
+        detail: "本地服务状态不可用".into(),
+    })?;
+    match guard.as_mut() {
+        // try_wait() -> Ok(None) means "still running".
+        Some(child) => match child.try_wait() {
+            Ok(None) => Ok(state.port),
+            _ => Err(ApiError {
+                status: 0,
+                detail: "本地服务已退出, 请重启应用".into(),
+            }),
+        },
+        None => Err(ApiError {
+            status: 0,
+            detail: "本地服务已退出, 请重启应用".into(),
+        }),
+    }
+}
+
+/// Open one performer folder. Takes an id, never a path — the server resolves
+/// it, so the WebView cannot use this to open arbitrary directories (#31).
+#[tauri::command]
+async fn open_performer(
+    state: tauri::State<'_, ServerState>,
+    performer_id: String,
+) -> Result<(), ApiError> {
+    let port = live_port(&state)?;
+    // Blocking socket I/O off the UI thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        opener::open_performer_with(port, &performer_id, &ShellLauncher, TIMEOUT)
+    })
+    .await
+    .map_err(|e| ApiError {
+        status: 0,
+        detail: format!("打开任务失败: {e}"),
+    })?
+}
+
+/// Open the local folder and the performer folder together. Takes the subdir
+/// NAME and an id — the approved anchor lives server-side (#31).
+#[tauri::command]
+async fn open_pair(
+    state: tauri::State<'_, ServerState>,
+    subdir: String,
+    performer_id: String,
+) -> Result<(), ApiError> {
+    let port = live_port(&state)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        opener::open_pair_with(port, &subdir, &performer_id, &ShellLauncher, TIMEOUT)
+    })
+    .await
+    .map_err(|e| ApiError {
+        status: 0,
+        detail: format!("打开任务失败: {e}"),
+    })?
 }
 
 /// Kill the sidecar and its whole process tree. In dev the server runs as
@@ -41,10 +107,7 @@ fn server_command() -> (String, Vec<String>) {
         // the dev `uv` path in release — it would mask a missing sidecar with
         // a confusing spawn failure on user machines.
         let exe = std::env::current_exe().expect("current_exe");
-        let sidecar = exe
-            .parent()
-            .expect("exe dir")
-            .join("filmpaw-server.exe");
+        let sidecar = exe.parent().expect("exe dir").join("filmpaw-server.exe");
         if !sidecar.exists() {
             panic!(
                 "packaged sidecar filmpaw-server.exe not found next to {}",
@@ -62,7 +125,12 @@ fn server_command() -> (String, Vec<String>) {
         .into_owned();
     (
         "uv".into(),
-        vec!["run".into(), "--project".into(), server_dir, "filmpaw-server".into()],
+        vec![
+            "run".into(),
+            "--project".into(),
+            server_dir,
+            "filmpaw-server".into(),
+        ],
     )
 }
 
@@ -74,7 +142,10 @@ fn spawn_server() -> (Child, u16) {
     // Dev-server CORS origins are trusted only when the shell says so.
     // Always set explicitly: a release build must override any inherited
     // FILMPAW_DEV=1 from the parent environment.
-    command.env("FILMPAW_DEV", if cfg!(debug_assertions) { "1" } else { "0" });
+    command.env(
+        "FILMPAW_DEV",
+        if cfg!(debug_assertions) { "1" } else { "0" },
+    );
     // The sidecar is a console-subsystem exe (PyInstaller default); spawned
     // from this GUI-subsystem shell Windows would allocate a visible console
     // window (#17). CREATE_NO_WINDOW suppresses it while keeping the stdout
@@ -155,11 +226,13 @@ fn main() {
     let (child, port) = spawn_server();
     let state = ServerState {
         child: Mutex::new(Some(child)),
+        port,
     };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(state)
+        .invoke_handler(tauri::generate_handler![open_performer, open_pair])
         .setup(move |app| {
             // Init script runs before page scripts on EVERY page load — no
             // injection race, unlike a one-shot eval after window creation.
@@ -167,7 +240,7 @@ fn main() {
                 .title("Filmpaw")
                 .inner_size(1200.0, 800.0)
                 .min_inner_size(960.0, 640.0)
-                .initialization_script(&format!("window.__FILMPAW_PORT__ = {port};"))
+                .initialization_script(format!("window.__FILMPAW_PORT__ = {port};"))
                 .build()?;
             Ok(())
         })

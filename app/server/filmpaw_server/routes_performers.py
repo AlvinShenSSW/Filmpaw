@@ -386,8 +386,23 @@ def put_settings(request: Request, body: SettingsIn) -> dict:
 # ------------------------------------------------------------- open / local
 
 
-@router.post("/performers/{performer_id}/open", status_code=204, responses={404: _ERR})
-def open_performer(request: Request, performer_id: str) -> None:
+class ResolvedPerformer(BaseModel):
+    performer_path: str
+
+
+class ResolvedPair(BaseModel):
+    local_path: str
+    performer_path: str
+
+
+def _resolve_performer(request: Request, performer_id: str) -> str:
+    """Validate and return the folder for `performer_id` — WITHOUT launching it.
+
+    Single source of truth for both /open (server launches; dev-browser
+    fallback) and /resolve (the Tauri shell launches). Keeping the validation
+    and its is_missing side effects here is what makes the two endpoints
+    impossible to drift apart (#31).
+    """
     conn = _conn(request)
     with _lock(request):
         row = conn.execute(
@@ -421,7 +436,26 @@ def open_performer(request: Request, performer_id: str) -> None:
                 )
                 conn.commit()
         raise HTTPException(status_code=404, detail="文件夹已不存在, 已标记失效")
-    open_in_explorer(row["unc_path"])
+    return row["unc_path"]
+
+
+@router.post("/performers/{performer_id}/open", status_code=204, responses={404: _ERR})
+def open_performer(request: Request, performer_id: str) -> None:
+    """Validate AND launch, server-side. Used by the dev browser, which has no
+    Tauri shell to launch through; the packaged app uses /resolve instead so the
+    launch happens in a process that holds foreground rights (#31)."""
+    open_in_explorer(_resolve_performer(request, performer_id))
+
+
+@router.post(
+    "/performers/{performer_id}/resolve",
+    response_model=ResolvedPerformer,
+    responses={404: _ERR},
+)
+def resolve_performer(request: Request, performer_id: str) -> dict:
+    """Same validation and is_missing side effects as /open, but returns the
+    path instead of launching it — the caller (the Tauri shell) launches."""
+    return {"performer_path": _resolve_performer(request, performer_id)}
 
 
 @router.get("/local/subdirs", response_model=SubdirsOut)
@@ -434,22 +468,30 @@ def local_subdirs(path: str) -> dict:
 
 
 class OpenPairIn(BaseModel):
-    local_dir: str  # the picked base dir (must equal the approved anchor)
-    subdir: str  # plain folder name — server joins, no client-side separators
+    # extra="forbid" is load-bearing, not tidiness: `local_dir` used to live
+    # here and the server joined it. Now the anchor is read server-side, so a
+    # stale client still sending local_dir must get a loud 422 — pydantic's
+    # default would IGNORE the field and silently open the same-named folder
+    # under a *different* anchor (user asks for A, gets B, no error) (#31).
+    model_config = {"extra": "forbid"}
+
+    subdir: str  # plain folder name — server joins onto the anchor itself
     performer_id: str
 
 
-@router.post("/open-pair", status_code=204, responses={400: _ERR, 404: _ERR, 409: _ERR})
-def open_pair(request: Request, body: OpenPairIn) -> None:
+def _resolve_pair(request: Request, body: OpenPairIn) -> tuple[str, str]:
+    """Validate and return (local_path, performer_path) — WITHOUT launching.
+
+    Shared by /open-pair and /resolve-pair so their validation, error codes and
+    lock boundary cannot drift apart (#31).
+    """
     # Containment guard (Kimi review): only paths inside the user-approved
     # last_local_dir may be opened — the CORS surface must never grant
-    # arbitrary directory opens. The server joins local_dir + subdir itself
-    # (no client separator heuristics); realpath resolves symlinks/junctions
-    # so a link inside the approved dir cannot escape; the whole guard —
-    # anchor read, resolution, checks — runs under the lock so a concurrent
-    # PUT /settings cannot swap the boundary mid-check (TOCTOU).
-    if not os.path.isabs(body.local_dir):
-        raise HTTPException(status_code=400, detail="必须是绝对路径")
+    # arbitrary directory opens. The server joins the approved anchor + subdir
+    # itself (no client-supplied path at all); realpath resolves
+    # symlinks/junctions so a link inside the approved dir cannot escape; the
+    # whole guard — anchor read, resolution, checks — runs under the lock so a
+    # concurrent PUT /settings cannot swap the boundary mid-check (TOCTOU).
     if body.subdir in ("", ".", "..") or os.path.basename(body.subdir) != body.subdir:
         raise HTTPException(status_code=400, detail="无效的子目录名")
     conn = _conn(request)
@@ -460,8 +502,8 @@ def open_pair(request: Request, body: OpenPairIn) -> None:
         approved = approved_row["value"] if approved_row and approved_row["value"] else None
         if approved is None:
             raise HTTPException(status_code=400, detail="尚未选择本地目录")
-        real_local = os.path.realpath(os.path.join(body.local_dir, body.subdir))
         real_approved = os.path.realpath(approved)
+        real_local = os.path.realpath(os.path.join(real_approved, body.subdir))
         try:
             inside = os.path.commonpath([real_local, real_approved]) == real_approved
         except ValueError:  # different drives
@@ -477,5 +519,26 @@ def open_pair(request: Request, body: OpenPairIn) -> None:
             raise HTTPException(status_code=404, detail="表演者不存在")
         if row["is_missing"]:
             raise HTTPException(status_code=409, detail="该记录已失效, 无法双开")
-    open_in_explorer(real_local)  # resolved path — what the guard validated
-    open_in_explorer(row["unc_path"])
+    # real_local is the RESOLVED path — exactly what the guard validated.
+    return real_local, row["unc_path"]
+
+
+@router.post("/open-pair", status_code=204, responses={400: _ERR, 404: _ERR, 409: _ERR})
+def open_pair(request: Request, body: OpenPairIn) -> None:
+    """Validate AND launch, server-side (dev-browser fallback — see
+    open_performer)."""
+    local_path, performer_path = _resolve_pair(request, body)
+    open_in_explorer(local_path)
+    open_in_explorer(performer_path)
+
+
+@router.post(
+    "/resolve-pair",
+    response_model=ResolvedPair,
+    responses={400: _ERR, 404: _ERR, 409: _ERR},
+)
+def resolve_pair(request: Request, body: OpenPairIn) -> dict:
+    """Same validation as /open-pair, but returns both paths instead of
+    launching them — the caller (the Tauri shell) launches (#31)."""
+    local_path, performer_path = _resolve_pair(request, body)
+    return {"local_path": local_path, "performer_path": performer_path}

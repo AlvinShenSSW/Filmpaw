@@ -26,10 +26,10 @@ import {
   deletePerformerApiPerformersPerformerIdDelete,
   listPerformersApiPerformersGet,
   listSourcesApiSourcesGet,
-  openPerformerApiPerformersPerformerIdOpenPost,
   purgeMissingApiPerformersPurgeMissingPost,
   scanAllApiScanAllPost,
 } from "./client";
+import { openPerformerFolder } from "./openTarget";
 import { tokens } from "./theme";
 
 /** Poster sizes (issue #27 — the old 34×48 / 52×74 were unreadable).
@@ -170,10 +170,7 @@ export function PerformersPage() {
 
   const openFolder = useMutation({
     mutationFn: async (performerId: string) => {
-      const r = await openPerformerApiPerformersPerformerIdOpenPost({
-        path: { performer_id: performerId },
-      });
-      if (r.error) throw r.error;
+      await openPerformerFolder(performerId);
     },
     onError: (e) => {
       setToast(detailOf(e, "打开失败"));

@@ -82,6 +82,6 @@ def test_open_pair_stays_204_when_nas_path_is_unreachable(
 
     r = client.post(
         "/api/open-pair",
-        json={"local_dir": str(local_root), "subdir": "离线测试", "performer_id": pid},
+        json={"subdir": "离线测试", "performer_id": pid},
     )
     assert r.status_code == 204
