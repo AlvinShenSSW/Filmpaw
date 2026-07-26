@@ -431,8 +431,15 @@ def _resolve_performer(request: Request, performer_id: str) -> str:
                 "SELECT 1 FROM performers WHERE id=?", (performer_id,)
             ).fetchone()
             if still is not None:
+                # AND is_missing=0 mirrors the reachable branch and skips a
+                # pointless write-and-commit while the lock is held. It does
+                # NOT close the stale-probe window Kimi described: if a scan
+                # cleared the flag while we probed, the row IS 0 and this write
+                # still lands. Closing that needs a generation/timestamp check
+                # (deferred on #7), not a value guard.
                 conn.execute(
-                    "UPDATE performers SET is_missing=1 WHERE id=?", (performer_id,)
+                    "UPDATE performers SET is_missing=1 WHERE id=? AND is_missing=0",
+                    (performer_id,),
                 )
                 conn.commit()
         raise HTTPException(status_code=404, detail="文件夹已不存在, 已标记失效")

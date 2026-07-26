@@ -52,17 +52,22 @@ jobs:
           ./node_modules/.bin/biome ci src
           ./node_modules/.bin/vitest run
 
+      - name: Build sidecar (PyInstaller)
+        working-directory: app/server
+        run: uv run python build_sidecar.py
+
       # The shell now owns opening folders (#31), and its failure edges —
       # dead sidecar, timeout, redirect, malformed reply, "never launch on
       # error" — are only enforceable by these tests. Without this step the
       # matrix silently rots.
+      #
+      # Must run AFTER the sidecar build: tauri-build resolves the externalBin
+      # at build-script time and fails with "resource path
+      # binaries\filmpaw-server-*.exe doesn't exist" on a clean checkout. Still
+      # ahead of the NSIS bundle, so a broken shell fails fast.
       - name: Shell tests (cargo)
         working-directory: app/src-tauri
         run: cargo test
-
-      - name: Build sidecar (PyInstaller)
-        working-directory: app/server
-        run: uv run python build_sidecar.py
 
       - name: Sidecar smoke (frozen binary announces its port)
         working-directory: app/server
