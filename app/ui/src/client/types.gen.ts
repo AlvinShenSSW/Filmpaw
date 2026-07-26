@@ -57,10 +57,6 @@ export type HealthOut = {
  */
 export type OpenPairIn = {
     /**
-     * Local Dir
-     */
-    local_dir: string;
-    /**
      * Subdir
      */
     subdir: string;
@@ -146,6 +142,30 @@ export type PurgeOut = {
      * Deleted
      */
     deleted: number;
+};
+
+/**
+ * ResolvedPair
+ */
+export type ResolvedPair = {
+    /**
+     * Local Path
+     */
+    local_path: string;
+    /**
+     * Performer Path
+     */
+    performer_path: string;
+};
+
+/**
+ * ResolvedPerformer
+ */
+export type ResolvedPerformer = {
+    /**
+     * Performer Path
+     */
+    performer_path: string;
 };
 
 /**
@@ -736,6 +756,42 @@ export type OpenPerformerApiPerformersPerformerIdOpenPostResponses = {
 
 export type OpenPerformerApiPerformersPerformerIdOpenPostResponse = OpenPerformerApiPerformersPerformerIdOpenPostResponses[keyof OpenPerformerApiPerformersPerformerIdOpenPostResponses];
 
+export type ResolvePerformerApiPerformersPerformerIdResolvePostData = {
+    body?: never;
+    path: {
+        /**
+         * Performer Id
+         */
+        performer_id: string;
+    };
+    query?: never;
+    url: '/api/performers/{performer_id}/resolve';
+};
+
+export type ResolvePerformerApiPerformersPerformerIdResolvePostErrors = {
+    /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResolvePerformerApiPerformersPerformerIdResolvePostError = ResolvePerformerApiPerformersPerformerIdResolvePostErrors[keyof ResolvePerformerApiPerformersPerformerIdResolvePostErrors];
+
+export type ResolvePerformerApiPerformersPerformerIdResolvePostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResolvedPerformer;
+};
+
+export type ResolvePerformerApiPerformersPerformerIdResolvePostResponse = ResolvePerformerApiPerformersPerformerIdResolvePostResponses[keyof ResolvePerformerApiPerformersPerformerIdResolvePostResponses];
+
 export type LocalSubdirsApiLocalSubdirsGetData = {
     body?: never;
     path?: never;
@@ -808,3 +864,46 @@ export type OpenPairApiOpenPairPostResponses = {
 };
 
 export type OpenPairApiOpenPairPostResponse = OpenPairApiOpenPairPostResponses[keyof OpenPairApiOpenPairPostResponses];
+
+export type ResolvePairApiResolvePairPostData = {
+    body: OpenPairIn;
+    path?: never;
+    query?: never;
+    url: '/api/resolve-pair';
+};
+
+export type ResolvePairApiResolvePairPostErrors = {
+    /**
+     * 错误
+     */
+    400: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    404: {
+        detail?: string;
+    };
+    /**
+     * 错误
+     */
+    409: {
+        detail?: string;
+    };
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ResolvePairApiResolvePairPostError = ResolvePairApiResolvePairPostErrors[keyof ResolvePairApiResolvePairPostErrors];
+
+export type ResolvePairApiResolvePairPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ResolvedPair;
+};
+
+export type ResolvePairApiResolvePairPostResponse = ResolvePairApiResolvePairPostResponses[keyof ResolvePairApiResolvePairPostResponses];

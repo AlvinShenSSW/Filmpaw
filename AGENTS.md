@@ -84,6 +84,13 @@ Newly installed skills are picked up when Claude Code starts a fresh session.
 > `node "C:\Users\<you>\.claude\skills\codex-review\codex-gate.mjs"`. The gate reads
 > the **current directory's** git diff, so run it from the target repo.
 
+> **Reviewer models are pinned by the gate, not by the operator's CLI config.**
+> `codex-gate.mjs` passes `-m gpt-5.6-sol` (operator decision 2026-07-26) so the 外门
+> verdict cannot drift when `~/.codex/config.toml` is retuned for interactive use.
+> Override per run with `CODEX_REVIEW_MODEL`; set it empty to inherit the global config.
+> **Raw `codex exec` calls made outside the gate must pass `-m gpt-5.6-sol` too** —
+> otherwise the ad-hoc review runs on a different model than the recorded gate verdict.
+
 ## CLI invocation discipline (anti-hang rules — MUST follow)
 
 Driving Codex/Kimi/Kilo/MiMo headless has bitten us with hangs. Rules:

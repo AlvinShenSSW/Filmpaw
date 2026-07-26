@@ -533,6 +533,7 @@
   "/api/performers/{performer_id}/open": {
    "post": {
     "summary": "Open Performer",
+    "description": "Validate AND launch, server-side. Used by the dev browser, which has no\nTauri shell to launch through; the packaged app uses /resolve instead so the\nlaunch happens in a process that holds foreground rights (#31).",
     "operationId": "open_performer_api_performers__performer_id__open_post",
     "parameters": [
      {
@@ -548,6 +549,61 @@
     "responses": {
      "204": {
       "description": "Successful Response"
+     },
+     "404": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         }
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/performers/{performer_id}/resolve": {
+   "post": {
+    "summary": "Resolve Performer",
+    "description": "Same validation and is_missing side effects as /open, but returns the\npath instead of launching it — the caller (the Tauri shell) launches.",
+    "operationId": "resolve_performer_api_performers__performer_id__resolve_post",
+    "parameters": [
+     {
+      "name": "performer_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Performer Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResolvedPerformer"
+        }
+       }
+      }
      },
      "404": {
       "description": "错误",
@@ -619,6 +675,7 @@
   "/api/open-pair": {
    "post": {
     "summary": "Open Pair",
+    "description": "Validate AND launch, server-side (dev-browser fallback — see\nopen_performer).",
     "operationId": "open_pair_api_open_pair_post",
     "requestBody": {
      "content": {
@@ -633,6 +690,90 @@
     "responses": {
      "204": {
       "description": "Successful Response"
+     },
+     "400": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
+     "404": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
+     "409": {
+      "description": "错误",
+      "content": {
+       "application/json": {
+        "schema": {
+         "properties": {
+          "detail": {
+           "type": "string"
+          }
+         },
+         "type": "object"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/resolve-pair": {
+   "post": {
+    "summary": "Resolve Pair",
+    "description": "Same validation as /open-pair, but returns both paths instead of\nlaunching them — the caller (the Tauri shell) launches (#31).",
+    "operationId": "resolve_pair_api_resolve_pair_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/OpenPairIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ResolvedPair"
+        }
+       }
+      }
      },
      "400": {
       "description": "错误",
@@ -759,10 +900,6 @@
    },
    "OpenPairIn": {
     "properties": {
-     "local_dir": {
-      "type": "string",
-      "title": "Local Dir"
-     },
      "subdir": {
       "type": "string",
       "title": "Subdir"
@@ -772,9 +909,9 @@
       "title": "Performer Id"
      }
     },
+    "additionalProperties": false,
     "type": "object",
     "required": [
-     "local_dir",
      "subdir",
      "performer_id"
     ],
@@ -891,6 +1028,37 @@
      "deleted"
     ],
     "title": "PurgeOut"
+   },
+   "ResolvedPair": {
+    "properties": {
+     "local_path": {
+      "type": "string",
+      "title": "Local Path"
+     },
+     "performer_path": {
+      "type": "string",
+      "title": "Performer Path"
+     }
+    },
+    "type": "object",
+    "required": [
+     "local_path",
+     "performer_path"
+    ],
+    "title": "ResolvedPair"
+   },
+   "ResolvedPerformer": {
+    "properties": {
+     "performer_path": {
+      "type": "string",
+      "title": "Performer Path"
+     }
+    },
+    "type": "object",
+    "required": [
+     "performer_path"
+    ],
+    "title": "ResolvedPerformer"
    },
    "ScanAllItem": {
     "properties": {

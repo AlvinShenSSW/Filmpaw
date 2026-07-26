@@ -15,9 +15,9 @@ import {
   getSettingsApiSettingsGet,
   listPerformersApiPerformersGet,
   localSubdirsApiLocalSubdirsGet,
-  openPairApiOpenPairPost,
   putSettingsApiSettingsPut,
 } from "./client";
+import { openArchivePair } from "./openTarget";
 import { PosterAvatar } from "./PerformersPage";
 import { pickDirectory } from "./pickDirectory";
 import { tokens } from "./theme";
@@ -140,12 +140,9 @@ export function ArchivePage() {
   const openPair = useMutation({
     mutationFn: async (performerId: string) => {
       if (!localDir || !selected) throw new Error("no-selection");
-      // The server joins local_dir + subdir itself — no client-side
-      // separator knowledge (Kimi R4).
-      const r = await openPairApiOpenPairPost({
-        body: { local_dir: localDir, subdir: selected, performer_id: performerId },
-      });
-      if (r.error) throw r.error;
+      // Only the subdir NAME travels — the server joins it onto the approved
+      // anchor it already holds (Kimi R4, tightened in #31).
+      await openArchivePair(selected, performerId);
       return performerId;
     },
     onSuccess: (performerId) => {

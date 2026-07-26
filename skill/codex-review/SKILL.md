@@ -28,6 +28,12 @@ operator's call); automatic in **default `/afk` as the outer gate (外门) — i
 first, before the Kimi 终审** (both run). In `/afk codex`, Codex is the implementer
 and this gate must not run.
 
+**Model is pinned by the gate.** `codex-gate.mjs` passes `-m gpt-5.6-sol` (operator
+decision 2026-07-26) so the 外门 verdict does not drift when the operator retunes
+`~/.codex/config.toml` for interactive work. Override with `CODEX_REVIEW_MODEL`; set it
+empty to inherit the global config. Any raw `codex exec` review run outside this gate
+must pass the same `-m gpt-5.6-sol`.
+
 **Codex calls are metered — keep invocations to an absolute minimum.** Batch all
 findings into one fix pass, self-review, and only then re-run; defer
 documentation/minor items to a single final pass. Never burn a Codex round-trip on

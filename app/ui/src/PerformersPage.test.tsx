@@ -14,19 +14,19 @@ vi.mock("./client", () => ({
   addAliasApiPerformersPerformerIdAliasesPost: vi.fn(),
   deleteAliasApiAliasesAliasIdDelete: vi.fn(),
   deletePerformerApiPerformersPerformerIdDelete: vi.fn(),
-  openPerformerApiPerformersPerformerIdOpenPost: vi.fn(),
   purgeMissingApiPerformersPurgeMissingPost: vi.fn(),
   scanAllApiScanAllPost: vi.fn(),
 }));
+vi.mock("./openTarget", () => ({ openPerformerFolder: vi.fn() }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 
 import {
   addAliasApiPerformersPerformerIdAliasesPost,
   listPerformersApiPerformersGet,
   listSourcesApiSourcesGet,
-  openPerformerApiPerformersPerformerIdOpenPost,
   purgeMissingApiPerformersPurgeMissingPost,
 } from "./client";
+import { openPerformerFolder } from "./openTarget";
 import { PerformersPage } from "./PerformersPage";
 
 const P1 = {
@@ -131,9 +131,10 @@ describe("PerformersPage", () => {
   });
 
   it("open failure (404 gone) refetches so the row turns missing", async () => {
-    vi.mocked(openPerformerApiPerformersPerformerIdOpenPost).mockResolvedValue({
-      error: { detail: "文件夹已不存在, 已标记失效" },
-    } as never);
+    vi.mocked(openPerformerFolder).mockRejectedValue({
+      status: 404,
+      detail: "文件夹已不存在, 已标记失效",
+    });
     renderPage();
     await userEvent.click(await screen.findByLabelText("打开 小红 的文件夹"));
     expect(await screen.findByText("文件夹已不存在, 已标记失效")).toBeInTheDocument();

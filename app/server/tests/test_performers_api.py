@@ -1,5 +1,8 @@
 """Issue #3 acceptance tests: search, D5 aliases, pagination, thumb, open."""
 
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -224,36 +227,20 @@ def test_open_pair_semantics(client, source_dir, tmp_path, opened) -> None:
     # Containment guard: pair only opens inside the approved local dir.
     client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
 
-    base = str(tmp_path / "downloads")
-    ok = client.post(
-        "/api/open-pair", json={"local_dir": base, "subdir": "配对", "performer_id": pid}
-    )
+    ok = client.post("/api/open-pair", json={"subdir": "配对", "performer_id": pid})
     assert ok.status_code == 204
     assert len(opened) == 2  # both folders
 
     # 400 local gone (app-level error; 422 reserved for validation shape)
-    bad = client.post(
-        "/api/open-pair", json={"local_dir": base, "subdir": "nope", "performer_id": pid}
-    )
+    bad = client.post("/api/open-pair", json={"subdir": "nope", "performer_id": pid})
     assert bad.status_code == 400
-    # 400 relative dir / path-traversal subdir
+    # 400 path-traversal subdir
     assert (
-        client.post(
-            "/api/open-pair", json={"local_dir": "downloads", "subdir": "配对", "performer_id": pid}
-        ).status_code
-        == 400
-    )
-    assert (
-        client.post(
-            "/api/open-pair", json={"local_dir": base, "subdir": "..", "performer_id": pid}
-        ).status_code
-        == 400
+        client.post("/api/open-pair", json={"subdir": "..", "performer_id": pid}).status_code == 400
     )
     # 404 performer unknown
     assert (
-        client.post(
-            "/api/open-pair", json={"local_dir": base, "subdir": "配对", "performer_id": "x"}
-        ).status_code
+        client.post("/api/open-pair", json={"subdir": "配对", "performer_id": "x"}).status_code
         == 404
     )
     # 409 performer missing
@@ -262,11 +249,127 @@ def test_open_pair_semantics(client, source_dir, tmp_path, opened) -> None:
     shutil.rmtree(source_dir / "配对")
     client.post(f"/api/sources/{sid}/scan")
     assert (
-        client.post(
-            "/api/open-pair", json={"local_dir": base, "subdir": "配对", "performer_id": pid}
-        ).status_code
+        client.post("/api/open-pair", json={"subdir": "配对", "performer_id": pid}).status_code
         == 409
     )
+
+
+def test_open_pair_rejects_the_retired_local_dir_field(
+    client, source_dir, tmp_path, opened
+) -> None:
+    """A stale client still sending `local_dir` must get a loud 422.
+
+    Pydantic's default is to IGNORE unknown fields — which would have meant
+    silently resolving the subdir under a DIFFERENT anchor than the one the
+    caller believed it was passing: the user asks for A and gets B, with no
+    error anywhere (#31).
+    """
+    add_performer_folder(source_dir, "配对")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+    (tmp_path / "downloads" / "配对").mkdir(parents=True)
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
+
+    for route in ("/api/open-pair", "/api/resolve-pair"):
+        r = client.post(
+            route,
+            json={
+                "local_dir": str(tmp_path / "downloads"),
+                "subdir": "配对",
+                "performer_id": pid,
+            },
+        )
+        assert r.status_code == 422, route
+    assert opened == []  # rejected before anything could be launched
+
+
+def test_open_pair_resolves_against_the_anchor_not_the_caller(
+    client, source_dir, tmp_path, opened
+) -> None:
+    """Dropping `local_dir` means the ANCHOR decides — including after it moves.
+
+    (a) anchor swapped, subdir absent there      -> 400
+    (b) anchor swapped, same-named subdir present -> the NEW anchor's folder
+        opens. Accepted semantic: the anchor is the only directory the user
+        ever approved (#31 §A3).
+    """
+    add_performer_folder(source_dir, "配对")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+    (tmp_path / "a" / "配对").mkdir(parents=True)
+    (tmp_path / "b").mkdir()
+
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "a")})
+    r = client.post("/api/open-pair", json={"subdir": "配对", "performer_id": pid})
+    assert r.status_code == 204
+
+    # (a) anchor moves to a directory that has no such subdir
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "b")})
+    r = client.post("/api/open-pair", json={"subdir": "配对", "performer_id": pid})
+    assert r.status_code == 400
+
+    # (b) same name exists under the new anchor -> the new anchor's copy opens
+    (tmp_path / "b" / "配对").mkdir()
+    opened.clear()
+    r = client.post("/api/open-pair", json={"subdir": "配对", "performer_id": pid})
+    assert r.status_code == 204
+    assert str(tmp_path / "b" / "配对") in opened
+    assert str(tmp_path / "a" / "配对") not in opened
+
+
+def test_resolve_endpoints_return_paths_without_launching(
+    client, source_dir, tmp_path, opened
+) -> None:
+    """The shell-facing half of the contract: same validation, no launch (#31)."""
+    add_performer_folder(source_dir, "配对")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+    (tmp_path / "downloads" / "配对").mkdir(parents=True)
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
+
+    one = client.post(f"/api/performers/{pid}/resolve")
+    assert one.status_code == 200
+    assert one.json() == {"performer_path": str(source_dir / "配对")}
+
+    pair = client.post("/api/resolve-pair", json={"subdir": "配对", "performer_id": pid})
+    assert pair.status_code == 200
+    assert pair.json() == {
+        "local_path": str(tmp_path / "downloads" / "配对"),
+        "performer_path": str(source_dir / "配对"),
+    }
+    assert opened == []  # resolving must never open a window
+
+
+def test_resolve_shares_the_open_error_semantics(client, source_dir, tmp_path, opened) -> None:
+    """/open and /resolve run through one function, so their rejections match
+    exactly — including /open's is_missing side effect (#31)."""
+    import shutil
+
+    add_performer_folder(source_dir, "配对")
+    sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
+    client.post(f"/api/sources/{sid}/scan")
+    pid = _items(client)["items"][0]["id"]
+    (tmp_path / "downloads" / "配对").mkdir(parents=True)
+    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
+
+    cases = (
+        ("/api/performers/x/open", "/api/performers/x/resolve", None),
+        ("/api/open-pair", "/api/resolve-pair", {"subdir": "..", "performer_id": pid}),
+        ("/api/open-pair", "/api/resolve-pair", {"subdir": "配对", "performer_id": "x"}),
+    )
+    for open_route, resolve_route, body in cases:
+        a = client.post(open_route, json=body) if body else client.post(open_route)
+        b = client.post(resolve_route, json=body) if body else client.post(resolve_route)
+        assert (a.status_code, a.json()) == (b.status_code, b.json()), open_route
+
+    # The folder disappearing must flag is_missing through EITHER endpoint.
+    shutil.rmtree(source_dir / "配对")
+    assert client.post(f"/api/performers/{pid}/resolve").status_code == 404
+    assert _items(client)["items"][0]["is_missing"] is True
+    assert opened == []
 
 
 def test_local_subdirs_and_settings(client, tmp_path) -> None:
@@ -373,8 +476,32 @@ def test_open_clears_missing_when_folder_is_back(client, source_dir, opened) -> 
     assert len(opened) == 1
 
 
+def _link_dir(link: Path, target: Path) -> bool:
+    """Directory link without elevation. Windows junctions need no privilege;
+    os.symlink there does. Returns False when the platform refuses."""
+    try:
+        if sys.platform == "win32":
+            return (
+                subprocess.run(
+                    ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                    capture_output=True,
+                ).returncode
+                == 0
+            )
+        os.symlink(target, link, target_is_directory=True)
+        return True
+    except OSError:
+        return False
+
+
 def test_open_pair_rejects_paths_outside_approved_dir(client, source_dir, tmp_path, opened) -> None:
-    """Kimi P2: containment — arbitrary directories must not be openable."""
+    """Kimi P2: containment — arbitrary directories must not be openable.
+
+    Since #31 the client no longer supplies a path at all (the server joins the
+    approved anchor itself), so the only way out of the anchor left is a link
+    INSIDE it pointing elsewhere. That is precisely what the realpath +
+    commonpath guard exists for, and it is what this now tests.
+    """
     add_performer_folder(source_dir, "越界")
     sid = client.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
     client.post(f"/api/sources/{sid}/scan")
@@ -383,18 +510,16 @@ def test_open_pair_rejects_paths_outside_approved_dir(client, source_dir, tmp_pa
     outside = tmp_path / "elsewhere" / "越界"
     outside.mkdir(parents=True)
 
-    r0 = client.post(
-        "/api/open-pair",
-        json={"local_dir": str(tmp_path / "elsewhere"), "subdir": "越界", "performer_id": pid},
-    )
+    r0 = client.post("/api/open-pair", json={"subdir": "越界", "performer_id": pid})
     assert r0.status_code == 400  # no approved dir yet (400 = app-level, 422 = validation)
 
-    (tmp_path / "downloads").mkdir(exist_ok=True)
-    client.put("/api/settings", json={"last_local_dir": str(tmp_path / "downloads")})
-    r = client.post(
-        "/api/open-pair",
-        json={"local_dir": str(tmp_path / "elsewhere"), "subdir": "越界", "performer_id": pid},
-    )
+    approved = tmp_path / "downloads"
+    approved.mkdir(exist_ok=True)
+    client.put("/api/settings", json={"last_local_dir": str(approved)})
+
+    if not _link_dir(approved / "越界", outside):
+        pytest.skip("directory links unavailable on this machine")
+    r = client.post("/api/open-pair", json={"subdir": "越界", "performer_id": pid})
     assert r.status_code == 400
     assert "不在已选择" in r.json()["detail"]
     assert opened == []
