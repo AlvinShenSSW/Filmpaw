@@ -17,6 +17,13 @@
 //! talk to `127.0.0.1:<handshake port>` and it has no redirect support to
 //! disable — properties this needs, and that a general-purpose client would only
 //! give us by configuration.
+//!
+//! KNOWN LIMITATION — validation-to-launch TOCTOU: the server validates a path
+//! and returns it, and we open it a moment later. A folder can be deleted, or a
+//! junction retargeted, in between. `ShellExecuteW` takes a path, not a handle,
+//! so the gap cannot be closed here; what it costs is bounded — the worst case
+//! is opening (or failing to open) a directory the user could have opened
+//! anyway, not an escape from the approved anchor at validation time.
 
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, TcpStream};
@@ -87,6 +94,20 @@ pub fn post_json(port: u16, path: &str, body: &str, timeout: Duration) -> Result
         .nth(1)
         .and_then(|s| s.parse().ok())
         .ok_or_else(|| ApiError::local("本地服务返回了无法解析的状态行"))?;
+
+    // Framings this reader does not implement. Our own uvicorn sends neither
+    // (JSONResponse always sets Content-Length, and we never send Expect), but
+    // saying so explicitly beats letting chunk-size lines corrupt the body and
+    // surface as a misleading "missing field" (Kimi P2).
+    let head_lc = head.to_lowercase();
+    if head_lc.contains("transfer-encoding:") && head_lc.contains("chunked") {
+        return Err(ApiError::local("本地服务使用了不支持的分块传输编码"));
+    }
+    if (100..200).contains(&status) {
+        return Err(ApiError::local(format!(
+            "本地服务返回了意外的中间响应 {status}"
+        )));
+    }
 
     if !(200..300).contains(&status) {
         let detail = serde_json::from_str::<serde_json::Value>(payload)
@@ -201,15 +222,22 @@ impl Launcher for ShellLauncher {
 
     #[cfg(not(windows))]
     fn open(&self, path: &str) -> Result<(), String> {
-        std::process::Command::new(if cfg!(target_os = "macos") {
+        let child = std::process::Command::new(if cfg!(target_os = "macos") {
             "open"
         } else {
             "xdg-open"
         })
         .arg(path)
         .spawn()
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+        // Reap it: dropping the Child without waiting leaves a zombie on Unix
+        // until this process exits (Kimi P2). Detached, so the launch stays
+        // fire-and-forget.
+        std::thread::spawn(move || {
+            let mut child = child;
+            let _ = child.wait();
+        });
+        Ok(())
     }
 }
 
@@ -424,6 +452,26 @@ mod tests {
             assert_eq!(err.status, 0, "{resp}");
             assert!(opened.lock().unwrap().is_empty(), "{resp}");
         }
+    }
+
+    #[test]
+    fn unsupported_framings_fail_with_a_specific_message() {
+        // Chunked would otherwise leave chunk-size lines in the body and
+        // surface as a misleading "missing performer_path" (Kimi P2).
+        let chunked = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n\
+                       1e\r\n{\"performer_path\":\"C:\\\\x\"}\r\n0\r\n\r\n";
+        let (port, _h) = serve(chunked);
+        let (l, opened) = fake(None);
+        let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+        assert!(err.detail.contains("分块传输编码"), "{}", err.detail);
+        assert!(opened.lock().unwrap().is_empty());
+
+        let cont = "HTTP/1.1 100 Continue\r\nConnection: close\r\n\r\n";
+        let (port, _h) = serve(cont);
+        let (l, opened) = fake(None);
+        let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+        assert!(err.detail.contains("中间响应"), "{}", err.detail);
+        assert!(opened.lock().unwrap().is_empty());
     }
 
     #[test]
