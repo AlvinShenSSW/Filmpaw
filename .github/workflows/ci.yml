@@ -69,29 +69,76 @@ jobs:
         working-directory: app/src-tauri
         run: cargo test
 
-      - name: Sidecar smoke (frozen binary announces its port)
+      # Also compares the frozen sidecar's /api/health version against
+      # tauri.conf.json: the UI's version check can only spot a DIFFERENT
+      # version number, so this is what actually catches a sidecar that failed
+      # to rebuild while the bundle succeeded (#34, and the incident in the
+      # ledger that motivated it).
+      - name: Sidecar smoke (port handshake + version match)
         working-directory: app/server
         run: |
           uv run python - <<'EOF'
           import glob
+          import json
+          import os
           import subprocess
           import sys
+          import tempfile
           import threading
+          import time
+          import urllib.request
 
           exe = glob.glob("../src-tauri/binaries/filmpaw-server-*.exe")[0]
-          p = subprocess.Popen([exe], stdout=subprocess.PIPE, text=True)
-          result = {}
+          expected = json.load(open("../src-tauri/tauri.conf.json", encoding="utf-8"))["version"]
 
-          def read() -> None:
-              result["line"] = p.stdout.readline().strip()
+          with tempfile.TemporaryDirectory() as tmp:
+              env = dict(os.environ)
+              # NEVER let a check touch the default DB location — that is how a
+              # real library got overwritten by fixtures once.
+              env["FILMPAW_DB"] = os.path.join(tmp, "smoke.db")
+              p = subprocess.Popen([exe], stdout=subprocess.PIPE, text=True, env=env)
+              result = {}
 
-          t = threading.Thread(target=read, daemon=True)
-          t.start()
-          t.join(30)
-          p.kill()
-          line = result.get("line", "")
-          print("sidecar first line:", line or "<none within 30s>")
-          sys.exit(0 if line.startswith("FILMPAW_PORT=") else 1)
+              def read() -> None:
+                  result["line"] = p.stdout.readline().strip()
+
+              try:
+                  t = threading.Thread(target=read, daemon=True)
+                  t.start()
+                  t.join(30)
+                  line = result.get("line", "")
+                  print("sidecar first line:", line or "<none within 30s>")
+                  if not line.startswith("FILMPAW_PORT="):
+                      sys.exit(1)
+                  port = int(line.split("=", 1)[1])
+
+                  # The port is printed BEFORE uvicorn is accepting, so poll to
+                  # a deadline instead of firing one request into the race.
+                  deadline = time.time() + 30
+                  body = None
+                  while time.time() < deadline:
+                      try:
+                          with urllib.request.urlopen(
+                              f"http://127.0.0.1:{port}/api/health", timeout=2
+                          ) as r:
+                              body = json.load(r)
+                          break
+                      except Exception:
+                          time.sleep(0.5)
+                  if body is None:
+                      print("::error::sidecar never served /api/health within 30s")
+                      sys.exit(1)
+
+                  print("health:", body, "expected version:", expected)
+                  if body.get("version") != expected:
+                      print(
+                          f"::error::stale sidecar — health reports {body.get('version')},"
+                          f" tauri.conf.json says {expected}"
+                      )
+                      sys.exit(1)
+              finally:
+                  p.kill()
+                  p.wait(timeout=10)
           EOF
 
       - name: Tauri build (NSIS)

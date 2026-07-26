@@ -1,8 +1,8 @@
 import GroupsIcon from "@mui/icons-material/Groups";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import {
   createRootRoute,
@@ -12,9 +12,23 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { ArchivePage, PerformersPage, SettingsPage } from "./pages";
+import { AboutPage, ArchivePage, PerformersPage, SettingsPage } from "./pages";
 import { RAIL_WIDTH, tokens } from "./theme";
 
+/** One nav item = ONE interactive element.
+ *
+ * This used to be `<Link><IconButton/></Link>` — an anchor wrapping a button.
+ * That is two nested interactive controls: two tab stops for one destination,
+ * and the inner button has no accessible name of its own (#34). The link is now
+ * the only control; the icon is decoration inside it.
+ *
+ * Active styling keys off `data-status="active"`, which TanStack Router sets on
+ * the active link (it also sets `aria-current="page"` — so the current page is
+ * announced, not just coloured).
+ *
+ * 40×40 is deliberate: the 44×44 minimum in the design guidance is scoped to
+ * touch UI, and this is a mouse-driven desktop shell whose rail is 56px wide.
+ */
 function RailButton({
   to,
   label,
@@ -26,22 +40,35 @@ function RailButton({
 }) {
   return (
     <Tooltip title={label} placement="right">
-      <Link to={to} aria-label={label} style={{ textDecoration: "none" }}>
-        {({ isActive }: { isActive: boolean }) => (
-          <IconButton
-            sx={{
-              width: 40,
-              height: 40,
-              borderRadius: "10px",
-              color: isActive ? tokens.ink : "text.secondary",
-              bgcolor: isActive ? "primary.main" : "transparent",
-              "&:hover": { bgcolor: isActive ? "primary.main" : tokens.hoverBg },
-            }}
-          >
-            {children}
-          </IconButton>
-        )}
-      </Link>
+      <Box
+        component={Link}
+        to={to}
+        aria-label={label}
+        sx={{
+          width: 40,
+          height: 40,
+          borderRadius: "10px",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          textDecoration: "none",
+          color: "text.secondary",
+          "&:hover": { bgcolor: tokens.hoverBg },
+          "&[data-status='active']": {
+            color: tokens.ink,
+            bgcolor: "primary.main",
+            "&:hover": { bgcolor: "primary.main" },
+          },
+          // The MUI ripple/focus ring went away with IconButton — put a visible
+          // one back, or keyboard users lose track of where they are.
+          "&:focus-visible": {
+            outline: `2px solid ${tokens.orangeDeep}`,
+            outlineOffset: "2px",
+          },
+        }}
+      >
+        {children}
+      </Box>
     </Tooltip>
   );
 }
@@ -74,6 +101,9 @@ function Shell() {
         <RailButton to="/settings" label="设置">
           <SettingsIcon fontSize="small" />
         </RailButton>
+        <RailButton to="/about" label="关于">
+          <InfoOutlinedIcon fontSize="small" />
+        </RailButton>
       </Box>
       <Box component="main" sx={{ flex: 1, minWidth: 0, overflow: "auto" }}>
         <Outlet />
@@ -99,9 +129,23 @@ const settingsRoute = createRoute({
   component: SettingsPage,
 });
 
-const router = createRouter({
-  routeTree: rootRoute.addChildren([performersRoute, archiveRoute, settingsRoute]),
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/about",
+  component: AboutPage,
 });
+
+/** Exported so tests can mount the REAL tree on a memory history — asserting a
+ * page's content through routing catches a missing route or a broken rail link,
+ * which rendering the component directly never would (#34). */
+export const routeTree = rootRoute.addChildren([
+  performersRoute,
+  archiveRoute,
+  settingsRoute,
+  aboutRoute,
+]);
+
+const router = createRouter({ routeTree });
 
 declare module "@tanstack/react-router" {
   interface Register {

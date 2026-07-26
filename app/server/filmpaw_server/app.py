@@ -19,7 +19,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = connect(db_path)
-        app.state.db_path = str(db_path or default_db_path())
+        # Resolved: a relative FILMPAW_DB would otherwise be reported verbatim,
+        # and "library.db" tells nobody which file the service actually opened
+        # — which is the one thing this value exists for (#34).
+        app.state.db_path = str((db_path or default_db_path()).resolve())
         # One shared connection + one lock: FastAPI sync endpoints run on
         # worker threads, and overlapping requests (scan vs scan-all) must
         # not interleave on the connection. Single-user local app —
