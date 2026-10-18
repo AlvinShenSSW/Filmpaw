@@ -10,6 +10,8 @@ import stat
 import sys
 from pathlib import Path
 
+from filmpaw_server.windows_identity import directory_identity
+
 
 def _info(path: Path) -> dict:
     if sys.platform != "win32":
@@ -29,19 +31,7 @@ def _info(path: Path) -> dict:
     if handle == ctypes.c_void_p(-1).value:
         raise ctypes.WinError(ctypes.get_last_error())
     try:
-        class FileIdInfo(ctypes.Structure):
-            _fields_ = [("volume", ctypes.c_ulonglong), ("file_id", ctypes.c_ubyte * 16)]
-        class AttributeInfo(ctypes.Structure):
-            _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
-        identity, attrs = FileIdInfo(), AttributeInfo()
-        get = kernel.GetFileInformationByHandleEx
-        get.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
-        get.restype = wintypes.BOOL
-        for kind, value in [(18, identity), (9, attrs)]:
-            if not get(handle, kind, ctypes.byref(value), ctypes.sizeof(value)):
-                raise ctypes.WinError(ctypes.get_last_error())
-        if attrs.attributes & 0x400 or not attrs.attributes & 0x10 or not any(identity.file_id):
-            raise OSError("Actor directory identity is unavailable or is a reparse point")
+        identity = directory_identity(handle, kernel=kernel, include_alias=True)
         final = kernel.GetFinalPathNameByHandleW
         final.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
         final.restype = wintypes.DWORD
@@ -57,7 +47,7 @@ def _info(path: Path) -> dict:
                     canonical = "\\\\" + canonical[8:]
                 elif canonical.startswith("\\\\?\\"):
                     canonical = canonical[4:]
-                return {"identity": [identity.volume, bytes(identity.file_id).hex()], "path": canonical}
+                return {**identity, "path": canonical}
             size = count + 1
         raise OSError("Actor canonical path is too long")
     finally:
@@ -66,14 +56,36 @@ def _info(path: Path) -> dict:
 
 def capture(path: Path) -> dict:
     root = _info(path)
-    root["ancestors"] = [_info(parent)["identity"] for parent in Path(root["path"]).parents]
+    ancestors = [_info(parent) for parent in Path(root["path"]).parents]
+    root["ancestors"] = [item["identity"] for item in ancestors]
+    root["ancestor_aliases"] = [item.get("identity_aliases", []) for item in ancestors]
     return root
 
 
+def _identities_overlap(first: list, second: list) -> bool:
+    if any(a == b for a in first for b in second):
+        return True
+    def namespace(identity):
+        return "legacy64" if identity[0] == "legacy64" else "native"
+    # Without a common, verified namespace we cannot prove that two aliases
+    # refer to independent directories. Do not guess by truncating either ID.
+    return not ({namespace(item) for item in first} & {namespace(item) for item in second})
+
+
+def _identity_sets(resource: dict) -> tuple[list, list]:
+    root = [resource["identity"], *resource.get("identity_aliases", [])]
+    aliases = resource.get("ancestor_aliases", [])
+    ancestors = [[identity, *(aliases[index] if index < len(aliases) else [])]
+                 for index, identity in enumerate(resource["ancestors"])]
+    return root, ancestors
+
+
 def overlaps(first: dict, second: dict) -> bool:
-    if (first["identity"] == second["identity"]
-            or first["identity"] in second["ancestors"]
-            or second["identity"] in first["ancestors"]):
+    first_ids, first_ancestors = _identity_sets(first)
+    second_ids, second_ancestors = _identity_sets(second)
+    if (_identities_overlap(first_ids, second_ids)
+            or any(_identities_overlap(first_ids, ancestor) for ancestor in second_ancestors)
+            or any(_identities_overlap(second_ids, ancestor) for ancestor in first_ancestors)):
         return True
     a, b = (os.path.normcase(os.path.normpath(item["path"])) for item in (first, second))
     try:
