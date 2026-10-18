@@ -1,0 +1,68 @@
+{
+  "issue": 42,
+  "ui_version": "0.5.3",
+  "browser": "Microsoft Edge headless",
+  "ui_bundles": [
+    "index.ff8f58a3.js"
+  ],
+  "mode": "production UI with fully mocked API; no sidecar, NAS, transfer, or deletion",
+  "temporary_FILMPAW_DB": true,
+  "checks": [
+    {
+      "view": "tasks",
+      "viewport": "960x640",
+      "running": 2,
+      "queued": 1,
+      "individual_progress": [
+        25,
+        65
+      ],
+      "page_no_overflow": true,
+      "main_no_horizontal_overflow": true,
+      "cards_no_horizontal_overflow": true,
+      "cards_within_width": true
+    },
+    {
+      "view": "logs",
+      "viewport": "960x640",
+      "intent_success_uncertain_distinct": true,
+      "page_no_overflow": true,
+      "main_no_horizontal_overflow": true,
+      "cards_no_horizontal_overflow": true,
+      "cards_within_width": true
+    },
+    {
+      "view": "tasks",
+      "viewport": "1920x1080",
+      "running": 2,
+      "queued": 1,
+      "individual_progress": [
+        25,
+        65
+      ],
+      "page_no_overflow": true,
+      "main_no_horizontal_overflow": true,
+      "cards_no_horizontal_overflow": true,
+      "cards_within_width": true
+    },
+    {
+      "view": "logs",
+      "viewport": "1920x1080",
+      "intent_success_uncertain_distinct": true,
+      "page_no_overflow": true,
+      "main_no_horizontal_overflow": true,
+      "cards_no_horizontal_overflow": true,
+      "cards_within_width": true
+    }
+  ],
+  "screenshots": [
+    "tasks-960x640.png",
+    "logs-960x640.png",
+    "tasks-1920x1080.png",
+    "logs-1920x1080.png"
+  ],
+  "api_write_requests": 0,
+  "page_errors": [],
+  "unexpected_requests": [],
+  "result": "passed"
+}

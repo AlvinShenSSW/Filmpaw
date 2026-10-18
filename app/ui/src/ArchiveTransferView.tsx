@@ -339,6 +339,8 @@ export function ArchiveTransferView({
   const [startError, setStartError] = useState("");
   const finished = useRef<string | null>(null);
   const contextKey = `${localDir}\0${subdir}\0${performer.id}`;
+  const currentContextKey = useRef(contextKey);
+  currentContextKey.current = contextKey;
   const context = useArchiveContext(localDir, subdir, performer.id);
   const data = context.data;
   useEffect(() => {
@@ -359,7 +361,19 @@ export function ArchiveTransferView({
     });
   }, [data]);
 
-  const currentTask = transfer.task;
+  const binding = data ?? {
+    local_dir: localDir,
+    subdir,
+    performer_id: performer.id,
+    performer_name: performer.name,
+    source_path: `${localDir}\\${subdir}`,
+    target_path: performer.unc_path,
+  };
+  const currentTask = transfer.taskForBinding(binding);
+  const bindingBusy = transfer.isBindingBusy(binding);
+  const bindingPending = transfer.bindingPending(binding);
+  const taskActive =
+    !!currentTask && transfer.activeTasks.some((task) => task.id === currentTask.id);
   const matchesTask =
     currentTask?.local_dir === localDir &&
     currentTask.subdir === subdir &&
@@ -371,12 +385,11 @@ export function ArchiveTransferView({
     if (submissionConfirmed) setStartError("");
   }, [submissionConfirmed]);
   useEffect(() => {
-    if (!currentTask || transfer.active || !matchesTask || finished.current === currentTask.id)
-      return;
+    if (!currentTask || taskActive || !matchesTask || finished.current === currentTask.id) return;
     finished.current = currentTask.id;
     setSelected(new Set());
     void context.refetch();
-  }, [currentTask, matchesTask, transfer.active, context.refetch]);
+  }, [currentTask, matchesTask, taskActive, context.refetch]);
 
   const openPair = useMutation({
     mutationFn: () => openArchivePair(subdir, performer.id),
@@ -388,15 +401,14 @@ export function ArchiveTransferView({
     !!data.target_error ||
     context.fetchStatus !== "idle" ||
     context.isError ||
-    transfer.active ||
+    bindingBusy ||
     transfer.unavailable ||
-    cleanup.blocked ||
-    transfer.start.isPending;
-  const taskItems = matchesTask ? currentTask.items : [];
+    cleanup.blocked;
+  const taskItems = matchesTask && currentTask ? currentTask.items : [];
   const sourceItems = (data?.source_items ?? [])
     .filter(
       (item) =>
-        !transfer.active ||
+        !taskActive ||
         !taskItems.some((done) => done.name === item.name && done.status === "completed"),
     )
     .map((item) =>
@@ -405,7 +417,7 @@ export function ArchiveTransferView({
         : item,
     );
   const targetItems = [...(data?.target_items ?? [])];
-  if (transfer.active) {
+  if (taskActive) {
     for (const item of taskItems) {
       if (
         item.status === "completed" &&
@@ -441,9 +453,11 @@ export function ArchiveTransferView({
         context_id: data.id,
         names: [...selected].sort(nameOrder.compare),
         request_id: crypto.randomUUID(),
+        binding: data,
       });
-      setSelected(new Set());
+      if (currentContextKey.current === contextKey) setSelected(new Set());
     } catch (error) {
+      if (currentContextKey.current !== contextKey) return;
       setStartError(archiveError(error, "启动失败，请查看任务状态"));
       // In particular, a stale context is not refreshed and re-submitted
       // automatically: the user must inspect the new directory snapshot.
@@ -644,7 +658,7 @@ export function ArchiveTransferView({
           <Alert
             severity="error"
             action={
-              <Button color="inherit" onClick={refresh} disabled={transfer.active}>
+              <Button color="inherit" onClick={refresh} disabled={bindingBusy}>
                 刷新目录
               </Button>
             }
@@ -654,7 +668,7 @@ export function ArchiveTransferView({
           </Alert>
         )}
         {matchesTask &&
-          !transfer.active &&
+          !taskActive &&
           currentTask?.status !== "completed" &&
           currentTask?.message && (
             <Alert severity="warning" sx={{ mb: 1 }}>
@@ -683,7 +697,7 @@ export function ArchiveTransferView({
               error={data.source_error}
               selected={selected}
               disabled={disabled}
-              busy={context.fetchStatus !== "idle" || transfer.active}
+              busy={context.fetchStatus !== "idle" || bindingBusy}
               onToggle={toggle}
               onSelectAll={selectAll}
               onRefresh={refresh}
@@ -695,7 +709,7 @@ export function ArchiveTransferView({
               error={data.target_error}
               selected={new Set()}
               disabled
-              busy={context.fetchStatus !== "idle" || transfer.active}
+              busy={context.fetchStatus !== "idle" || bindingBusy}
               onToggle={() => {}}
               onSelectAll={() => {}}
               onRefresh={refresh}
@@ -724,8 +738,8 @@ export function ArchiveTransferView({
             {selected.size ? `已选 ${selected.size} 部影片` : "勾选左侧影片，开始归档"}
           </Typography>
           <Typography variant="caption" color="text.secondary">
-            {transfer.active
-              ? "当前归档任务进行中，可在下方查看进度。"
+            {bindingBusy
+              ? "此演员的任务进行中或提交待确认，可在任务与日志查看进度。"
               : cleanup.blocked
                 ? "清理进行中或状态待确认，暂不能开始传输。"
                 : transfer.unavailable
@@ -746,7 +760,7 @@ export function ArchiveTransferView({
           disabled={disabled || selected.size === 0}
           sx={{ whiteSpace: "nowrap", fontWeight: 600 }}
         >
-          {transfer.start.isPending
+          {bindingPending
             ? "正在提交…"
             : `传输到 NAS${selected.size ? `（${selected.size}）` : ""}`}
         </Button>

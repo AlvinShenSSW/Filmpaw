@@ -124,7 +124,7 @@ def test_switching_batch_away_and_back_invalidates_old_context(client, tmp_path)
 
 def test_v2_migration_keeps_existing_library_and_adds_journal(tmp_path):
     import sqlite3
-    from filmpaw_server.db import connect
+    from filmpaw_server.db import SCHEMA_VERSION, connect
     from tests.test_migration import V1_DDL
 
     path = tmp_path / "v2.db"
@@ -138,7 +138,7 @@ def test_v2_migration_keeps_existing_library_and_adds_journal(tmp_path):
     conn.commit()
     conn.close()
     conn = connect(path)
-    assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 3
+    assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == SCHEMA_VERSION
     assert conn.execute("SELECT value FROM settings").fetchone()[0] == "untouched"
     assert conn.execute("SELECT label FROM sources").fetchone()[0] == "keep"
     assert conn.execute("SELECT alias FROM aliases").fetchone()[0] == "alias"

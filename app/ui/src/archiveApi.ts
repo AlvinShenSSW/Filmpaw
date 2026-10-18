@@ -38,7 +38,7 @@ export type ArchiveTask = {
   source_path: string;
   target_path: string;
   status: "queued" | "running" | "completed" | "stopped" | "failed" | "needs_review";
-  phase: "preflight" | "copying" | "verifying" | "committing" | "cleaning" | "finished";
+  phase: "queued" | "preflight" | "copying" | "verifying" | "committing" | "cleaning" | "finished";
   current_name: string | null;
   progress_bytes: number;
   total_bytes: number;
@@ -105,6 +105,66 @@ export function createTransfer(body: {
 
 export function getLatestTransfer(signal?: AbortSignal): Promise<ArchiveTask | null> {
   return archiveRequest("/transfers/latest", { signal });
+}
+
+export type TransferList = {
+  active: ArchiveTask[];
+  history: ArchiveTask[];
+  next_cursor: number | null;
+  busy: boolean;
+  blocked_reason: string | null;
+  concurrency: number;
+};
+
+export function getTransfers(
+  signal?: AbortSignal,
+  options: { before_id?: number; limit?: number } = {},
+): Promise<TransferList> {
+  const params = new URLSearchParams({ limit: String(options.limit ?? 50) });
+  if (options.before_id != null) params.set("before_id", String(options.before_id));
+  return archiveRequest(`/transfers?${params}`, { signal });
+}
+
+export function getTransferByRequest(
+  requestId: string,
+  signal?: AbortSignal,
+): Promise<ArchiveTask | null> {
+  return archiveRequest(`/transfers/by-request/${encodeURIComponent(requestId)}`, { signal });
+}
+
+export function stopTransfers(task_ids: string[]): Promise<{ task_ids: string[] }> {
+  return archiveRequest("/transfers/stop-all", {
+    method: "POST",
+    body: JSON.stringify({ task_ids }),
+  });
+}
+
+export type OperationEvent = {
+  id: number;
+  event_key: string;
+  operation_id: string;
+  created_at: string;
+  task_id: string;
+  kind: "transfer" | "cleanup";
+  action: string;
+  outcome: "started" | "succeeded" | "failed" | "skipped" | "stopped" | "needs_review";
+  performer_name: string | null;
+  item_name: string | null;
+  source_path: string | null;
+  target_path: string | null;
+  message: string | null;
+};
+
+export type LogFilters = { task_id?: string; action?: string; outcome?: string };
+export function getOperationLogs(
+  options: LogFilters & { before_id?: number; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<{ items: OperationEvent[]; next_cursor: number | null }> {
+  const params = new URLSearchParams({ limit: String(options.limit ?? 50) });
+  for (const [key, value] of Object.entries(options)) {
+    if (value != null && value !== "") params.set(key, String(value));
+  }
+  return archiveRequest(`/logs?${params}`, { signal });
 }
 
 export function getTransfer(id: string, signal?: AbortSignal): Promise<ArchiveTask> {

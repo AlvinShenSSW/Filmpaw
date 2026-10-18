@@ -27,6 +27,15 @@ vi.mock("./cleanupApi", () => ({
     task?.status === "running" || task?.status === "queued",
 }));
 vi.mock("./archiveApi", () => ({
+  getTransfers: vi.fn().mockResolvedValue({
+    active: [],
+    history: [],
+    next_cursor: null,
+    busy: false,
+    blocked_reason: null,
+    concurrency: 2,
+  }),
+  getTransferByRequest: vi.fn().mockResolvedValue(null),
   getLatestTransfer: vi.fn().mockResolvedValue(null),
   createTransfer: vi.fn(),
   stopTransfer: vi.fn(),
@@ -87,6 +96,7 @@ function renderPage() {
 afterEach(() => vi.restoreAllMocks());
 
 beforeEach(() => {
+  sessionStorage.clear();
   vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({
     data: { last_local_dir: "D:\\Downloads\\新片", db_path: "X:\\db" },
   } as never);

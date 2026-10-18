@@ -317,6 +317,78 @@ export type OpenPairIn = {
 };
 
 /**
+ * OperationEventOut
+ */
+export type OperationEventOut = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Event Key
+     */
+    event_key: string;
+    /**
+     * Operation Id
+     */
+    operation_id: string;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Task Id
+     */
+    task_id: string;
+    /**
+     * Kind
+     */
+    kind: 'transfer' | 'cleanup';
+    /**
+     * Action
+     */
+    action: string;
+    /**
+     * Outcome
+     */
+    outcome: 'started' | 'succeeded' | 'failed' | 'skipped' | 'stopped' | 'needs_review';
+    /**
+     * Performer Name
+     */
+    performer_name: string | null;
+    /**
+     * Item Name
+     */
+    item_name: string | null;
+    /**
+     * Source Path
+     */
+    source_path: string | null;
+    /**
+     * Target Path
+     */
+    target_path: string | null;
+    /**
+     * Message
+     */
+    message: string | null;
+};
+
+/**
+ * OperationLogOut
+ */
+export type OperationLogOut = {
+    /**
+     * Items
+     */
+    items: Array<OperationEventOut>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: number | null;
+};
+
+/**
  * PerformerListOut
  */
 export type PerformerListOut = {
@@ -553,6 +625,26 @@ export type SourceOut = {
 };
 
 /**
+ * StopAllIn
+ */
+export type StopAllIn = {
+    /**
+     * Task Ids
+     */
+    task_ids: Array<string>;
+};
+
+/**
+ * StopAllOut
+ */
+export type StopAllOut = {
+    /**
+     * Task Ids
+     */
+    task_ids: Array<string>;
+};
+
+/**
  * SubdirsOut
  */
 export type SubdirsOut = {
@@ -714,6 +806,36 @@ export type TransferItemOut = {
      * Message
      */
     message?: string | null;
+};
+
+/**
+ * TransferListOut
+ */
+export type TransferListOut = {
+    /**
+     * Active
+     */
+    active: Array<TaskOut>;
+    /**
+     * History
+     */
+    history: Array<TaskOut>;
+    /**
+     * Next Cursor
+     */
+    next_cursor: number | null;
+    /**
+     * Busy
+     */
+    busy: boolean;
+    /**
+     * Blocked Reason
+     */
+    blocked_reason: string | null;
+    /**
+     * Concurrency
+     */
+    concurrency: number;
 };
 
 /**
@@ -1333,6 +1455,40 @@ export type CreateContextApiArchiveContextsPostResponses = {
 
 export type CreateContextApiArchiveContextsPostResponse = CreateContextApiArchiveContextsPostResponses[keyof CreateContextApiArchiveContextsPostResponses];
 
+export type ListTransfersApiArchiveTransfersGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Before Id
+         */
+        before_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+    };
+    url: '/api/archive/transfers';
+};
+
+export type ListTransfersApiArchiveTransfersGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTransfersApiArchiveTransfersGetError = ListTransfersApiArchiveTransfersGetErrors[keyof ListTransfersApiArchiveTransfersGetErrors];
+
+export type ListTransfersApiArchiveTransfersGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TransferListOut;
+};
+
+export type ListTransfersApiArchiveTransfersGetResponse = ListTransfersApiArchiveTransfersGetResponses[keyof ListTransfersApiArchiveTransfersGetResponses];
+
 export type CreateTransferApiArchiveTransfersPostData = {
     body: TransferIn;
     path?: never;
@@ -1375,6 +1531,109 @@ export type LatestTransferApiArchiveTransfersLatestGetResponses = {
 };
 
 export type LatestTransferApiArchiveTransfersLatestGetResponse = LatestTransferApiArchiveTransfersLatestGetResponses[keyof LatestTransferApiArchiveTransfersLatestGetResponses];
+
+export type TransferByRequestApiArchiveTransfersByRequestRequestIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Request Id
+         */
+        request_id: string;
+    };
+    query?: never;
+    url: '/api/archive/transfers/by-request/{request_id}';
+};
+
+export type TransferByRequestApiArchiveTransfersByRequestRequestIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type TransferByRequestApiArchiveTransfersByRequestRequestIdGetError = TransferByRequestApiArchiveTransfersByRequestRequestIdGetErrors[keyof TransferByRequestApiArchiveTransfersByRequestRequestIdGetErrors];
+
+export type TransferByRequestApiArchiveTransfersByRequestRequestIdGetResponses = {
+    /**
+     * Response Transfer By Request Api Archive Transfers By Request  Request Id  Get
+     *
+     * Successful Response
+     */
+    200: TaskOut | null;
+};
+
+export type TransferByRequestApiArchiveTransfersByRequestRequestIdGetResponse = TransferByRequestApiArchiveTransfersByRequestRequestIdGetResponses[keyof TransferByRequestApiArchiveTransfersByRequestRequestIdGetResponses];
+
+export type StopAllTransfersApiArchiveTransfersStopAllPostData = {
+    body: StopAllIn;
+    path?: never;
+    query?: never;
+    url: '/api/archive/transfers/stop-all';
+};
+
+export type StopAllTransfersApiArchiveTransfersStopAllPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopAllTransfersApiArchiveTransfersStopAllPostError = StopAllTransfersApiArchiveTransfersStopAllPostErrors[keyof StopAllTransfersApiArchiveTransfersStopAllPostErrors];
+
+export type StopAllTransfersApiArchiveTransfersStopAllPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: StopAllOut;
+};
+
+export type StopAllTransfersApiArchiveTransfersStopAllPostResponse = StopAllTransfersApiArchiveTransfersStopAllPostResponses[keyof StopAllTransfersApiArchiveTransfersStopAllPostResponses];
+
+export type ListOperationsApiArchiveLogsGetData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Before Id
+         */
+        before_id?: number | null;
+        /**
+         * Limit
+         */
+        limit?: number;
+        /**
+         * Task Id
+         */
+        task_id?: string | null;
+        /**
+         * Action
+         */
+        action?: string | null;
+        /**
+         * Outcome
+         */
+        outcome?: 'started' | 'succeeded' | 'failed' | 'skipped' | 'stopped' | 'needs_review' | null;
+    };
+    url: '/api/archive/logs';
+};
+
+export type ListOperationsApiArchiveLogsGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListOperationsApiArchiveLogsGetError = ListOperationsApiArchiveLogsGetErrors[keyof ListOperationsApiArchiveLogsGetErrors];
+
+export type ListOperationsApiArchiveLogsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: OperationLogOut;
+};
+
+export type ListOperationsApiArchiveLogsGetResponse = ListOperationsApiArchiveLogsGetResponses[keyof ListOperationsApiArchiveLogsGetResponses];
 
 export type GetTransferApiArchiveTransfersTaskIdGetData = {
     body?: never;

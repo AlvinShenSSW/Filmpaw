@@ -23,11 +23,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from filmpaw_server.directory_reads import directory_error_retryable
+from filmpaw_server.audit import AuditError, OperationLog
+from filmpaw_server import path_resources
 
 
 CHUNK_SIZE = 1024 * 1024
 STAGING_PREFIX = ".filmpaw-transfer-"
 ACTIVE = {"queued", "running"}
+CONCURRENCY = 2
+QUEUE_LIMIT = 100
 
 
 class TransferError(Exception):
@@ -378,12 +382,18 @@ class TransferService:
         self.db_lock = db_lock
         self._admission = threading.RLock()
         self._contexts = {}
-        self._worker = None
-        self._stop = threading.Event()
+        self.audit = OperationLog(conn, db_lock)
+        self._runtimes = {}
+        self._queue = []
+        self._dispatcher = None
+        self._wake = threading.Event()
+        self._recovery_worker = None
+        self._recovering = False
+        self._recovery_tasks = {}
         self._closing = False
         self._auto_start = auto_start
-        self._fatal_task = None
-        self._working_task = None
+        self._storage_error = None
+        self._fatal_tasks = {}
         self._context_read_lock = threading.Lock()
         self._cleanup_id = None
 
@@ -391,14 +401,14 @@ class TransferService:
         with self._admission:
             if self._closing:
                 raise TransferError("应用正在退出，不能开始新操作", 409)
+            if self._storage_error:
+                raise TransferError(self._storage_error, 409)
 
     def reserve_cleanup(self, operation_id: str, batch_path: str, batch_revision: str) -> None:
         """Atomically bind a cleanup to the current settings and write slot."""
         with self._admission, self.db_lock:
             self.ensure_open()
-            if self._fatal_task:
-                raise TransferError("任务状态保存失败，请重启并核对上次传输", 409)
-            if self._cleanup_id or self._active() or (self._worker and self._worker.is_alive()):
+            if self._cleanup_id or self._busy_locked():
                 raise TransferError("已有传输或清理任务正在进行", 409)
             settings = dict(self.conn.execute(
                 "SELECT key,value FROM settings WHERE key IN ('last_local_dir','last_local_dir_revision')"
@@ -488,6 +498,13 @@ class TransferService:
                 if side == "source":
                     binding["batch_identity"] = _directory(Path(binding["local_dir"]))
                 binding[f"{side}_identity"] = identity
+                resource = path_resources.capture(path)
+                binding.setdefault("_resources", []).append(resource)
+                binding[f"_original_{side}_path"] = str(path)
+                binding[f"{side}_path"] = resource["path"]
+                # Freeze mapped drive aliases before a request can be queued.
+                if side == "source":
+                    binding["_batch_path"] = str(Path(resource["path"]).parent)
                 context[f"{side}_items"] = self._list(path)
                 context[f"{side}_error"] = None
             except (OSError, TransferError) as exc:
@@ -505,7 +522,7 @@ class TransferService:
         return context
 
     def _check_binding(self, binding: dict) -> None:
-        _directory(Path(binding["local_dir"]), binding["batch_identity"])
+        _directory(Path(binding.get("_batch_path", binding["local_dir"])), binding["batch_identity"])
         _directory(Path(binding["source_path"]), binding["source_identity"])
         _directory(Path(binding["target_path"]), binding["target_identity"])
         if _nested(Path(binding["source_path"]), Path(binding["target_path"])):
@@ -522,21 +539,32 @@ class TransferService:
         return json.loads(row["payload"]) if row else None
 
     def _save(self, task: dict) -> None:
-        self._working_task = task
+        runtime = self._runtimes.get(task["id"])
         task["updated_at"] = _now()
-        if self._stop.is_set() and task["status"] in ACTIVE:
+        if runtime and runtime["stop"].is_set() and task["status"] in ACTIVE:
             task["stop_requested"] = True
+        public = self._public(task)
+        if runtime is not None:
+            # Publish an independent small snapshot. Another worker's storage
+            # failure must not copy this worker's mutating manifest dictionary.
+            runtime["snapshot"] = public
+        self._check_storage()
         with self.db_lock:
             try:
                 self.conn.execute(
-                    "INSERT INTO archive_tasks(id,request_id,payload) VALUES (?,?,?)"
-                    " ON CONFLICT(id) DO UPDATE SET payload=excluded.payload",
-                    (task["id"], task["request_id"], json.dumps(task, ensure_ascii=False)),
+                    "INSERT INTO archive_tasks(id,request_id,payload,public_payload) VALUES (?,?,?,?)"
+                    " ON CONFLICT(id) DO UPDATE SET payload=excluded.payload,public_payload=excluded.public_payload",
+                    (task["id"], task["request_id"], json.dumps(task, ensure_ascii=False),
+                     json.dumps(public, ensure_ascii=False)),
                 )
                 self.conn.commit()
-            except Exception:
-                self.conn.rollback()
-                raise
+            except Exception as exc:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                self._storage_error = self._storage_error or f"任务状态未能保存：{exc}；请重启后核对结果"
+                raise AuditError(self._storage_error) from exc
 
     @staticmethod
     def _public(task: dict) -> dict:
@@ -549,19 +577,84 @@ class TransferService:
 
     def get_task(self, task_id: str | None = None) -> dict | None:
         with self._admission:
-            if self._fatal_task and (task_id is None or task_id == self._fatal_task["id"]):
-                return self._public(self._fatal_task)
+            if task_id in self._fatal_tasks:
+                return self._public(self._fatal_tasks[task_id])
+            if task_id is None and self._fatal_tasks:
+                return self._public(next(reversed(self._fatal_tasks.values())))
         task = self._load(task_id)
         if task_id is not None and task is None:
             raise TransferError("传输任务不存在", 404)
-        if task and task["status"] in ACTIVE and self._stop.is_set():
-            task["stop_requested"] = True
-        return self._public(task) if task else None
+        return self._visible(task) if task else None
 
-    def _active(self) -> dict | None:
+    def _visible(self, task: dict) -> dict:
+        task = self._fatal_tasks.get(task["id"], task)
+        result = self._public(task)
+        runtime = self._runtimes.get(task["id"])
+        if runtime and runtime["stop"].is_set():
+            result["stop_requested"] = True
+        return result
+
+    def get_by_request(self, request_id: str) -> dict | None:
+        with self._admission:
+            task = self._load(request_id=request_id)
+            return self._visible(task) if task else None
+
+    def _reap_locked(self) -> None:
+        for task_id, runtime in list(self._runtimes.items()):
+            worker = runtime["worker"]
+            if runtime["finished"] and (worker is None or not worker.is_alive()):
+                del self._runtimes[task_id]
+        if not self._recovering and not (self._recovery_worker and self._recovery_worker.is_alive()):
+            self._recovery_tasks.clear()
+
+    def _busy_locked(self) -> bool:
+        self._reap_locked()
+        return bool(self._runtimes or self._recovering
+                    or (self._recovery_worker and self._recovery_worker.is_alive()) or self._orphan_ids())
+
+    def _orphan_ids(self) -> list[str]:
+        # A durable interrupted job is never idle merely because this process
+        # has not reconstructed a worker for it yet.
         with self.db_lock:
-            rows = self.conn.execute("SELECT payload FROM archive_tasks ORDER BY rowid DESC").fetchall()
-        return next((task for row in rows if (task := json.loads(row["payload"]))["status"] in ACTIVE), None)
+            rows = self.conn.execute("SELECT id FROM archive_tasks WHERE"
+                " json_extract(coalesce(public_payload,payload),'$.status') IN ('queued','running')").fetchall()
+        return [row["id"] for row in rows if row["id"] not in self._runtimes
+                and row["id"] not in self._fatal_tasks]
+
+    def list_tasks(self, *, before_id: int | None = None, limit: int = 50) -> dict:
+        if not 1 <= limit <= 200 or (before_id is not None and before_id < 1):
+            raise TransferError("无效的任务分页参数")
+        with self._admission:
+            self._reap_locked()
+            orphans = self._orphan_ids()
+            recovering = self._recovering or bool(self._recovery_worker and self._recovery_worker.is_alive())
+            busy = bool(self._runtimes or orphans or recovering)
+            active_ids = list(dict.fromkeys([*self._runtimes, *orphans]))
+            if recovering:
+                active_ids = list(dict.fromkeys([*active_ids, *self._recovery_tasks]))
+            with self.db_lock:
+                slots = ",".join("?" for _ in active_ids)
+                active_rows = self.conn.execute(
+                    f"SELECT public_payload FROM archive_tasks WHERE id IN ({slots}) ORDER BY rowid DESC", active_ids,
+                ).fetchall() if active_ids else []
+                clauses, params = [], []
+                if active_ids:
+                    clauses.append(f"id NOT IN ({slots})")
+                    params.extend(active_ids)
+                if before_id is not None:
+                    clauses.append("rowid<?")
+                    params.append(before_id)
+                where = " WHERE " + " AND ".join(clauses) if clauses else ""
+                rows = self.conn.execute("SELECT rowid,public_payload FROM archive_tasks" + where +
+                    " ORDER BY rowid DESC LIMIT ?", [*params, limit + 1]).fetchall()
+            active = [self._visible(json.loads(row["public_payload"])) for row in active_rows]
+            history = [(row["rowid"], self._visible(json.loads(row["public_payload"]))) for row in rows]
+            blocked = self._storage_error or ("正在核对上次中断的任务" if recovering or orphans else None)
+            if self._closing:
+                blocked = blocked or "应用正在退出"
+            return {"active": active, "history": [task for _, task in history[:limit]],
+                    "next_cursor": history[limit - 1][0] if len(history) > limit else None,
+                    "busy": busy, "blocked_reason": blocked, "concurrency": CONCURRENCY}
 
     def submit(self, context_id: str, names: list[str], request_id: str) -> dict:
         if not request_id or len(request_id) > 128:
@@ -572,19 +665,19 @@ class TransferService:
         if len({name.casefold() for name in names}) != len(names):
             raise TransferError("影片选择包含重复名称")
         with self._admission:
-            if self._fatal_task:
-                raise TransferError("任务状态保存失败，请重新启动应用并核对上次传输", 409)
             previous = self._load(request_id=request_id)
             if previous:
                 if previous["context_id"] != context_id or [i["name"] for i in previous["items"]] != names:
                     raise TransferError("幂等标识已用于另一组传输选择", 409)
-                return self._public(previous)
-            if self._closing:
-                raise TransferError("应用正在退出，不能开始传输", 409)
+                return self._visible(previous)
+            self.ensure_open()
             if self._cleanup_id:
                 raise TransferError("正在清理空演员目录，请完成后再传输", 409)
-            if self._active() or (self._worker and self._worker.is_alive()):
-                raise TransferError("已有传输任务正在进行", 409)
+            if self._recovering or (self._recovery_worker and self._recovery_worker.is_alive()) or self._orphan_ids():
+                raise TransferError("正在核对上次中断的传输，请稍候", 409)
+            self._reap_locked()
+            if len(self._runtimes) >= QUEUE_LIMIT:
+                raise TransferError("传输队列已满（最多 100 个任务），请稍候", 409)
             context = self._contexts.get(context_id)
             if context is None:
                 raise TransferError("归档上下文已失效，请刷新列表", 409)
@@ -594,74 +687,172 @@ class TransferService:
             current = self._read_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
             if current["_batch_revision"] != binding["_batch_revision"]:
                 raise TransferError("batch 目录选择已变化，原归档上下文失效，请刷新列表", 409)
-            if current["target_path"] != binding["target_path"]:
+            if current["target_path"] != binding.get("_original_target_path", binding["target_path"]):
                 raise TransferError("NAS 演员目录已变化，请重新选择目标", 409)
-            self._check_binding(binding)
+            resources = binding["_resources"]
+            if path_resources.overlaps(*resources):
+                raise TransferError("本地源与 NAS 目标不能相同或互相嵌套", 409)
+            if any(path_resources.overlaps(a, b) for runtime in self._runtimes.values()
+                   for a in resources for b in runtime["resources"]):
+                raise TransferError("演员源或目标目录已被其他任务占用，请等待该任务结束", 409)
             available = {item["name"] for item in public["source_items"] if item["error"] is None}
             if not set(names).issubset(available):
                 raise TransferError("影片不属于当前列表，请刷新后重新选择", 409)
             task = {
                 "id": str(uuid.uuid4()), "request_id": request_id, "context_id": context_id,
                 **{k: v for k, v in binding.items() if not k.endswith("_identity") and not k.startswith("_")},
-                "status": "queued", "phase": "preflight", "current_name": None,
+                "status": "queued", "phase": "queued", "current_name": None,
                 "progress_bytes": 0, "total_bytes": 0, "verified_bytes": 0,
                 "completed_count": 0, "total_count": len(names), "conflicts": [],
-                "message": "正在完整预检所选影片", "stop_requested": False,
+                "message": "等待传输名额", "stop_requested": False,
                 "created_at": _now(), "updated_at": _now(), "_binding": copy.deepcopy(binding),
                 "items": [{"name": name, "status": "pending", "size_bytes": 0,
                            "progress_bytes": 0, "message": "等待预检"} for name in names],
             }
-            self._stop.clear()
-            self._save(task)
-            if self._auto_start:
-                self._worker = threading.Thread(target=self._run, args=(task["id"],), daemon=True, name="archive-transfer")
-                self._worker.start()
+            self._runtimes[task["id"]] = {"stop": threading.Event(), "worker": None,
+                "snapshot": self._public(task), "finished": False, "started": False, "resources": resources}
+            try:
+                self._save(task)
+                self.audit.record(task, "transfer_accepted", "succeeded")
+                self._queue.append(task["id"])
+                if self._auto_start:
+                    self._start_dispatcher_locked()
+            except Exception as exc:
+                self.storage_failed(self._error_message(exc), task["id"])
+                raise TransferError(self._storage_error, 503) from exc
             return self._public(task)
+
+    def _start_dispatcher_locked(self) -> None:
+        if self._dispatcher is None or not self._dispatcher.is_alive():
+            thread = threading.Thread(target=self._dispatch, daemon=True, name="archive-scheduler")
+            thread.start()
+            self._dispatcher = thread
+        self._wake.set()
+
+    def _dispatch(self) -> None:
+        while True:
+            with self._admission:
+                self._reap_locked()
+                if self._closing and not self._runtimes:
+                    return
+                if not self._closing and not self._storage_error and not self._recovering:
+                    running = sum(runtime["worker"] is not None for runtime in self._runtimes.values())
+                    while self._queue and running < CONCURRENCY:
+                        task_id = self._queue.pop(0)
+                        runtime = self._runtimes[task_id]
+                        worker = threading.Thread(target=self._run, args=(task_id,), daemon=True,
+                                                  name=f"archive-{task_id[:8]}")
+                        runtime["worker"] = worker
+                        try:
+                            worker.start()
+                        except Exception as exc:
+                            runtime["worker"] = None
+                            try:
+                                task = self._load(task_id)
+                                task.update(status="failed", phase="finished", message=f"无法启动传输：{exc}")
+                                self._save(task)
+                                self.audit.record(task, "transfer_finished", "failed", message=task["message"])
+                            except Exception as failure:
+                                self.storage_failed(str(failure), task_id)
+                                break
+                            runtime["finished"] = True
+                            self._reap_locked()
+                        else:
+                            running += 1
+            # A worker signals before Python marks its Thread stopped. Recheck
+            # boundedly so ownership survives the entire finalization window.
+            self._wake.wait(0.05)
+            self._wake.clear()
 
     def stop(self, task_id: str) -> dict:
         with self._admission:
-            if self._fatal_task and self._fatal_task["id"] == task_id:
-                return self._public(self._fatal_task)
+            if task_id in self._fatal_tasks:
+                return self._public(self._fatal_tasks[task_id])
             task = self._load(task_id)
             if task is None:
                 raise TransferError("传输任务不存在", 404)
             if task["status"] in ACTIVE:
-                self._stop.set()
+                runtime = self._runtimes.get(task_id)
+                if runtime is None or self._recovering:
+                    raise TransferError("正在核对中断任务，请等待核对结束", 409)
+                try:
+                    self.audit.record(task, "stop_requested", "succeeded")
+                    runtime["stop"].set()
+                    if not runtime["started"] and runtime["worker"] is None:
+                        # Re-read under admission: a stale caller snapshot may
+                        # never overwrite a newer terminal journal.
+                        task = self._load(task_id)
+                        if task["status"] in ACTIVE:
+                            task.update(status="stopped", phase="finished", stop_requested=True,
+                                        message="等待中的任务已取消，未移动任何影片")
+                            self._save(task)
+                            self.audit.record(task, "transfer_finished", "stopped", message=task["message"])
+                        if task_id in self._queue:
+                            self._queue.remove(task_id)
+                        runtime["finished"] = True
+                        self._reap_locked()
+                except Exception as exc:
+                    self.storage_failed(str(exc), task_id)
+                    return self._public(self._fatal_tasks[task_id])
                 # Only the worker writes an active payload. The Event is
                 # visible immediately and its next save persists the flag.
                 # A stop request must never overwrite newer worker progress.
                 task["stop_requested"] = True
             return self._public(task)
 
+    def stop_all(self, task_ids: list[str]) -> dict:
+        ids = list(dict.fromkeys(task_ids))
+        if len(ids) > QUEUE_LIMIT:
+            raise TransferError("一次最多停止 100 个任务")
+        with self._admission:
+            if any(self._load(task_id) is None for task_id in ids):
+                raise TransferError("传输任务不存在", 404)
+            for task_id in ids:
+                self.stop(task_id)
+        return {"task_ids": ids}
+
     def prepare_exit(self) -> dict:
         with self._admission:
             if self._cleanup_id:
                 return {"safe": False, "task_id": self._cleanup_id, "operation": "cleanup"}
-            if self._fatal_task and not (self._worker and self._worker.is_alive()):
-                # The original durable journal is intentionally untouched.
-                # No worker is doing I/O now; restart reconciles that journal.
-                self._closing = True
-                return {"safe": True, "task_id": None}
-            active = self._active()
-            if active or (self._worker and self._worker.is_alive()):
-                latest = active or self._load()
-                return {"safe": False, "task_id": latest["id"] if latest else None}
+            if self._busy_locked():
+                task_id = (next(iter(self._runtimes), None) or next(iter(self._recovery_tasks), None)
+                           or next(iter(self._orphan_ids()), None))
+                return {"safe": False, "task_id": task_id}
             self._closing = True
             return {"safe": True, "task_id": None}
 
     def close(self) -> None:
         with self._admission:
             self._closing = True
-            self._stop.set()
-        if self._worker and self._worker is not threading.current_thread():
-            # Graceful shell exit has already waited for prepare_exit. In
-            # tests/service shutdown, wait for the current safe boundary.
-            self._worker.join()
+            for task_id in list(self._queue):
+                self.stop(task_id)
+            for runtime in self._runtimes.values():
+                runtime["stop"].set()
+            workers = [r["worker"] for r in self._runtimes.values() if r["worker"] is not None]
+            workers += [self._recovery_worker, self._dispatcher]
+            self._wake.set()
+        for worker in workers:
+            if worker is not None and worker is not threading.current_thread():
+                worker.join()
 
     def _check_stop(self, task: dict) -> None:
-        if self._stop.is_set() or task.get("stop_requested"):
+        self._check_storage()
+        runtime = self._runtimes.get(task["id"])
+        if (runtime and runtime["stop"].is_set()) or task.get("stop_requested"):
             task["stop_requested"] = True
             raise _Stopped()
+
+    def _check_storage(self) -> None:
+        if self._storage_error or self.audit.failed:
+            raise AuditError(self._storage_error or "操作日志不可写，后续操作已停止")
+
+    def _perform(self, task: dict, action: str, fn, **fields):
+        def checked_action():
+            self._check_storage()
+            return fn()
+        self._check_storage()
+        return self.audit.perform(task, action, checked_action, **fields)
 
     def _checkpoint(self, stage: str, task: dict, item: dict) -> None:
         """Named transaction boundaries for failure-injection tests."""
@@ -807,16 +998,23 @@ class TransferService:
                 self._check_binding(task["_binding"])
                 _directory(source, manifest[""]["identity"])
                 _directory(target, item["staging_identity"])
-                _delete_exact(source / relative, target / relative, entry)
+                self._check_storage()
+                self._perform(task, "delete_source_file",
+                    lambda: _delete_exact(source / relative, target / relative, entry),
+                    item_name=item["name"], source_path=str(source / relative), target_path=str(target / relative))
         directories = [(rel, entry) for rel, entry in manifest.items() if entry["kind"] == "dir"]
         for relative, entry in sorted(directories, key=lambda pair: len(Path(pair[0]).parts), reverse=True):
             self._check_binding(task["_binding"])
             with _directory_guard((source / relative).parent):
                 _directory(source / relative, entry["identity"])
-                if sys.platform == "win32":
-                    _windows_directory_change(source / relative, entry["identity"])
-                else:
-                    (source / relative).rmdir()  # fails safely when anything new appeared
+                self._check_storage()
+                def remove_directory():
+                    if sys.platform == "win32":
+                        _windows_directory_change(source / relative, entry["identity"])
+                    else:
+                        (source / relative).rmdir()  # fails safely when anything new appeared
+                self._perform(task, "delete_source_directory", remove_directory,
+                    item_name=item["name"], source_path=str(source / relative), target_path=str(target / relative))
 
     def _move_item(self, task: dict, item: dict) -> None:
         self._check_stop(task)
@@ -838,13 +1036,17 @@ class TransferService:
         item["staging_identity"] = _directory(staging)
         self._save(task)
         self._checkpoint("before_copy", task, item)
-        self._copy(task, item)
+        self._perform(task, "copy_movie", lambda: self._copy(task, item), item_name=item["name"],
+                           source_path=str(Path(task["source_path"]) / item["name"]), target_path=str(staging))
         self._checkpoint("after_copy", task, item)
         item["status"] = task["phase"] = "verifying"
         item["message"] = task["message"] = "正在读取目标并校验 SHA-256"
         self._save(task)
-        self._verify(task, item, staging)
-        self._verify(task, item, Path(task["source_path"]) / item["name"], source=True)
+        def verify_movie():
+            self._verify(task, item, staging)
+            self._verify(task, item, Path(task["source_path"]) / item["name"], source=True)
+        self._perform(task, "verify_movie", verify_movie, item_name=item["name"],
+                           source_path=str(Path(task["source_path"]) / item["name"]), target_path=str(staging))
         self._checkpoint("after_verify", task, item)
         self._check_stop(task)
         self._check_binding(task["_binding"])
@@ -859,7 +1061,10 @@ class TransferService:
         try:
             with _directory_guard(target, task["_binding"]["target_identity"], committing=True):
                 _directory(staging, item["staging_identity"])
-                _rename_no_replace(staging, target / item["name"], item["staging_identity"])
+                self._check_storage()
+                self._perform(task, "commit_movie",
+                    lambda: _rename_no_replace(staging, target / item["name"], item["staging_identity"]),
+                    item_name=item["name"], source_path=str(staging), target_path=str(target / item["name"]))
         except FileExistsError:
             task["conflicts"] = [item["name"]]
             raise _Conflict("提交时出现同名目标，未覆盖，已停止队列", 409) from None
@@ -885,27 +1090,43 @@ class TransferService:
                 message = "路径过长或当前 Windows／共享不支持该路径长度；" + message
         return message
 
-    def _journal_failed(self, exc: Exception) -> None:
-        # In-memory only: writing another failure record to the same broken
-        # journal could fail again and strand a forever-active job. Keeping
-        # the last durable phase lets the next launch reconcile filesystem
-        # state without pretending this report itself was persisted.
+    def storage_failed(self, message: str, task_id: str | None = None) -> None:
+        """Freeze all operations; memory reports never pretend to be receipts."""
         with self._admission:
-            task = copy.deepcopy(self._working_task)
-            task["status"] = "needs_review"
-            task["phase"] = "finished"
-            task["message"] = "任务状态未能保存到数据库，传输已停止。请重新启动应用核对结果；" + self._error_message(exc)
-            for item in task["items"]:
-                if item["status"] in {"copying", "verifying", "committing", "cleaning"}:
-                    item["status"] = "needs_review"
-                    item["message"] = task["message"]
-            self._fatal_task = task
+            self._storage_error = self._storage_error or ("任务状态或操作日志未能保存，传输已停止；请重启后核对结果：" + message)
+            snapshots = dict(self._recovery_tasks)
+            for identity, runtime in self._runtimes.items():
+                runtime["stop"].set()
+                snapshots[identity] = runtime["snapshot"]
+                if runtime["worker"] is None:
+                    runtime["finished"] = True
+            for identity, snapshot in snapshots.items():
+                task = copy.deepcopy(snapshot)
+                task.update(status="needs_review", phase="finished", message=self._storage_error, stop_requested=True)
+                for item in task["items"]:
+                    if item["status"] in {"copying", "verifying", "committing", "cleaning"}:
+                        item["status"] = "cleanup_pending" if item["status"] == "cleaning" else "needs_review"
+                        item["message"] = self._storage_error
+                self._fatal_tasks[identity] = task
+            self._queue.clear()
+            self._wake.set()
 
     def _run(self, task_id: str) -> None:
+        with self._admission:
+            if task_id in self._queue:
+                self._queue.remove(task_id)
+            runtime = self._runtimes.get(task_id)
+            if runtime is None:
+                return
+            runtime["started"] = True
         try:
             self._execute(task_id)
         except Exception as exc:
-            self._journal_failed(exc)
+            self.storage_failed(self._error_message(exc), task_id)
+        finally:
+            with self._admission:
+                runtime["finished"] = True
+                self._wake.set()
 
     def _execute(self, task_id: str) -> None:
         task = self._load(task_id)
@@ -915,7 +1136,10 @@ class TransferService:
         try:
             self._check_stop(task)
             task["status"] = "running"
+            task["phase"] = "preflight"
+            task["message"] = "正在完整预检所选影片"
             self._save(task)
+            self.audit.record(task, "transfer_started", "succeeded")
             self._preflight(task)
             for current in task["items"]:
                 self._move_item(task, current)
@@ -927,6 +1151,8 @@ class TransferService:
             if current and current["status"] != "completed":
                 current["status"] = "stopped"
                 current["message"] = task["message"]
+        except AuditError:
+            raise
         except Exception as exc:
             committed = current and (current.get("committed") or current["status"] == "cleaning")
             ambiguous = current and current["status"] == "committing" and not isinstance(exc, _Conflict)
@@ -938,23 +1164,39 @@ class TransferService:
         if current and current.get("staging_path") and current["status"] in {"failed", "stopped", "needs_review"}:
             current["message"] += f"；本任务暂存位置（可能有未完成内容）：{current['staging_path']}"
         task["phase"] = "finished"
-        task["stop_requested"] = self._stop.is_set() or task["stop_requested"]
+        task["stop_requested"] = self._runtimes[task_id]["stop"].is_set() or task["stop_requested"]
+        if task["conflicts"]:
+            self.audit.record(task, "transfer_conflict", "failed", message=task["message"])
+        outcome = {"completed": "succeeded", "failed": "failed", "stopped": "stopped", "needs_review": "needs_review"}[task["status"]]
+        self.audit.record(task, "transfer_finished", outcome, message=task["message"])
         self._save(task)
 
     def recover(self) -> None:
         """Reconcile interrupted records, never resume or delete anything."""
         with self._admission:
-            if self._worker and self._worker.is_alive():
+            if self._runtimes or self._recovering or (self._recovery_worker and self._recovery_worker.is_alive()):
                 return
             with self.db_lock:
-                rows = self.conn.execute("SELECT payload FROM archive_tasks ORDER BY rowid").fetchall()
+                rows = self.conn.execute("SELECT payload FROM archive_tasks WHERE"
+                    " json_extract(coalesce(public_payload,payload),'$.status') IN ('queued','running') ORDER BY rowid").fetchall()
             pending = [json.loads(row["payload"]) for row in rows]
-            pending = [task for task in pending if task["status"] in ACTIVE]
+            self._recovery_tasks = {task["id"]: task for task in pending}
+            try:
+                self.audit.recover_pending()
+            except Exception as exc:
+                self.storage_failed(str(exc))
+                return
             if not pending:
                 return
+            self._recovering = True
             if self._auto_start:
-                self._worker = threading.Thread(target=self._recover, args=(pending,), daemon=True, name="archive-recovery")
-                self._worker.start()
+                worker = threading.Thread(target=self._recover, args=(pending,), daemon=True, name="archive-recovery")
+                try:
+                    worker.start()
+                    self._recovery_worker = worker
+                except Exception as exc:
+                    self._recovering = False
+                    self.storage_failed(str(exc))
             else:
                 self._recover(pending)
 
@@ -962,11 +1204,14 @@ class TransferService:
         try:
             self._reconcile(tasks)
         except Exception as exc:
-            self._journal_failed(exc)
+            self.storage_failed(self._error_message(exc))
+        finally:
+            with self._admission:
+                self._recovering = False
+                self._wake.set()
 
     def _reconcile(self, tasks: list[dict]) -> None:
         for task in tasks:
-            self._working_task = task
             task["status"] = "running"
             task["phase"] = "verifying"
             task["verified_bytes"] = sum(item["size_bytes"] for item in task["items"] if item["status"] == "completed")
@@ -995,6 +1240,8 @@ class TransferService:
                     else:
                         item["status"] = "cleanup_pending"
                         item["message"] = "目标已完整提交，本地源仍有残留，请手动核对"
+                except AuditError:
+                    raise
                 except Exception as exc:
                     item["status"] = "needs_review"
                     item["message"] = f"上次传输中断，无法确认提交结果，请手动核对：{exc}"
@@ -1002,4 +1249,6 @@ class TransferService:
             task["status"] = "completed" if task["completed_count"] == task["total_count"] else "needs_review"
             task["phase"] = "finished"
             task["message"] = "上次传输结果已核对" if task["status"] == "completed" else "上次传输中断，未自动继续或删除，请核对逐项结果"
+            self.audit.record(task, "transfer_recovered", "succeeded" if task["status"] == "completed" else "needs_review",
+                              message=task["message"])
             self._save(task)

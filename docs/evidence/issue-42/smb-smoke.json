@@ -1,0 +1,619 @@
+{
+  "created_at": "2026-10-18T14:36:22.412707+00:00",
+  "fixture": "C:\\Users\\304\\AppData\\Local\\Temp\\filmpaw-multi-smb-cfa72b56509445ba910072e00ac54e8b",
+  "FILMPAW_DB": "C:\\Users\\304\\AppData\\Local\\Temp\\filmpaw-multi-smb-cfa72b56509445ba910072e00ac54e8b\\fixture.db",
+  "transport": "real UNC localhost/C$ SMB loopback",
+  "video_mib_per_actor": 32,
+  "concurrency": 2,
+  "active_limit": 100,
+  "target_unc": "\\\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-multi-smb-cfa72b56509445ba910072e00ac54e8b\\nas",
+  "barrier_initial": {
+    "entered": {
+      "Actor-A": {
+        "elapsed_seconds": 0.2372,
+        "thread_name": "archive-0ddbcdd1"
+      },
+      "Actor-B": {
+        "elapsed_seconds": 0.2519,
+        "thread_name": "archive-cc6fa4ac"
+      }
+    },
+    "tasks": [
+      {
+        "actor": "Actor-C",
+        "status": "queued",
+        "phase": "queued"
+      },
+      {
+        "actor": "Actor-B",
+        "status": "running",
+        "phase": "copying"
+      },
+      {
+        "actor": "Actor-A",
+        "status": "running",
+        "phase": "copying"
+      }
+    ]
+  },
+  "barrier_fifo": {
+    "actor_c_entered_while_actor_b_held": true,
+    "entered": {
+      "Actor-A": {
+        "elapsed_seconds": 0.2372,
+        "thread_name": "archive-0ddbcdd1"
+      },
+      "Actor-B": {
+        "elapsed_seconds": 0.2519,
+        "thread_name": "archive-cc6fa4ac"
+      },
+      "Actor-C": {
+        "elapsed_seconds": 0.8326,
+        "thread_name": "archive-ac196341"
+      }
+    }
+  },
+  "status": "passed",
+  "elapsed_seconds": 1.567,
+  "tasks": [
+    {
+      "actor": "Actor-A",
+      "task_id": "0ddbcdd1-e1c7-430c-8b38-c81689d4f4aa",
+      "status": "completed",
+      "total_bytes": 33554474,
+      "progress_bytes": 33554474,
+      "verified_bytes": 33554474,
+      "source_movie_removed": true,
+      "actor_portraits_retained": true,
+      "empty_directory_preserved": true,
+      "source_sha256": {
+        "movie.nfo": "bb041e843bf9e63815710ede108db8ee3eca21601f4663a4cf987b1be630d1a3",
+        "video.mp4": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+        "subs\\zh.srt": "927f5be1775b73184ba6c43ae8d76b836729038fe7c3855b04c92524713e19e7"
+      },
+      "destination_unc_sha256": {
+        "movie.nfo": "bb041e843bf9e63815710ede108db8ee3eca21601f4663a4cf987b1be630d1a3",
+        "video.mp4": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+        "subs\\zh.srt": "927f5be1775b73184ba6c43ae8d76b836729038fe7c3855b04c92524713e19e7"
+      },
+      "delete_directory_success_receipts": 3,
+      "delete_file_success_receipts": 3
+    },
+    {
+      "actor": "Actor-B",
+      "task_id": "cc6fa4ac-a299-4e21-9a6b-88ac26eaa118",
+      "status": "completed",
+      "total_bytes": 33554474,
+      "progress_bytes": 33554474,
+      "verified_bytes": 33554474,
+      "source_movie_removed": true,
+      "actor_portraits_retained": true,
+      "empty_directory_preserved": true,
+      "source_sha256": {
+        "movie.nfo": "bb041e843bf9e63815710ede108db8ee3eca21601f4663a4cf987b1be630d1a3",
+        "video.mp4": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+        "subs\\zh.srt": "927f5be1775b73184ba6c43ae8d76b836729038fe7c3855b04c92524713e19e7"
+      },
+      "destination_unc_sha256": {
+        "movie.nfo": "bb041e843bf9e63815710ede108db8ee3eca21601f4663a4cf987b1be630d1a3",
+        "video.mp4": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+        "subs\\zh.srt": "927f5be1775b73184ba6c43ae8d76b836729038fe7c3855b04c92524713e19e7"
+      },
+      "delete_directory_success_receipts": 3,
+      "delete_file_success_receipts": 3
+    },
+    {
+      "actor": "Actor-C",
+      "task_id": "ac196341-7abe-4a91-b517-d72a8e1b31c0",
+      "status": "completed",
+      "total_bytes": 33554474,
+      "progress_bytes": 33554474,
+      "verified_bytes": 33554474,
+      "source_movie_removed": true,
+      "actor_portraits_retained": true,
+      "empty_directory_preserved": true,
+      "source_sha256": {
+        "movie.nfo": "bb041e843bf9e63815710ede108db8ee3eca21601f4663a4cf987b1be630d1a3",
+        "video.mp4": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+        "subs\\zh.srt": "927f5be1775b73184ba6c43ae8d76b836729038fe7c3855b04c92524713e19e7"
+      },
+      "destination_unc_sha256": {
+        "movie.nfo": "bb041e843bf9e63815710ede108db8ee3eca21601f4663a4cf987b1be630d1a3",
+        "video.mp4": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+        "subs\\zh.srt": "927f5be1775b73184ba6c43ae8d76b836729038fe7c3855b04c92524713e19e7"
+      },
+      "delete_directory_success_receipts": 3,
+      "delete_file_success_receipts": 3
+    }
+  ],
+  "status_samples": [
+    {
+      "elapsed_seconds": 0.8429,
+      "latency_ms": 5.864,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.8634,
+      "latency_ms": 0.301,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.8838,
+      "latency_ms": 0.297,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.9047,
+      "latency_ms": 0.498,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.9252,
+      "latency_ms": 0.352,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.9461,
+      "latency_ms": 0.348,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.9667,
+      "latency_ms": 0.337,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 0.9877,
+      "latency_ms": 0.637,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.0085,
+      "latency_ms": 0.522,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 0
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 0
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.0357,
+      "latency_ms": 6.78,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.0561,
+      "latency_ms": 0.331,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.0765,
+      "latency_ms": 0.357,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.0973,
+      "latency_ms": 0.746,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.1179,
+      "latency_ms": 0.385,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.1387,
+      "latency_ms": 0.431,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.1592,
+      "latency_ms": 0.302,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.1816,
+      "latency_ms": 1.959,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.2027,
+      "latency_ms": 0.637,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.2236,
+      "latency_ms": 0.333,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.2465,
+      "latency_ms": 2.442,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.2668,
+      "latency_ms": 0.274,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.2873,
+      "latency_ms": 0.416,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.3081,
+      "latency_ms": 0.296,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.3307,
+      "latency_ms": 2.533,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.3511,
+      "latency_ms": 0.351,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.3719,
+      "latency_ms": 0.337,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.3928,
+      "latency_ms": 0.854,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "running",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.4154,
+      "latency_ms": 2.04,
+      "busy": true,
+      "active": [
+        {
+          "actor": "Actor-C",
+          "status": "completed",
+          "progress_bytes": 33554474
+        },
+        {
+          "actor": "Actor-B",
+          "status": "running",
+          "progress_bytes": 33554474
+        }
+      ]
+    },
+    {
+      "elapsed_seconds": 1.4362,
+      "latency_ms": 0.462,
+      "busy": false,
+      "active": []
+    }
+  ],
+  "status_max_latency_ms": 6.78,
+  "external_control_unchanged": true,
+  "delete_directory_success_receipts": 9,
+  "native_local_unc_same_identity": true,
+  "native_local_unc_overlap": true,
+  "fixture_cleaned": true
+}
