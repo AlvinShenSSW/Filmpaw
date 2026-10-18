@@ -1,0 +1,169 @@
+{
+  "pageErrors": [],
+  "desktopScreensChecked": [
+    "1200x800:choose",
+    "1200x800:ready",
+    "1200x800:conflict",
+    "1200x800:progress",
+    "1200x800:done",
+    "1200x800:partial",
+    "1200x800:offline",
+    "960x640:choose",
+    "960x640:ready",
+    "960x640:conflict",
+    "960x640:progress",
+    "960x640:done",
+    "960x640:partial",
+    "960x640:offline"
+  ],
+  "functionalChecks": "target, selection, sort, transfer, conflict, stop, inventory persistence, partial cleanup, batch change, keyboard, reduced motion, narrow layout passed",
+  "artifacts": "overview and 14 desktop state screenshots",
+  "compactHeaderReview": {
+    "pageErrors": [],
+    "measurements": [
+      {
+        "size": "1440x960",
+        "before": {
+          "top": 232,
+          "actor": 176,
+          "list": 406
+        },
+        "after": {
+          "top": 121,
+          "actor": 82,
+          "list": 517
+        }
+      },
+      {
+        "size": "1200x800",
+        "before": {
+          "top": 230,
+          "actor": 176,
+          "list": 256
+        },
+        "after": {
+          "top": 121,
+          "actor": 82,
+          "list": 365
+        }
+      },
+      {
+        "size": "960x640",
+        "before": {
+          "top": 176,
+          "actor": 132,
+          "list": 177
+        },
+        "after": {
+          "top": 98,
+          "actor": 63,
+          "list": 254
+        }
+      }
+    ],
+    "layoutChecks": "All seven states checked at 1440x960, 1200x800, 960x640; no horizontal overflow or clipped buttons; footers visible",
+    "interactionChecks": "Full path, dual-open preview, selection, unchanged candidate portrait, narrow layouts passed"
+  },
+  "fullscreenReview": {
+    "pageErrors": [],
+    "desktopScreensChecked": [
+      "1200x800:review:choose",
+      "1200x800:review:ready",
+      "1200x800:review:conflict",
+      "1200x800:review:progress",
+      "1200x800:review:done",
+      "1200x800:review:partial",
+      "1200x800:review:offline",
+      "1200x800:maximized:choose",
+      "1200x800:maximized:ready",
+      "1200x800:maximized:conflict",
+      "1200x800:maximized:progress",
+      "1200x800:maximized:done",
+      "1200x800:maximized:partial",
+      "1200x800:maximized:offline",
+      "1920x1080:review:choose",
+      "1920x1080:review:ready",
+      "1920x1080:review:conflict",
+      "1920x1080:review:progress",
+      "1920x1080:review:done",
+      "1920x1080:review:partial",
+      "1920x1080:review:offline",
+      "1920x1080:maximized:choose",
+      "1920x1080:maximized:ready",
+      "1920x1080:maximized:conflict",
+      "1920x1080:maximized:progress",
+      "1920x1080:maximized:done",
+      "1920x1080:maximized:partial",
+      "1920x1080:maximized:offline",
+      "2560x1440:review:choose",
+      "2560x1440:review:ready",
+      "2560x1440:review:conflict",
+      "2560x1440:review:progress",
+      "2560x1440:review:done",
+      "2560x1440:review:partial",
+      "2560x1440:review:offline",
+      "2560x1440:maximized:choose",
+      "2560x1440:maximized:ready",
+      "2560x1440:maximized:conflict",
+      "2560x1440:maximized:progress",
+      "2560x1440:maximized:done",
+      "2560x1440:maximized:partial",
+      "2560x1440:maximized:offline"
+    ],
+    "measurements": [
+      {
+        "viewport": "1200x800",
+        "mode": "review",
+        "listWidth": 410,
+        "listHeight": 228,
+        "rowHeight": 62,
+        "headerHeight": 121
+      },
+      {
+        "viewport": "1200x800",
+        "mode": "maximized",
+        "listWidth": 437,
+        "listHeight": 365,
+        "rowHeight": 62,
+        "headerHeight": 121
+      },
+      {
+        "viewport": "1920x1080",
+        "mode": "review",
+        "listWidth": 755,
+        "listHeight": 500,
+        "rowHeight": 65,
+        "headerHeight": 121
+      },
+      {
+        "viewport": "1920x1080",
+        "mode": "maximized",
+        "listWidth": 782,
+        "listHeight": 637,
+        "rowHeight": 65,
+        "headerHeight": 121
+      },
+      {
+        "viewport": "2560x1440",
+        "mode": "review",
+        "listWidth": 1075,
+        "listHeight": 860,
+        "rowHeight": 65,
+        "headerHeight": 121
+      },
+      {
+        "viewport": "2560x1440",
+        "mode": "maximized",
+        "listWidth": 1102,
+        "listHeight": 997,
+        "rowHeight": 65,
+        "headerHeight": 121
+      }
+    ],
+    "interactionChecks": "Maximize/restore, 1200 -> 1920 -> 2560 -> 1200 resize, retained selection/target/sort, independent scrolling with 80 added rows per side, keyboard toggle, browser Fullscreen API passed",
+    "artifacts": [
+      "ready-fullscreen-1920.png",
+      "ready-fullscreen-2560.png"
+    ]
+  }
+}

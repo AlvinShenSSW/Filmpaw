@@ -3,7 +3,7 @@
 
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "./theme";
@@ -19,6 +19,12 @@ vi.mock("./client", () => ({
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
+vi.mock("./archiveApi", () => ({
+  getLatestTransfer: vi.fn().mockResolvedValue(null),
+  createTransfer: vi.fn(),
+  stopTransfer: vi.fn(),
+  isTransferActive: () => false,
+}));
 
 import { ArchivePage } from "./ArchivePage";
 import {
@@ -28,6 +34,7 @@ import {
 } from "./client";
 import { openArchivePair } from "./openTarget";
 import { pickDirectory } from "./pickDirectory";
+import { TransferProvider } from "./TransferProvider";
 
 const REC = {
   id: "a3f2aaaa-0000-0000-0000-000000000001",
@@ -59,7 +66,9 @@ function renderPage() {
   return render(
     <QueryClientProvider client={qc}>
       <ThemeProvider theme={theme}>
-        <ArchivePage />
+        <TransferProvider>
+          <ArchivePage />
+        </TransferProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   );
@@ -331,5 +340,65 @@ describe("local dir refresh (#25)", () => {
     } as never);
     renderPage();
     expect(await screen.findByRole("button", { name: "刷新本地目录" })).toBeDisabled();
+  });
+});
+
+describe("local actor directory retries", () => {
+  beforeEach(() => {
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockClear();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+  const tick = async (ms: number) => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  };
+
+  it("retries a 503 and restores folders automatically", async () => {
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValueOnce({
+      error: { detail: "目录暂时忙" },
+      response: { status: 503 },
+    } as never);
+    renderPage();
+    await tick(1);
+    expect(screen.getByRole("status", { name: "本地目录重试" })).toHaveTextContent("1 / 3");
+    expect(screen.queryByText("该目录下没有子文件夹")).not.toBeInTheDocument();
+    await tick(1000);
+    expect(localSubdirsApiLocalSubdirsGet).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: /^小红$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: "本地目录重试" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the selected actor through a transient refresh", async () => {
+    renderPage();
+    await tick(1);
+    fireEvent.click(screen.getByRole("button", { name: /^小红$/ }));
+    await tick(301);
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValueOnce({
+      error: { detail: "NAS 首次响应较慢" },
+      response: { status: 503 },
+    } as never);
+    fireEvent.click(screen.getByRole("button", { name: "刷新本地目录" }));
+    await tick(1);
+    expect(screen.getByRole("button", { name: /^小红$/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /双开/ })[0]).toBeEnabled();
+    await tick(1000);
+    expect(screen.getByLabelText("匹配搜索")).toHaveValue("小红");
+    expect(screen.getAllByRole("button", { name: /双开/ })[0]).toBeEnabled();
+  });
+
+  it("aborts and cancels a waiting retry when the page unmounts", async () => {
+    vi.mocked(localSubdirsApiLocalSubdirsGet).mockResolvedValue({
+      error: { detail: "目录暂时忙" },
+      response: { status: 503 },
+    } as never);
+    const view = renderPage();
+    await tick(1);
+    const signal = vi.mocked(localSubdirsApiLocalSubdirsGet).mock.calls[0][0]?.signal;
+    view.unmount();
+    expect(signal?.aborted).toBe(true);
+    await tick(20_000);
+    expect(localSubdirsApiLocalSubdirsGet).toHaveBeenCalledTimes(1);
   });
 });

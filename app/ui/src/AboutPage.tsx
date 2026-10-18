@@ -18,8 +18,8 @@ import { getSettingsApiSettingsGet, healthApiHealthGet } from "./client";
 import { tokens } from "./theme";
 
 export const ABOUT_INTRO =
-  "Filmpaw 索引多个 NAS 的表演者一级目录, 支持别名与繁简搜索, 并双开本地与选定的 NAS 目录, " +
-  "便于人工核对。索引默认存入本机 SQLite; 不含云同步、遥测或第三方上传。";
+  "Filmpaw 索引多个 NAS 的表演者一级目录，支持别名与繁简搜索、双开核对，" +
+  "并按你的选择将整部影片从本地归档到 NAS。索引与任务存于本机；不含云同步或遥测。";
 
 export type VersionState =
   | { kind: "loading" }

@@ -8,6 +8,13 @@ from PIL import Image
 from filmpaw_server.app import create_app
 from filmpaw_server.db import connect
 
+SESSION_TOKEN = "a" * 64
+
+
+@pytest.fixture(autouse=True)
+def session_environment(monkeypatch):
+    monkeypatch.setenv("FILMPAW_SESSION_TOKEN", SESSION_TOKEN)
+
 
 @pytest.fixture()
 def db(tmp_path: Path) -> sqlite3.Connection:
@@ -19,7 +26,7 @@ def db(tmp_path: Path) -> sqlite3.Connection:
 @pytest.fixture()
 def client(tmp_path: Path) -> TestClient:
     app = create_app(db_path=tmp_path / "api.db")
-    with TestClient(app) as c:
+    with TestClient(app, headers={"X-Filmpaw-Session": SESSION_TOKEN}) as c:
         yield c
 
 

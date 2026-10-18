@@ -84,9 +84,10 @@ def test_hidden_and_files_ignored(db, source_dir, tmp_path) -> None:
     (source_dir / ".hidden_dir").mkdir()
     (source_dir / "not_a_dir.txt").write_text("x")
     if sys.platform == "win32":
-        hidden = source_dir / "SysHidden"
-        hidden.mkdir()
-        ctypes.windll.kernel32.SetFileAttributesW(str(hidden), 0x2)  # FILE_ATTRIBUTE_HIDDEN
+        for name, attributes in [("Hidden", 0x2), ("System", 0x4), ("Both", 0x6)]:
+            hidden = source_dir / name
+            hidden.mkdir()
+            assert ctypes.windll.kernel32.SetFileAttributesW(str(hidden), attributes)
     names = list_subdirs(str(source_dir))
     assert names == ["E子"]
 

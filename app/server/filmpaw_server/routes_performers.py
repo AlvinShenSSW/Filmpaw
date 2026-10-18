@@ -17,16 +17,20 @@ import os
 import sqlite3
 import subprocess
 import sys
+import threading
+import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
 
 from filmpaw_server.normalize import normalize
+from filmpaw_server.directory_reads import directory_error_retryable
 from filmpaw_server.scan import SourceUnreachable, list_subdirs
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api")
+_local_directory_read_lock = threading.Lock()
 
 PAGE_SIZE_DEFAULT = 50
 PAGE_SIZE_MAX = 200
@@ -371,6 +375,13 @@ def put_settings(request: Request, body: SettingsIn) -> dict:
             raise HTTPException(status_code=400, detail="不能选择磁盘根目录")
     conn = _conn(request)
     with _lock(request):
+        previous = conn.execute("SELECT value FROM settings WHERE key='last_local_dir'").fetchone()
+        if (previous["value"] if previous else None) != value:
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES ('last_local_dir_revision', ?)"
+                " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (uuid.uuid4().hex,),
+            )
         conn.execute(
             "INSERT INTO settings(key, value) VALUES ('last_local_dir', ?)"
             " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
@@ -467,10 +478,16 @@ def resolve_performer(request: Request, performer_id: str) -> dict:
 
 @router.get("/local/subdirs", response_model=SubdirsOut)
 def local_subdirs(path: str) -> dict:
+    if not _local_directory_read_lock.acquire(blocking=False):
+        raise HTTPException(status_code=503, detail="目录仍在读取，请稍候重试")
     try:
         names = list_subdirs(path)
-    except SourceUnreachable:
+    except SourceUnreachable as exc:
+        if directory_error_retryable(exc.__cause__):
+            raise HTTPException(status_code=503, detail="目录暂时不可达，请稍候重试") from None
         raise HTTPException(status_code=422, detail="目录不存在或不可访问") from None
+    finally:
+        _local_directory_read_lock.release()
     return {"path": path, "subdirs": names}
 
 

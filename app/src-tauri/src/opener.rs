@@ -38,7 +38,7 @@ pub struct ApiError {
 }
 
 impl ApiError {
-    fn local(detail: impl Into<String>) -> Self {
+    pub(crate) fn local(detail: impl Into<String>) -> Self {
         // 0 = never reached the server (connect/timeout/malformed reply). The UI
         // shows `detail`; the status only distinguishes local from server-sent.
         Self {
@@ -62,7 +62,16 @@ pub trait Launcher {
 /// `Connection: close` makes the body end at EOF, so no chunked/keep-alive
 /// parsing is needed. Any non-2xx — including a 3xx, which is never followed —
 /// comes back as an `ApiError`.
-pub fn post_json(port: u16, path: &str, body: &str, timeout: Duration) -> Result<String, ApiError> {
+pub fn post_json(
+    port: u16,
+    session_token: &str,
+    path: &str,
+    body: &str,
+    timeout: Duration,
+) -> Result<String, ApiError> {
+    if !crate::lifecycle::valid_session_token(session_token) {
+        return Err(ApiError::local("本地服务会话凭据无效，请重启应用"));
+    }
     let addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port));
     let mut stream = TcpStream::connect_timeout(&addr, timeout)
         .map_err(|e| ApiError::local(format!("无法连接本地服务: {e}")))?;
@@ -73,6 +82,7 @@ pub fn post_json(port: u16, path: &str, body: &str, timeout: Duration) -> Result
 
     let req = format!(
         "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n\
+         X-Filmpaw-Session: {session_token}\r\n\
          Content-Length: {len}\r\nConnection: close\r\n\r\n{body}",
         len = body.len()
     );
@@ -147,12 +157,13 @@ fn encode_segment(s: &str) -> String {
 /// the fire-and-forget behaviour the UI already relies on.
 pub fn open_performer_with<L: Launcher>(
     port: u16,
+    session_token: &str,
     performer_id: &str,
     launcher: &L,
     timeout: Duration,
 ) -> Result<(), ApiError> {
     let path = format!("/api/performers/{}/resolve", encode_segment(performer_id));
-    let payload = post_json(port, &path, "", timeout)?;
+    let payload = post_json(port, session_token, &path, "", timeout)?;
     let target = field(&payload, "performer_path")?;
     if let Err(e) = launcher.open(&target) {
         eprintln!("[filmpaw] could not open {target}: {e}");
@@ -164,13 +175,14 @@ pub fn open_performer_with<L: Launcher>(
 /// attempted: one failing must not cost the user the other window.
 pub fn open_pair_with<L: Launcher>(
     port: u16,
+    session_token: &str,
     subdir: &str,
     performer_id: &str,
     launcher: &L,
     timeout: Duration,
 ) -> Result<(), ApiError> {
     let body = serde_json::json!({ "subdir": subdir, "performer_id": performer_id }).to_string();
-    let payload = post_json(port, "/api/resolve-pair", &body, timeout)?;
+    let payload = post_json(port, session_token, "/api/resolve-pair", &body, timeout)?;
     let local = field(&payload, "local_path")?;
     let performer = field(&payload, "performer_path")?;
     for target in [&local, &performer] {
@@ -248,6 +260,8 @@ mod tests {
     use std::net::TcpListener;
     use std::sync::{Arc, Mutex};
 
+    const TOKEN: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
     /// Records what would have been opened; can be told to fail for chosen paths.
     #[derive(Default)]
     struct FakeLauncher {
@@ -317,6 +331,12 @@ mod tests {
             }
             std::thread::sleep(delay);
             let _ = sock.write_all(response.as_bytes());
+            // Finish the response with FIN, then let the client close before
+            // dropping the last socket handle. Immediate closesocket after a
+            // write can reset the connection on Windows under parallel tests.
+            sock.set_read_timeout(Some(TIMEOUT)).unwrap();
+            let _ = sock.shutdown(std::net::Shutdown::Write);
+            let _ = reader.read_to_end(&mut Vec::new());
             request
         });
         (port, handle)
@@ -340,12 +360,13 @@ mod tests {
             .into_boxed_str(),
         ));
         let (l, opened) = fake(None);
-        assert!(open_performer_with(port, "abc-123", &l, TIMEOUT).is_ok());
+        assert!(open_performer_with(port, TOKEN, "abc-123", &l, TIMEOUT).is_ok());
         let req = h.join().unwrap();
         assert!(
             req.starts_with("POST /api/performers/abc-123/resolve HTTP/1.1"),
             "{req}"
         );
+        assert!(req.contains("X-Filmpaw-Session: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\r\n"));
         assert_eq!(*opened.lock().unwrap(), vec![r"\\Ant\Video Station\Lisa"]);
     }
 
@@ -359,7 +380,7 @@ mod tests {
             .into_boxed_str(),
         ));
         let (l, opened) = fake(None);
-        assert!(open_pair_with(port, "胡桃さくら,新井リマ", "pid-9", &l, TIMEOUT).is_ok());
+        assert!(open_pair_with(port, TOKEN, "胡桃さくら,新井リマ", "pid-9", &l, TIMEOUT).is_ok());
         let req = h.join().unwrap();
         assert!(req.starts_with("POST /api/resolve-pair HTTP/1.1"), "{req}");
         // The shell must never send a PATH — only the subdir name and the id.
@@ -384,7 +405,7 @@ mod tests {
             http("200 OK", r#"{"performer_path":"C:\\x"}"#).into_boxed_str(),
         ));
         let (l, _) = fake(None);
-        let _ = open_performer_with(port, "a b/../c", &l, TIMEOUT);
+        let _ = open_performer_with(port, TOKEN, "a b/../c", &l, TIMEOUT);
         let req = h.join().unwrap();
         assert!(
             req.starts_with("POST /api/performers/a%20b%2F..%2Fc/resolve"),
@@ -409,7 +430,7 @@ mod tests {
             let body = format!(r#"{{"detail":"{detail}"}}"#);
             let (port, _h) = serve(Box::leak(http(status, &body).into_boxed_str()));
             let (l, opened) = fake(None);
-            let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+            let err = open_performer_with(port, TOKEN, "x", &l, TIMEOUT).unwrap_err();
             assert_eq!(
                 err,
                 ApiError {
@@ -429,12 +450,18 @@ mod tests {
         let (port, _h) =
             serve("HTTP/1.1 302 Found\r\nLocation: http://evil/\r\nConnection: close\r\n\r\n");
         let (l, opened) = fake(None);
-        let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+        let err = open_performer_with(port, TOKEN, "x", &l, TIMEOUT).unwrap_err();
         assert_eq!(err.status, 302);
         assert!(opened.lock().unwrap().is_empty());
     }
 
     // -------------------------------------------------- malformed / no server
+
+    #[test]
+    fn invalid_session_never_reaches_the_network() {
+        let error = post_json(0, "bad\r\nOther: injected", "/api/x", "{}", TIMEOUT).unwrap_err();
+        assert!(error.detail.contains("会话凭据无效"));
+    }
 
     #[test]
     fn malformed_or_incomplete_responses_never_launch() {
@@ -448,7 +475,7 @@ mod tests {
         for resp in cases {
             let (port, _h) = serve(resp);
             let (l, opened) = fake(None);
-            let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+            let err = open_performer_with(port, TOKEN, "x", &l, TIMEOUT).unwrap_err();
             assert_eq!(err.status, 0, "{resp}");
             assert!(opened.lock().unwrap().is_empty(), "{resp}");
         }
@@ -462,14 +489,14 @@ mod tests {
                        1e\r\n{\"performer_path\":\"C:\\\\x\"}\r\n0\r\n\r\n";
         let (port, _h) = serve(chunked);
         let (l, opened) = fake(None);
-        let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+        let err = open_performer_with(port, TOKEN, "x", &l, TIMEOUT).unwrap_err();
         assert!(err.detail.contains("分块传输编码"), "{}", err.detail);
         assert!(opened.lock().unwrap().is_empty());
 
         let cont = "HTTP/1.1 100 Continue\r\nConnection: close\r\n\r\n";
         let (port, _h) = serve(cont);
         let (l, opened) = fake(None);
-        let err = open_performer_with(port, "x", &l, TIMEOUT).unwrap_err();
+        let err = open_performer_with(port, TOKEN, "x", &l, TIMEOUT).unwrap_err();
         assert!(err.detail.contains("中间响应"), "{}", err.detail);
         assert!(opened.lock().unwrap().is_empty());
     }
@@ -483,7 +510,8 @@ mod tests {
             .unwrap()
             .port();
         let (l, opened) = fake(None);
-        let err = open_performer_with(port, "x", &l, Duration::from_millis(500)).unwrap_err();
+        let err =
+            open_performer_with(port, TOKEN, "x", &l, Duration::from_millis(500)).unwrap_err();
         assert_eq!(err.status, 0);
         assert!(err.detail.contains("无法连接本地服务"), "{}", err.detail);
         assert!(opened.lock().unwrap().is_empty());
@@ -496,7 +524,8 @@ mod tests {
             Duration::from_secs(3),
         );
         let (l, opened) = fake(None);
-        let err = open_performer_with(port, "x", &l, Duration::from_millis(300)).unwrap_err();
+        let err =
+            open_performer_with(port, TOKEN, "x", &l, Duration::from_millis(300)).unwrap_err();
         assert_eq!(err.status, 0);
         assert!(opened.lock().unwrap().is_empty());
     }
@@ -514,7 +543,8 @@ mod tests {
         ));
         let (l, opened) = fake(Some("C:\\local")); // first one blows up
                                                    // Server validation succeeded, so the click is NOT reported as an error.
-        assert!(open_pair_with(port, "sub", "pid", &l, TIMEOUT).is_ok());
+        let result = open_pair_with(port, TOKEN, "sub", "pid", &l, TIMEOUT);
+        assert!(result.is_ok(), "{result:?}");
         assert_eq!(*opened.lock().unwrap(), vec![r"C:\local", r"\\nas\perf"]);
     }
 }

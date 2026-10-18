@@ -11,8 +11,11 @@ import {
   Link,
   Outlet,
   RouterProvider,
+  useNavigate,
 } from "@tanstack/react-router";
+import { ExitCoordinator } from "./ExitCoordinator";
 import { AboutPage, ArchivePage, PerformersPage, SettingsPage } from "./pages";
+import { TransferProvider, TransferStatusBar } from "./TransferProvider";
 import { RAIL_WIDTH, tokens } from "./theme";
 
 /** One nav item = ONE interactive element.
@@ -74,41 +77,52 @@ function RailButton({
 }
 
 function Shell() {
+  const navigate = useNavigate();
   return (
-    <Box sx={{ display: "flex", height: "100vh" }}>
-      <Box
-        component="nav"
-        aria-label="主导航"
-        sx={{
-          width: RAIL_WIDTH,
-          flexShrink: 0,
-          borderRight: `1px solid ${tokens.line}`,
-          bgcolor: "background.paper",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          py: 1.5,
-          gap: 1,
-        }}
-      >
-        <RailButton to="/" label="表演者库">
-          <GroupsIcon fontSize="small" />
-        </RailButton>
-        <RailButton to="/archive" label="归档对比">
-          <SwapHorizIcon fontSize="small" />
-        </RailButton>
-        <Box sx={{ flex: 1 }} />
-        <RailButton to="/settings" label="设置">
-          <SettingsIcon fontSize="small" />
-        </RailButton>
-        <RailButton to="/about" label="关于">
-          <InfoOutlinedIcon fontSize="small" />
-        </RailButton>
+    <TransferProvider>
+      <Box sx={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
+        <Box
+          component="nav"
+          aria-label="主导航"
+          sx={{
+            width: RAIL_WIDTH,
+            flexShrink: 0,
+            borderRight: `1px solid ${tokens.line}`,
+            bgcolor: "background.paper",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            py: 1.5,
+            gap: 1,
+          }}
+        >
+          <RailButton to="/" label="表演者库">
+            <GroupsIcon fontSize="small" />
+          </RailButton>
+          <RailButton to="/archive" label="归档对比">
+            <SwapHorizIcon fontSize="small" />
+          </RailButton>
+          <Box sx={{ flex: 1 }} />
+          <RailButton to="/settings" label="设置">
+            <SettingsIcon fontSize="small" />
+          </RailButton>
+          <RailButton to="/about" label="关于">
+            <InfoOutlinedIcon fontSize="small" />
+          </RailButton>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <Box component="main" sx={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
+            <Outlet />
+          </Box>
+          <TransferStatusBar
+            onViewArchive={() => {
+              void navigate({ to: "/archive" });
+            }}
+          />
+        </Box>
       </Box>
-      <Box component="main" sx={{ flex: 1, minWidth: 0, overflow: "auto" }}>
-        <Outlet />
-      </Box>
-    </Box>
+      <ExitCoordinator />
+    </TransferProvider>
   );
 }
 

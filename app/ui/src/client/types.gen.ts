@@ -29,6 +29,104 @@ export type AliasOut = {
 };
 
 /**
+ * ContextIn
+ */
+export type ContextIn = {
+    /**
+     * Local Dir
+     */
+    local_dir: string;
+    /**
+     * Subdir
+     */
+    subdir: string;
+    /**
+     * Performer Id
+     */
+    performer_id: string;
+};
+
+/**
+ * ContextOut
+ */
+export type ContextOut = {
+    /**
+     * Local Dir
+     */
+    local_dir: string;
+    /**
+     * Subdir
+     */
+    subdir: string;
+    /**
+     * Performer Id
+     */
+    performer_id: string;
+    /**
+     * Performer Name
+     */
+    performer_name: string;
+    /**
+     * Source Label
+     */
+    source_label?: string | null;
+    /**
+     * Has Thumb
+     */
+    has_thumb?: boolean;
+    /**
+     * Source Path
+     */
+    source_path: string;
+    /**
+     * Target Path
+     */
+    target_path: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Source Items
+     */
+    source_items: Array<MovieOut>;
+    /**
+     * Target Items
+     */
+    target_items: Array<MovieOut>;
+    /**
+     * Source Error
+     */
+    source_error?: string | null;
+    /**
+     * Target Error
+     */
+    target_error?: string | null;
+    /**
+     * Source Retryable
+     */
+    source_retryable?: boolean;
+    /**
+     * Target Retryable
+     */
+    target_retryable?: boolean;
+};
+
+/**
+ * ExitOut
+ */
+export type ExitOut = {
+    /**
+     * Safe
+     */
+    safe: boolean;
+    /**
+     * Task Id
+     */
+    task_id?: string | null;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -50,6 +148,28 @@ export type HealthOut = {
      * Version
      */
     version: string;
+};
+
+/**
+ * MovieOut
+ */
+export type MovieOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number | null;
+    /**
+     * Files
+     */
+    files?: number | null;
+    /**
+     * Error
+     */
+    error?: string | null;
 };
 
 /**
@@ -314,6 +434,156 @@ export type SubdirsOut = {
      * Subdirs
      */
     subdirs: Array<string>;
+};
+
+/**
+ * TaskOut
+ */
+export type TaskOut = {
+    /**
+     * Local Dir
+     */
+    local_dir: string;
+    /**
+     * Subdir
+     */
+    subdir: string;
+    /**
+     * Performer Id
+     */
+    performer_id: string;
+    /**
+     * Performer Name
+     */
+    performer_name: string;
+    /**
+     * Source Label
+     */
+    source_label?: string | null;
+    /**
+     * Has Thumb
+     */
+    has_thumb?: boolean;
+    /**
+     * Source Path
+     */
+    source_path: string;
+    /**
+     * Target Path
+     */
+    target_path: string;
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Context Id
+     */
+    context_id: string;
+    /**
+     * Status
+     */
+    status: 'queued' | 'running' | 'completed' | 'stopped' | 'failed' | 'needs_review';
+    /**
+     * Phase
+     */
+    phase: string;
+    /**
+     * Current Name
+     */
+    current_name?: string | null;
+    /**
+     * Progress Bytes
+     */
+    progress_bytes?: number;
+    /**
+     * Total Bytes
+     */
+    total_bytes?: number;
+    /**
+     * Verified Bytes
+     */
+    verified_bytes?: number;
+    /**
+     * Completed Count
+     */
+    completed_count?: number;
+    /**
+     * Total Count
+     */
+    total_count: number;
+    /**
+     * Conflicts
+     */
+    conflicts?: Array<string>;
+    /**
+     * Message
+     */
+    message?: string | null;
+    /**
+     * Stop Requested
+     */
+    stop_requested?: boolean;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at: string;
+    /**
+     * Items
+     */
+    items: Array<TransferItemOut>;
+};
+
+/**
+ * TransferIn
+ */
+export type TransferIn = {
+    /**
+     * Context Id
+     */
+    context_id: string;
+    /**
+     * Names
+     */
+    names: Array<string>;
+    /**
+     * Request Id
+     */
+    request_id: string;
+};
+
+/**
+ * TransferItemOut
+ */
+export type TransferItemOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: string;
+    /**
+     * Size Bytes
+     */
+    size_bytes?: number;
+    /**
+     * Progress Bytes
+     */
+    progress_bytes?: number;
+    /**
+     * Message
+     */
+    message?: string | null;
 };
 
 /**
@@ -907,3 +1177,147 @@ export type ResolvePairApiResolvePairPostResponses = {
 };
 
 export type ResolvePairApiResolvePairPostResponse = ResolvePairApiResolvePairPostResponses[keyof ResolvePairApiResolvePairPostResponses];
+
+export type CreateContextApiArchiveContextsPostData = {
+    body: ContextIn;
+    path?: never;
+    query?: never;
+    url: '/api/archive/contexts';
+};
+
+export type CreateContextApiArchiveContextsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateContextApiArchiveContextsPostError = CreateContextApiArchiveContextsPostErrors[keyof CreateContextApiArchiveContextsPostErrors];
+
+export type CreateContextApiArchiveContextsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: ContextOut;
+};
+
+export type CreateContextApiArchiveContextsPostResponse = CreateContextApiArchiveContextsPostResponses[keyof CreateContextApiArchiveContextsPostResponses];
+
+export type CreateTransferApiArchiveTransfersPostData = {
+    body: TransferIn;
+    path?: never;
+    query?: never;
+    url: '/api/archive/transfers';
+};
+
+export type CreateTransferApiArchiveTransfersPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTransferApiArchiveTransfersPostError = CreateTransferApiArchiveTransfersPostErrors[keyof CreateTransferApiArchiveTransfersPostErrors];
+
+export type CreateTransferApiArchiveTransfersPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: TaskOut;
+};
+
+export type CreateTransferApiArchiveTransfersPostResponse = CreateTransferApiArchiveTransfersPostResponses[keyof CreateTransferApiArchiveTransfersPostResponses];
+
+export type LatestTransferApiArchiveTransfersLatestGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/archive/transfers/latest';
+};
+
+export type LatestTransferApiArchiveTransfersLatestGetResponses = {
+    /**
+     * Response Latest Transfer Api Archive Transfers Latest Get
+     *
+     * Successful Response
+     */
+    200: TaskOut | null;
+};
+
+export type LatestTransferApiArchiveTransfersLatestGetResponse = LatestTransferApiArchiveTransfersLatestGetResponses[keyof LatestTransferApiArchiveTransfersLatestGetResponses];
+
+export type GetTransferApiArchiveTransfersTaskIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/archive/transfers/{task_id}';
+};
+
+export type GetTransferApiArchiveTransfersTaskIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTransferApiArchiveTransfersTaskIdGetError = GetTransferApiArchiveTransfersTaskIdGetErrors[keyof GetTransferApiArchiveTransfersTaskIdGetErrors];
+
+export type GetTransferApiArchiveTransfersTaskIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskOut;
+};
+
+export type GetTransferApiArchiveTransfersTaskIdGetResponse = GetTransferApiArchiveTransfersTaskIdGetResponses[keyof GetTransferApiArchiveTransfersTaskIdGetResponses];
+
+export type StopTransferApiArchiveTransfersTaskIdStopPostData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/archive/transfers/{task_id}/stop';
+};
+
+export type StopTransferApiArchiveTransfersTaskIdStopPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type StopTransferApiArchiveTransfersTaskIdStopPostError = StopTransferApiArchiveTransfersTaskIdStopPostErrors[keyof StopTransferApiArchiveTransfersTaskIdStopPostErrors];
+
+export type StopTransferApiArchiveTransfersTaskIdStopPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TaskOut;
+};
+
+export type StopTransferApiArchiveTransfersTaskIdStopPostResponse = StopTransferApiArchiveTransfersTaskIdStopPostResponses[keyof StopTransferApiArchiveTransfersTaskIdStopPostResponses];
+
+export type PrepareExitApiArchivePrepareExitPostData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/archive/prepare-exit';
+};
+
+export type PrepareExitApiArchivePrepareExitPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: ExitOut;
+};
+
+export type PrepareExitApiArchivePrepareExitPostResponse = PrepareExitApiArchivePrepareExitPostResponses[keyof PrepareExitApiArchivePrepareExitPostResponses];

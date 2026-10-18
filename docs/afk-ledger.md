@@ -151,3 +151,60 @@
 
 ## v1.5 运行结束 (2026-07-26)
 #31(前台激活)、0.4.0 版本、#34(关于页 + 文档同步)全部 merged。调度器/心跳待清理。
+
+## Issue #36 运行（2026-10-18）
+
+- 范围：已审阅的归档传输 UI 与整影片文件夹单向移动；紧凑演员头部、最大化双栏自适应。
+- 操作者明确指定 **Codex 主导 / Kimi K3 单外门**，覆盖默认双评审流程；不是服务降级。
+- 合并策略：`leave-open`；不自动合并、不部署。分支 `feat/36-archive-transfer`。
+- [设计文档](specs/2026-10-18-archive-transfer-design.md) 已完成两轮设计质询；
+  采用上下文绑定、持久串行任务、SHA-256 核对、不覆盖提交、精确源清理和原子退出 admission。
+- 已启动本地 30 分钟续跑 relay（仅本轮 `.git/afk-36/` 状态，活动主会话有租约，避免并发写树）；结束时清理。
+- TDD：前端首批用例、引擎测试、鉴权/迁移用例均先观察到 RED；首批 API/迁移/既有服务回归 47 项通过。
+- 当前阶段：实现与集成验证；CI、CTO 和 Kimi 外门尚未完成。
+- 实现集成：服务 125 passed / 1 skipped（缺少普通 symlink 创建权限，junction 实测通过），
+  UI 100 passed + typecheck/Biome，Rust 21 passed。实际 UI/服务端 E2E 与 4 种窗口尺寸通过。
+- 真实 SMB 回环临时目录完成 32 MiB 影片移动，另验证长路径不支持时保源失败。
+  不把本机回环结果等同于所有远程 NAS 的断网/大文件验收。
+- 自查收紧：OS 单库会话锁、batch revision、原地 reparse 防护、journal 保存失败后的安全退出、
+  实际 Python worker 句柄（不以 uv/onefile wrapper 死亡误判）。版本同步 0.5.0。
+- 初版实现 `27547a9` 已推送为 [PR #37](https://github.com/AlvinShenSSW/Filmpaw/pull/37)，
+  [Windows CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39100278871) 全绿，NSIS 已产出。
+- 用户追加 NAS 暂时不可读时目录自动重试：仅只读请求 1 / 2 / 4 秒退避、最多三次；
+  明确瞬错标志、后台读锁限制并发、切上下文取消、失败保留列表且禁止传输，不自动重放移动。
+  后端 151 passed / 1 skipped；UI 109 passed、类型/Biome 与构建通过；浏览器注入
+  HTTP 503 和局部 NAS 错误后真实恢复（1.031 / 2.032 秒），未提前提交传输。
+- 补充 2049 MiB 单影片 SMB 回环成功及独立摘要核对；冻结 sidecar 0.5.0 握手/鉴权、
+  启动器死亡但 worker 存活、真实 worker 回收与超时清理通过，打包后 Rust 21 passed。
+  初次超时探针有一个独立测试目录删除被工具 `rejected: blocked by policy` 拒绝；
+  保留测试解包文件及隔离 DB/锁文件，没有绕过。后续探针已验证正常/超时均无新增残留。
+- 当前等待追加需求提交的 CI，再完成 CTO 结论和 Kimi K3 单外门；尚未合并。
+- 追加需求提交 `149db4c` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39101353070)
+  全绿。自查用定点 RED 试验确认并修复两处浏览器离线状态边界：目录读取 paused 时禁用
+  传输并提示等待连接；任务状态、提交和停止 RPC 不依赖浏览器在线标记，写请求明确不自动重试。
+  修复后全 UI 113 passed，typecheck/Biome 和生产构建通过；服务和 Rust 无变动。
+- `45dd517` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39101799494) 全绿，
+  CTO 自检后进入 Kimi K3（实际 `kimi-code/k3` / `k3`）唯一外门。首个 CLI 调用达到 20 分钟
+  上限未输出结论，门脚本误把 stderr 中的认证相关文字标成 SKIPPED；核对会话记录排除
+  登录/配额问题，改本轮临时适配器优先报告执行错误，并接续同一会话取得正式结论。
+- Kimi 第一轮 **REQUEST CHANGES**，一条 P2：`_is_hidden` 吞掉逐项 stat 错误，使不完整列表
+  返回成功且扫描可能误标演员缺失。接受并移除吞错，4 个新增 RED 用例转绿；相关 42 项通过。
+- 实现者另以真实 NTFS 夹具复现 ADS 附加内容丢失，新增按确切句柄核验的保源拒绝策略。
+  11 项真实 NTFS 用例覆盖预检、复制后、提交后、最终删除前新增附加流与未选中资料对照；
+  不宣称能原子阻止敌对并发新增流。完整服务回归 166 passed / 1 skipped，补跑 32 MiB
+  实际 SMB 移动与独立摘要通过。等待本批 CI 后重新完成 CTO 和 K3 修复核对。
+- 修复提交 `4639355` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39104073308)
+  全绿（含 NSIS）。CTO：**APPROVE WITH NON-BLOCKING COMMENTS**；Kimi K3 复审：
+  **APPROVE / CLEAN**，没有高置信度可操作问题，另实际执行 12 项针对回归通过。
+  [完整评审记录](evidence/issue-36/review.md) 保留原文、确认修复和已知边界。
+  本轮实现及外门完成，交付 PR #37，策略仍为 `leave-open`；最终记录提交仅更新文档，
+  最新检查和开放状态以 PR 为准，收尾时关闭本轮本地 relay。
+- 操作者追加交付要求：exe 放桌面，版本增加一个补丁号。交付版本改为 **0.5.1**，
+  同步 Tauri / Cargo、UI、Python 项目/锁文件、服务版本与 OpenAPI；不改变已获 K3
+  APPROVE 的实现逻辑。重新运行 Windows CI 并生成 NSIS，成功后复制到系统桌面目录，
+  不安装、不合并。最终产物及 CI 记录在 PR #37，原 0.5.0 测试证据保留其真实版本。
+- 0.5.1 首次 CI `39105464463` 在原有双开 Rust 用例失败。加入错误诊断后，本地
+  40 轮完整并行壳测试复现 2 轮失败，均为测试 HTTP 连接关闭时的 Windows 10054，
+  同时覆盖 opener 和 lifecycle 夹具。只在 `cfg(test)` 夹具中显式关闭发送端、
+  有界等候客户端 EOF 后释放 socket；产品网络错误处理不变。修复后再次重复
+  40 轮完整壳测试验证，后续 CI 和补充外审记录见 PR #37。

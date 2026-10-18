@@ -1,0 +1,122 @@
+{
+  "checked_at_utc": "2026-10-18T06:25:35+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.13.14",
+  "temporary_volume_free_bytes_before": 3313147392000,
+  "temporary_volume_required_bytes": 1073741824,
+  "long_paths_enabled": 0,
+  "smb": {
+    "transport": "UNC localhost/C$ SMB loopback",
+    "source_template": "TEMP/filmpaw-smb-evidence-*/batch/Actor/<movie>",
+    "target_template": "localhost/C$/.../TEMP/filmpaw-smb-evidence-*/nas/Actor/<movie>",
+    "status": "completed",
+    "message": "所选影片已全部移动完成",
+    "movie_name": "作品 001, 特别版",
+    "total_bytes": 33554482,
+    "video_mib": 32,
+    "generation_seconds": 0.018,
+    "seconds": 0.793,
+    "source_movie_removed": true,
+    "actor_portrait_retained": true,
+    "target_video_bytes": 33554432,
+    "mtime_preserved": true,
+    "empty_directory_preserved": true,
+    "nfo_preserved": true,
+    "subtitle_preserved": true,
+    "sha256_verified_by_engine": true,
+    "independent_sha256": {
+      "source_generated_stream": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+      "destination_unc_reread": "e09320c5b00b34bb704802136c599a95b3996332ba84d7c7f21112b6231b6bd0",
+      "equal": true
+    },
+    "status_api": {
+      "method": "GET /api/archive/transfers/{task_id}",
+      "transport": "FastAPI TestClient in-process HTTP/ASGI; includes real session middleware",
+      "sample_count": 8,
+      "min_latency_ms": 1.296,
+      "max_latency_ms": 2.797,
+      "p95_latency_ms": 2.797,
+      "mean_latency_ms": 1.997,
+      "samples": [
+        {
+          "elapsed_ms": 75.605,
+          "latency_ms": 2.797,
+          "phase": "preflight",
+          "status": "running",
+          "progress_bytes": 0,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 177.803,
+          "latency_ms": 1.593,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 0,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 281.205,
+          "latency_ms": 2.122,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 0,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 383.456,
+          "latency_ms": 1.804,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 33554482,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 486.529,
+          "latency_ms": 2.706,
+          "phase": "committing",
+          "status": "running",
+          "progress_bytes": 33554482,
+          "verified_bytes": 33554482
+        },
+        {
+          "elapsed_ms": 588.639,
+          "latency_ms": 1.568,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 33554482,
+          "verified_bytes": 33554482
+        },
+        {
+          "elapsed_ms": 691.202,
+          "latency_ms": 2.088,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 33554482,
+          "verified_bytes": 33554482
+        },
+        {
+          "elapsed_ms": 792.917,
+          "latency_ms": 1.296,
+          "phase": "finished",
+          "status": "completed",
+          "progress_bytes": 33554482,
+          "verified_bytes": 33554482
+        }
+      ]
+    }
+  },
+  "long_path": {
+    "path_characters": 380,
+    "status": "failed",
+    "message": "路径过长或当前 Windows／共享不支持该路径长度；[WinError 3] 系统找不到指定的路径。: '<temporary fixture>\\\\batch\\\\Actor\\\\MOV-LONG\\\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'",
+    "source_bytes_preserved": true,
+    "target_movie_exists": false
+  },
+  "temporary_fixtures_removed": true,
+  "limitations": [
+    "Loopback SMB uses the existing localhost C$ share; this is not a physical NAS test.",
+    "The synthetic video is 32 MiB; real network disconnect remains untested.",
+    "Status latency measures real ASGI endpoint handling in-process, not TCP or the Tauri WebView.",
+    "No system shares, permissions, network state, or long-path settings were changed."
+  ]
+}

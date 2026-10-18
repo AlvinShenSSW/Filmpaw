@@ -56,20 +56,21 @@ def _is_hidden(entry: os.DirEntry) -> bool:
     if entry.name.startswith("."):
         return True
     if sys.platform == "win32":
-        try:
-            attrs = entry.stat(follow_symlinks=False).st_file_attributes
-            return bool(attrs & (stat.FILE_ATTRIBUTE_HIDDEN | stat.FILE_ATTRIBUTE_SYSTEM))
-        except OSError:
-            return True
+        # An unreadable entry is not a hidden entry. Let list_subdirs reject
+        # the entire snapshot so callers can retry and scans cannot mark it missing.
+        attrs = entry.stat(follow_symlinks=False).st_file_attributes
+        return bool(attrs & (stat.FILE_ATTRIBUTE_HIDDEN | stat.FILE_ATTRIBUTE_SYSTEM))
     return False
 
 
 def list_subdirs(root: str) -> list[str]:
     """First-level visible directory names under root. Raises
     SourceUnreachable when root is not a listable directory."""
-    if not os.path.isdir(root):
-        raise SourceUnreachable(root)
     try:
+        # Keep the original OS failure available to read-only callers. isdir()
+        # swallows it and makes an offline SMB share look like a deleted path.
+        if not stat.S_ISDIR(os.stat(root).st_mode):
+            raise SourceUnreachable(root)
         with os.scandir(root) as it:
             return sorted(
                 e.name for e in it if e.is_dir(follow_symlinks=False) and not _is_hidden(e)

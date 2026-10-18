@@ -8,7 +8,7 @@ from PIL import Image
 
 from filmpaw_server.db import SCHEMA_VERSION, connect
 from filmpaw_server.scan import THUMB_MAX_SIDE, scan_source
-from tests.conftest import add_performer_folder
+from tests.conftest import SESSION_TOKEN, add_performer_folder
 
 V1_DDL = """
 CREATE TABLE schema_version (version INTEGER NOT NULL);
@@ -84,12 +84,13 @@ def test_interrupted_migration_leaves_v1_intact_and_retries(tmp_path, source_dir
     _make_v1_db(db, source_dir)
 
     real = dbmod._migrate_1_to_2
+    migrations = dict(dbmod._MIGRATIONS)
 
     def crash(conn):
         real(conn)
         raise RuntimeError("power loss mid-migration")
 
-    monkeypatch.setattr(dbmod, "_MIGRATIONS", {1: crash})
+    monkeypatch.setattr(dbmod, "_MIGRATIONS", {**migrations, 1: crash})
     with pytest.raises(RuntimeError, match="power loss"):
         connect(db)
 
@@ -99,7 +100,7 @@ def test_interrupted_migration_leaves_v1_intact_and_retries(tmp_path, source_dir
     assert "thumb_side" not in cols  # rolled back
     raw.close()
 
-    monkeypatch.setattr(dbmod, "_MIGRATIONS", {1: real})
+    monkeypatch.setattr(dbmod, "_MIGRATIONS", migrations)
     conn = connect(db)  # retry succeeds
     assert conn.execute("SELECT version FROM schema_version").fetchone()["version"] == SCHEMA_VERSION
     conn.close()
@@ -146,7 +147,7 @@ def test_thumb_etag_changes_when_size_changes(tmp_path, source_dir) -> None:
     db = tmp_path / "old.db"
     _make_v1_db(db, source_dir)
 
-    with TestClient(create_app(db_path=db)) as c:
+    with TestClient(create_app(db_path=db), headers={"X-Filmpaw-Session": SESSION_TOKEN}) as c:
         before = c.get("/api/performers/old-1/thumb")
         assert before.status_code == 200
         etag_256 = before.headers["etag"]
@@ -198,7 +199,7 @@ def test_weak_and_list_etags_still_short_circuit(tmp_path, source_dir) -> None:
 
     add_performer_folder(source_dir, "缓存", with_jpg=True)
     db = tmp_path / "c.db"
-    with TestClient(create_app(db_path=db)) as c:
+    with TestClient(create_app(db_path=db), headers={"X-Filmpaw-Session": SESSION_TOKEN}) as c:
         sid = c.post("/api/sources", json={"unc_path": str(source_dir)}).json()["id"]
         c.post(f"/api/sources/{sid}/scan")
         pid = c.get("/api/performers").json()["items"][0]["id"]
