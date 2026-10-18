@@ -43,6 +43,46 @@ def finish(env, task=None):
     return service.get_task(task["id"])
 
 
+def test_cleanup_log_records_deleted_and_kept_names_durably(cleanup_env):
+    _, transfers, batch, db = cleanup_env
+    from filmpaw_server.audit import OperationLog
+    (batch / "Empty").mkdir()
+    (batch / "Keep").mkdir()
+    (batch / "Keep" / "folder.jpg").write_bytes(b"keep")
+    result = finish(cleanup_env)
+    log = OperationLog(db, transfers.db_lock)
+    rows = log.list(task_id=result["id"], action="delete_empty_actor")["items"]
+    assert [(row["item_name"], row["outcome"]) for row in rows] == [
+        ("Keep", "skipped"), ("Empty", "succeeded"), ("Empty", "started"),
+    ]
+    assert all(row["kind"] == "cleanup" for row in rows)
+    assert all(row["source_path"].endswith(row["item_name"]) for row in rows)
+
+
+@pytest.mark.parametrize("fail_outcome,first_deleted", [("started", False), ("succeeded", True)])
+def test_cleanup_log_failure_halts_next_delete_and_never_claims_success(cleanup_env, fail_outcome, first_deleted):
+    _, transfers, batch, db = cleanup_env
+    for name in ["A", "B"]:
+        (batch / name).mkdir()
+    db.execute("CREATE TRIGGER break_cleanup_log BEFORE INSERT ON operation_events "
+               f"WHEN NEW.action='delete_empty_actor' AND NEW.outcome='{fail_outcome}' "
+               "BEGIN SELECT RAISE(FAIL,'disk full'); END")
+    db.commit()
+    result = finish(cleanup_env)
+    assert result["status"] == "failed"
+    assert result["deleted_count"] == 0
+    assert (batch / "A").exists() != first_deleted
+    assert (batch / "B").is_dir()
+    assert all(item["status"] != "deleted" for item in result["items"])
+    assert transfers.audit.failed
+    assert not transfers.audit.list(task_id=result["id"], outcome="succeeded")["items"] or all(
+        row["action"] != "delete_empty_actor"
+        for row in transfers.audit.list(task_id=result["id"], outcome="succeeded")["items"]
+    )
+    with pytest.raises(TransferError):
+        transfers.reserve_cleanup("later", str(batch), "revision-one")
+
+
 def test_empty_actors_only_and_other_batches_untouched(cleanup_env):
     service, _, batch, _ = cleanup_env
     for name in ["Alice", "演员😀", "With portrait"]:
@@ -209,7 +249,7 @@ def test_cleanup_reservation_blocks_transfer_another_cleanup_and_exit(cleanup_en
 def test_transfer_reservation_blocks_cleanup(cleanup_env):
     service, _, batch, db = cleanup_env
     context = service.create_context(str(batch))
-    db.execute("INSERT INTO archive_tasks VALUES ('active','transfer-request',?)",
+    db.execute("INSERT INTO archive_tasks(id,request_id,payload) VALUES ('active','transfer-request',?)",
                (json.dumps({"id": "active", "status": "queued"}),))
     db.commit()
     with pytest.raises(TransferError):

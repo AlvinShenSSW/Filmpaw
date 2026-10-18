@@ -39,15 +39,32 @@ vi.mock("./cleanupApi", () => ({
   isCleanupActive: (task: { status: string } | null) =>
     task?.status === "running" || task?.status === "queued",
 }));
-vi.mock("./archiveApi", () => ({
-  getLatestTransfer: vi.fn(),
-  createTransfer: vi.fn(),
-  createArchiveContext: vi.fn(),
-  stopTransfer: vi.fn(),
-  archiveError: () => "请求失败",
-  isTransferActive: (task: { status: string } | null) =>
-    task?.status === "queued" || task?.status === "running",
-}));
+vi.mock("./archiveApi", () => {
+  const getLatestTransfer = vi.fn();
+  return {
+    getLatestTransfer,
+    getTransfers: vi.fn(async () => {
+      const task = await getLatestTransfer();
+      const active = task && (task.status === "queued" || task.status === "running");
+      return {
+        active: active ? [task] : [],
+        history: task && !active ? [task] : [],
+        next_cursor: null,
+        busy: !!active,
+        blocked_reason: null,
+        concurrency: 3,
+      };
+    }),
+    getTransferByRequest: vi.fn().mockResolvedValue(null),
+    getOperationLogs: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    createTransfer: vi.fn(),
+    createArchiveContext: vi.fn(),
+    stopTransfer: vi.fn(),
+    archiveError: () => "请求失败",
+    isTransferActive: (task: { status: string } | null) =>
+      task?.status === "queued" || task?.status === "running",
+  };
+});
 
 import { routeTree } from "./App";
 import { createArchiveContext, getLatestTransfer, stopTransfer } from "./archiveApi";
@@ -77,6 +94,7 @@ function renderAt(path: string) {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   vi.clearAllMocks();
   vi.mocked(getLatestTransfer).mockResolvedValue(null);
   vi.mocked(healthApiHealthGet).mockResolvedValue({
@@ -131,6 +149,7 @@ describe("global archive task", () => {
       target_error: null,
     } as never);
     renderAt("/about");
+    await userEvent.click(await screen.findByRole("button", { name: "任务与日志" }));
     await userEvent.click(await screen.findByRole("button", { name: "查看目录" }));
     expect(await screen.findByRole("region", { name: "本地影片" })).toBeInTheDocument();
     expect(createArchiveContext).toHaveBeenCalledWith(
@@ -150,6 +169,7 @@ describe("global archive task", () => {
       data: { path: "D:\\other-batch", subdirs: [] },
     } as never);
     renderAt("/about");
+    await userEvent.click(await screen.findByRole("button", { name: "任务与日志" }));
     await userEvent.click(await screen.findByRole("button", { name: "查看目录" }));
     expect(await screen.findByText(/请先选择这个 batch/)).toBeInTheDocument();
     expect(createArchiveContext).not.toHaveBeenCalled();
@@ -178,10 +198,14 @@ describe("global archive task", () => {
     vi.mocked(getLatestTransfer).mockResolvedValue(task as never);
     vi.mocked(stopTransfer).mockResolvedValue({ ...task, stop_requested: true } as never);
     renderAt("/archive");
-    expect(await screen.findByRole("status", { name: "归档任务" })).toHaveTextContent("正在复制");
+    expect(await screen.findByRole("status", { name: "归档任务" })).toHaveTextContent("1 个传输中");
     await userEvent.click(screen.getByRole("link", { name: "关于" }));
     expect(await screen.findByRole("heading", { name: "Filmpaw" })).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "归档任务" })).toHaveTextContent("MOV-3");
+    expect(screen.getByRole("status", { name: "归档任务" })).toHaveTextContent("1 个传输中");
+    await userEvent.click(screen.getByRole("button", { name: "任务与日志" }));
+    expect(await screen.findByRole("article", { name: "归档任务 演员甲" })).toHaveTextContent(
+      "MOV-3",
+    );
     vi.mocked(getLatestTransfer).mockResolvedValue({ ...task, stop_requested: true } as never);
     await userEvent.click(screen.getByRole("button", { name: "停止传输" }));
     await userEvent.click(
@@ -189,7 +213,9 @@ describe("global archive task", () => {
     );
     await waitFor(() => expect(stopTransfer).toHaveBeenCalledWith("job-1"));
     await waitFor(() =>
-      expect(screen.getByRole("status", { name: "归档任务" })).toHaveTextContent("正在安全停止"),
+      expect(screen.getByRole("article", { name: "归档任务 演员甲" })).toHaveTextContent(
+        "正在安全停止",
+      ),
     );
   });
 });
@@ -203,6 +229,7 @@ describe("rail navigation", () => {
     expect(links.map((l) => l.getAttribute("aria-label"))).toEqual([
       "表演者库",
       "归档对比",
+      "任务与日志",
       "设置",
       "关于",
     ]);

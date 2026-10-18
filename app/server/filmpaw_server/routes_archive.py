@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 router = APIRouter(prefix="/api/archive", tags=["archive"])
@@ -84,6 +84,45 @@ class ExitOut(BaseModel):
     operation: Literal["transfer", "cleanup"] | None = None
 
 
+class TransferListOut(BaseModel):
+    active: list[TaskOut]
+    history: list[TaskOut]
+    next_cursor: int | None
+    busy: bool
+    blocked_reason: str | None
+    concurrency: int
+
+
+class StopAllIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    task_ids: list[str] = Field(max_length=100)
+
+
+class StopAllOut(BaseModel):
+    task_ids: list[str]
+
+
+class OperationEventOut(BaseModel):
+    id: int
+    event_key: str
+    operation_id: str
+    created_at: str
+    task_id: str
+    kind: Literal["transfer", "cleanup"]
+    action: str
+    outcome: Literal["started", "succeeded", "failed", "skipped", "stopped", "needs_review"]
+    performer_name: str | None
+    item_name: str | None
+    source_path: str | None
+    target_path: str | None
+    message: str | None
+
+
+class OperationLogOut(BaseModel):
+    items: list[OperationEventOut]
+    next_cursor: int | None
+
+
 @router.post("/contexts", status_code=201, response_model=ContextOut)
 def create_context(request: Request, body: ContextIn):
     return request.app.state.transfers.create_context(
@@ -99,6 +138,29 @@ def create_transfer(request: Request, body: TransferIn):
 @router.get("/transfers/latest", response_model=TaskOut | None)
 def latest_transfer(request: Request):
     return request.app.state.transfers.get_task()
+
+
+@router.get("/transfers", response_model=TransferListOut)
+def list_transfers(request: Request, before_id: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=200)):
+    return request.app.state.transfers.list_tasks(before_id=before_id, limit=limit)
+
+
+@router.get("/transfers/by-request/{request_id}", response_model=TaskOut | None)
+def transfer_by_request(request: Request, request_id: str):
+    return request.app.state.transfers.get_by_request(request_id)
+
+
+@router.post("/transfers/stop-all", response_model=StopAllOut)
+def stop_all_transfers(request: Request, body: StopAllIn):
+    return request.app.state.transfers.stop_all(body.task_ids)
+
+
+@router.get("/logs", response_model=OperationLogOut)
+def list_operations(request: Request, before_id: int | None = Query(None, ge=1), limit: int = Query(50, ge=1, le=200),
+                    task_id: str | None = None, action: str | None = None,
+                    outcome: Literal["started", "succeeded", "failed", "skipped", "stopped", "needs_review"] | None = None):
+    return request.app.state.transfers.audit.list(before_id=before_id, limit=limit,
+        task_id=task_id, action=action, outcome=outcome)
 
 
 @router.get("/transfers/{task_id}", response_model=TaskOut)

@@ -2,7 +2,8 @@
 
 Windows deletion uses the same native handle whose identity, attributes, final
 path and alternate streams were checked. There is no recursive delete, retry,
-disk journal or recovery that could act on newly-created directories later.
+command journal or recovery that could act on newly-created directories later.
+Operation receipts are persistent history only; they never authorize a delete.
 """
 
 import copy
@@ -15,6 +16,7 @@ import uuid
 from contextlib import contextmanager
 from pathlib import Path
 
+from filmpaw_server.audit import AuditError
 from filmpaw_server.directory_reads import directory_error_retryable
 from filmpaw_server.transfer import (
     NamedStreamsError,
@@ -260,6 +262,12 @@ class CleanupService:
             if len(self._tasks) >= CACHE_LIMIT:
                 self._tasks.pop(next(iter(self._tasks)))
             self._tasks[task["id"]] = task
+            try:
+                self._record(task, "cleanup_accepted", "succeeded", message="已接受空演员目录清理任务")
+            except AuditError as exc:
+                task.update(status="failed", message=str(exc))
+                self.transfers.release_cleanup(task["id"])
+                return self._public(task)
             if self._auto_start:
                 self._worker = threading.Thread(target=self._run, args=(task["id"],),
                                                 daemon=True, name="empty-actor-cleanup")
@@ -269,6 +277,10 @@ class CleanupService:
                     # A Thread whose start failed cannot be joined at shutdown.
                     self._worker = None
                     task.update(status="failed", message=f"清理工作器未能启动，未删除目录：{exc}")
+                    try:
+                        self._record(task, "cleanup_finished", "failed", message=task["message"])
+                    except AuditError as log_error:
+                        task["message"] += f"；{log_error}"
                     self.transfers.release_cleanup(task["id"])
             return self._public(task)
 
@@ -286,6 +298,13 @@ class CleanupService:
     def _checkpoint(self, stage: str, task: dict, item: dict) -> None:
         """Failure injection at mutation boundaries, not an extension API."""
 
+    def _record(self, task: dict, action: str, outcome: str, **fields) -> None:
+        try:
+            self.transfers.audit.record(task, action, outcome, kind="cleanup", **fields)
+        except AuditError as exc:
+            self.transfers.storage_failed(str(exc))
+            raise
+
     def _run(self, task_id: str) -> None:
         with self._lock:
             stored = self._tasks.get(task_id)
@@ -294,6 +313,7 @@ class CleanupService:
             stored["status"] = "running"
             task = copy.deepcopy(stored)
         try:
+            self._record(task, "cleanup_started", "succeeded", message="开始检查当前 batch")
             root = task["_binding"]
             # The native final path freezes mapped-drive resolution. Keep all
             # ancestors and this root guarded throughout snapshot and deletes.
@@ -307,17 +327,24 @@ class CleanupService:
                     task["current_name"] = candidate["name"]
                     self._publish(task)
                     status, message = candidate.get("status"), candidate.get("message")
+                    event_task = {**task, "performer_name": candidate["name"]}
+                    event_fields = {"item_name": candidate["name"],
+                                    "source_path": str(Path(root["path"]) / candidate["name"])}
+                    def before_delete():
+                        self._checkpoint("before_delete", task, candidate)
+                        self._record(event_task, "delete_empty_actor", "started", **event_fields,
+                                     message="准备删除空演员目录，结果尚未确认")
                     if not status:
                         try:
-                            status, message = _remove_empty(root, candidate, lambda: self._checkpoint(
-                                "before_delete", task, candidate,
-                            ))
+                            status, message = _remove_empty(root, candidate, before_delete)
                         except _SkipDirectory as exc:
                             status, message = "skipped", str(exc)
                         except FileNotFoundError:
                             status, message = "skipped", "目录已不存在，未计为本次删除"
                         except (OSError, TransferError) as exc:
                             status, message = "failed", str(exc)
+                    outcome = "succeeded" if status == "deleted" else "failed" if status == "failed" else "skipped"
+                    self._record(event_task, "delete_empty_actor", outcome, **event_fields, message=message)
                     task["items"].append({"name": candidate["name"], "status": status, "message": message})
                     count = {"deleted": "deleted_count", "not_empty": "kept_count",
                              "skipped": "skipped_count", "failed": "failed_count"}[status]
@@ -327,10 +354,24 @@ class CleanupService:
             task["status"] = "completed"
             task["message"] = (f"清理完成，已删除 {task['deleted_count']} 个空目录"
                                if task["deleted_count"] else "没有可清理的空目录，请查看保留与失败明细")
+        except AuditError as exc:
+            task["status"] = "failed"
+            task["message"] = f"清理已停止，最后操作结果待核对：{exc}"
+            if task["current_name"]:
+                task["items"].append({"name": task["current_name"], "status": "failed",
+                                      "message": "操作日志未能保存，删除结果待核对；后续目录未处理"})
+                task["failed_count"] += 1
+                task["checked_count"] += 1
         except Exception as exc:
             task["status"] = "failed"
             task["message"] = f"清理已停止，未确认的目录保留：{exc}"
         finally:
+            if not self.transfers.audit.failed:
+                try:
+                    self._record(task, "cleanup_finished", "succeeded" if task["status"] == "completed" else "failed",
+                                 message=task["message"])
+                except AuditError as exc:
+                    task.update(status="failed", message=f"清理结束状态未能保存，请核对已记录结果：{exc}")
             task["current_name"] = None
             self._publish(task)
             self.transfers.release_cleanup(task_id)

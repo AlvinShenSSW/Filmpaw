@@ -417,8 +417,9 @@ def test_background_io_does_not_hold_database_lock(archive, monkeypatch):
             service.db_lock.release()
         service.stop(task["id"])
     finally:
+        worker = service._runtimes[task["id"]]["worker"]
         release.set()
-        service._worker.join(5)
+        worker.join(5)
     assert service.get_task(task["id"])["status"] == "stopped"
 
 
@@ -442,7 +443,7 @@ def test_exit_identifies_task_in_worker_finalization_window(archive):
             return True
         def join(self):
             pass
-    service._worker = FinalizingWorker()
+    service._runtimes[task["id"]]["worker"] = FinalizingWorker()
     assert service.prepare_exit() == {"safe": False, "task_id": task["id"]}
 
 
@@ -695,7 +696,7 @@ def test_named_stream_added_while_exact_delete_handle_is_open_is_preserved(archi
         return digest
     monkeypatch.setattr(transfer, "_hash", add_after_last_hash)
     task = run(archive, submit(archive))
-    assert source_reads == 2
+    assert source_reads == 2, task["message"]
     assert task["status"] == "needs_review", task["message"]
     assert task["items"][0]["status"] == "cleanup_pending"
     assert "数据流" in task["message"]

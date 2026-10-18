@@ -1,5 +1,6 @@
 import GroupsIcon from "@mui/icons-material/Groups";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import ListAltIcon from "@mui/icons-material/ListAlt";
 import SettingsIcon from "@mui/icons-material/Settings";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import Box from "@mui/material/Box";
@@ -15,7 +16,7 @@ import {
 } from "@tanstack/react-router";
 import { CleanupProvider, CleanupStatusBar, useCleanup } from "./CleanupProvider";
 import { ExitCoordinator } from "./ExitCoordinator";
-import { AboutPage, ArchivePage, PerformersPage, SettingsPage } from "./pages";
+import { AboutPage, ArchivePage, PerformersPage, SettingsPage, TasksPage } from "./pages";
 import { TransferProvider, TransferStatusBar, useTransfer } from "./TransferProvider";
 import { RAIL_WIDTH, tokens } from "./theme";
 
@@ -77,11 +78,11 @@ function RailButton({
   );
 }
 
-function ActivityBar({ onViewArchive }: { onViewArchive: () => void }) {
+function ActivityBar({ onViewTasks }: { onViewTasks: () => void }) {
   const transfer = useTransfer();
   const cleanup = useCleanup();
-  if (transfer.active || transfer.start.isPending || transfer.unresolved) {
-    return <TransferStatusBar onViewArchive={onViewArchive} />;
+  if (transfer.active || transfer.hasPending || transfer.unresolved) {
+    return <TransferStatusBar onViewTasks={onViewTasks} />;
   }
   if (
     cleanup.preparing ||
@@ -94,14 +95,14 @@ function ActivityBar({ onViewArchive }: { onViewArchive: () => void }) {
   ) {
     return <CleanupStatusBar />;
   }
-  return <TransferStatusBar onViewArchive={onViewArchive} />;
+  return <TransferStatusBar onViewTasks={onViewTasks} />;
 }
 
 function Shell() {
   const navigate = useNavigate();
   return (
     <CleanupProvider>
-      <TransferProvider>
+      <TransferScope>
         <Box sx={{ display: "flex", height: "100dvh", overflow: "hidden" }}>
           <Box
             component="nav"
@@ -124,6 +125,9 @@ function Shell() {
             <RailButton to="/archive" label="归档对比">
               <SwapHorizIcon fontSize="small" />
             </RailButton>
+            <RailButton to="/tasks" label="任务与日志">
+              <ListAltIcon fontSize="small" />
+            </RailButton>
             <Box sx={{ flex: 1 }} />
             <RailButton to="/settings" label="设置">
               <SettingsIcon fontSize="small" />
@@ -139,16 +143,21 @@ function Shell() {
               <Outlet />
             </Box>
             <ActivityBar
-              onViewArchive={() => {
-                void navigate({ to: "/archive" });
+              onViewTasks={() => {
+                void navigate({ to: "/tasks" });
               }}
             />
           </Box>
         </Box>
         <ExitCoordinator />
-      </TransferProvider>
+      </TransferScope>
     </CleanupProvider>
   );
+}
+
+function TransferScope({ children }: { children: React.ReactNode }) {
+  const cleanup = useCleanup();
+  return <TransferProvider submissionsBlocked={cleanup.blocked}>{children}</TransferProvider>;
 }
 
 const rootRoute = createRootRoute({ component: Shell });
@@ -173,6 +182,11 @@ const aboutRoute = createRoute({
   path: "/about",
   component: AboutPage,
 });
+const tasksRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks",
+  component: TasksPage,
+});
 
 /** Exported so tests can mount the REAL tree on a memory history — asserting a
  * page's content through routing catches a missing route or a broken rail link,
@@ -182,6 +196,7 @@ export const routeTree = rootRoute.addChildren([
   archiveRoute,
   settingsRoute,
   aboutRoute,
+  tasksRoute,
 ]);
 
 const router = createRouter({ routeTree });

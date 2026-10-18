@@ -13,16 +13,33 @@ vi.mock("./client", () => ({
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
-vi.mock("./archiveApi", () => ({
-  createArchiveContext: vi.fn(),
-  createTransfer: vi.fn(),
-  getLatestTransfer: vi.fn(),
-  stopTransfer: vi.fn(),
-  archiveError: (error: { detail?: string; message?: string }, fallback: string) =>
-    error?.detail ?? error?.message ?? fallback,
-  isTransferActive: (task: { status: string } | null) =>
-    task?.status === "queued" || task?.status === "running",
-}));
+vi.mock("./archiveApi", () => {
+  const getLatestTransfer = vi.fn();
+  return {
+    createArchiveContext: vi.fn(),
+    createTransfer: vi.fn(),
+    getLatestTransfer,
+    getTransfers: vi.fn(async () => {
+      const task = await getLatestTransfer();
+      const active = task && (task.status === "queued" || task.status === "running");
+      return {
+        active: active ? [task] : [],
+        history: task && !active ? [task] : [],
+        next_cursor: null,
+        busy: !!active,
+        blocked_reason: null,
+        concurrency: 3,
+      };
+    }),
+    getTransferByRequest: vi.fn().mockResolvedValue(null),
+    getOperationLogs: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    stopTransfer: vi.fn(),
+    archiveError: (error: { detail?: string; message?: string }, fallback: string) =>
+      error?.detail ?? error?.message ?? fallback,
+    isTransferActive: (task: { status: string } | null) =>
+      task?.status === "queued" || task?.status === "running",
+  };
+});
 vi.mock("./cleanupApi", () => ({
   readCleanupContext: vi.fn(),
   createCleanup: vi.fn(),
@@ -118,6 +135,7 @@ async function selectTarget() {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   vi.clearAllMocks();
   sessionStorage.clear();
   vi.mocked(getSettingsApiSettingsGet).mockResolvedValue({

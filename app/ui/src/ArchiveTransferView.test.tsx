@@ -5,15 +5,32 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "./theme";
 
-vi.mock("./archiveApi", () => ({
-  createArchiveContext: vi.fn(),
-  createTransfer: vi.fn(),
-  getLatestTransfer: vi.fn(),
-  stopTransfer: vi.fn(),
-  archiveError: (error: { detail?: string }) => error.detail ?? "请求失败",
-  isTransferActive: (task: { status: string } | null) =>
-    task?.status === "queued" || task?.status === "running",
-}));
+vi.mock("./archiveApi", () => {
+  const getLatestTransfer = vi.fn();
+  return {
+    createArchiveContext: vi.fn(),
+    createTransfer: vi.fn(),
+    getLatestTransfer,
+    getTransfers: vi.fn(async () => {
+      const task = await getLatestTransfer();
+      const active = task && (task.status === "queued" || task.status === "running");
+      return {
+        active: active ? [task] : [],
+        history: task && !active ? [task] : [],
+        next_cursor: null,
+        busy: !!active,
+        blocked_reason: null,
+        concurrency: 3,
+      };
+    }),
+    getTransferByRequest: vi.fn().mockResolvedValue(null),
+    getOperationLogs: vi.fn().mockResolvedValue({ items: [], next_cursor: null }),
+    stopTransfer: vi.fn(),
+    archiveError: (error: { detail?: string }) => error.detail ?? "请求失败",
+    isTransferActive: (task: { status: string } | null) =>
+      task?.status === "queued" || task?.status === "running",
+  };
+});
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
 vi.mock("./cleanupApi", () => ({
@@ -33,7 +50,24 @@ import {
 } from "./archiveApi";
 import { CleanupProvider } from "./CleanupProvider";
 import { openArchivePair } from "./openTarget";
-import { TransferProvider, TransferStatusBar } from "./TransferProvider";
+import {
+  TransferProvider,
+  TransferRecovery,
+  TransferTaskCard,
+  useTransfer,
+} from "./TransferProvider";
+
+function TaskPanel() {
+  const transfer = useTransfer();
+  return (
+    <>
+      <TransferRecovery />
+      {transfer.tasks.map((task) => (
+        <TransferTaskCard key={task.id} task={task} />
+      ))}
+    </>
+  );
+}
 
 const performer = {
   id: "performer-1",
@@ -86,7 +120,7 @@ const task = {
 
 function renderView() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const content = (subdir: string) => (
+  const content = (subdir: string, actor = performer) => (
     <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>
         <CleanupProvider>
@@ -94,10 +128,10 @@ function renderView() {
             <ArchiveTransferView
               localDir={context.local_dir}
               subdir={subdir}
-              performer={performer}
+              performer={actor}
               onBack={vi.fn()}
             />
-            <TransferStatusBar />
+            <TaskPanel />
           </TransferProvider>
         </CleanupProvider>
       </ThemeProvider>
@@ -107,6 +141,7 @@ function renderView() {
 }
 
 beforeEach(() => {
+  sessionStorage.clear();
   vi.clearAllMocks();
   vi.mocked(createArchiveContext).mockReset().mockResolvedValue(context);
   vi.mocked(getLatestTransfer).mockReset().mockResolvedValue(null);
@@ -153,7 +188,7 @@ describe("local sidecar transport while the browser is offline", () => {
     renderView();
     await tick(1);
     expect(getLatestTransfer).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole("status", { name: "归档任务" })).toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "归档任务 演员甲" })).toBeInTheDocument();
     await tick(1000);
     expect(getLatestTransfer).toHaveBeenCalledTimes(2);
   });
@@ -350,6 +385,73 @@ describe("directory read retries", () => {
 });
 
 describe("archive transfer", () => {
+  it("allows actor B to submit while A is running and clears the old actor selection", async () => {
+    vi.mocked(getLatestTransfer).mockResolvedValue({ ...task, status: "running" } as never);
+    const second = {
+      ...performer,
+      id: "performer-2",
+      name: "演员乙",
+      unc_path: "\\\\NAS\\library\\演员乙",
+    };
+    const { rerender, content } = renderView();
+    await screen.findByRole("checkbox", { name: "选择 MOV-3" });
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeDisabled();
+    vi.mocked(createArchiveContext).mockResolvedValue({
+      ...context,
+      id: "context-2",
+      subdir: second.name,
+      performer_id: second.id,
+      performer_name: second.name,
+      source_path: "D:\\batch\\演员乙",
+      target_path: second.unc_path,
+    });
+    rerender(content(second.name, second));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeEnabled());
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "选择 MOV-3" }));
+    await userEvent.click(screen.getByRole("button", { name: /^传输到 NAS/ }));
+    expect(createTransfer).toHaveBeenCalledWith({
+      context_id: "context-2",
+      names: ["MOV-3"],
+      request_id: expect.any(String),
+    });
+  });
+
+  it("does not clear B's selection or display A's late submission error in B's directory", async () => {
+    let reject!: (reason: Error) => void;
+    vi.mocked(createTransfer).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail;
+        }),
+    );
+    const second = {
+      ...performer,
+      id: "performer-2",
+      name: "演员乙",
+      unc_path: "\\\\NAS\\library\\演员乙",
+    };
+    const { rerender, content } = renderView();
+    await userEvent.click(await screen.findByRole("checkbox", { name: "选择 MOV-3" }));
+    await userEvent.click(screen.getByRole("button", { name: /^传输到 NAS/ }));
+    vi.mocked(createArchiveContext).mockResolvedValue({
+      ...context,
+      id: "context-2",
+      subdir: second.name,
+      performer_id: second.id,
+      performer_name: second.name,
+      source_path: "D:\\batch\\演员乙",
+      target_path: second.unc_path,
+    });
+    rerender(content(second.name, second));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeEnabled());
+    await userEvent.click(screen.getByRole("checkbox", { name: "选择 MOV-3" }));
+    await act(async () => reject(new Error("A late error")));
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeChecked();
+    expect(screen.getByRole("button", { name: /^传输到 NAS/ })).toBeEnabled();
+    expect(screen.queryByText("请求失败")).not.toBeInTheDocument();
+    expect(createTransfer).toHaveBeenCalledTimes(1);
+  });
   it("starts with no selection, sorts names naturally, and submits only checked folders", async () => {
     renderView();
     const source = await screen.findByRole("region", { name: "本地影片" });
@@ -370,7 +472,9 @@ describe("archive transfer", () => {
       }),
     );
     expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).not.toBeChecked();
-    expect(await screen.findByRole("status", { name: "归档任务" })).toHaveTextContent("预检");
+    expect(await screen.findByRole("article", { name: "归档任务 演员甲" })).toHaveTextContent(
+      "等待执行",
+    );
   });
 
   it("clears selection when local actor context changes", async () => {
@@ -478,7 +582,7 @@ describe("archive transfer", () => {
       message: "存在同名目录，整批未启动",
     } as never);
     renderView();
-    const status = await screen.findByRole("status", { name: "归档任务" });
+    const status = await screen.findByRole("article", { name: "归档任务 演员甲" });
     expect(status).toHaveTextContent("同名冲突");
     await userEvent.click(within(status).getByRole("button", { name: "任务详情" }));
     expect(within(screen.getByRole("dialog")).getByText(/同名冲突：MOV-3/)).toBeInTheDocument();
@@ -536,7 +640,9 @@ describe("archive transfer", () => {
     await userEvent.click(screen.getByRole("button", { name: "重试确认本次传输" }));
     await waitFor(() => expect(createTransfer).toHaveBeenCalledTimes(2));
     expect(vi.mocked(createTransfer).mock.calls[1][0]).toEqual(original);
-    expect(await screen.findByRole("status", { name: "归档任务" })).toHaveTextContent("预检");
+    expect(await screen.findByRole("article", { name: "归档任务 演员甲" })).toHaveTextContent(
+      "等待执行",
+    );
     expect(screen.queryByRole("button", { name: "重试确认本次传输" })).not.toBeInTheDocument();
   });
 });

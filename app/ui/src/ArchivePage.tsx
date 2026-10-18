@@ -311,14 +311,7 @@ export function ArchivePage() {
               size="small"
               color="inherit"
               onClick={() => localDir && void cleanup.begin(localDir)}
-              disabled={
-                !localDir ||
-                isPicking ||
-                cleanup.blocked ||
-                transfer.active ||
-                transfer.unavailable ||
-                transfer.start.isPending
-              }
+              disabled={!localDir || isPicking || cleanup.blocked || transfer.cleanupBlocked}
               sx={{
                 fontSize: 12,
                 color: "text.secondary",

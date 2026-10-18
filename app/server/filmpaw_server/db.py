@@ -4,17 +4,36 @@ DB location: %APPDATA%\\Filmpaw\\library.db, overridable via FILMPAW_DB
 (tests inject a temp path).
 """
 
+import json
 import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 ARCHIVE_DDL = """
 CREATE TABLE archive_tasks (
   id TEXT PRIMARY KEY,
   request_id TEXT NOT NULL UNIQUE,
   payload TEXT NOT NULL
+)
+"""
+
+AUDIT_DDL = """
+CREATE TABLE operation_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_key TEXT NOT NULL UNIQUE,
+  operation_id TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  task_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  action TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  performer_name TEXT,
+  item_name TEXT,
+  source_path TEXT,
+  target_path TEXT,
+  message TEXT
 )
 """
 
@@ -97,6 +116,7 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
             conn.execute("BEGIN")
             with conn:
                 conn.execute(ARCHIVE_DDL)
+                _migrate_3_to_4(conn)
                 conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
     elif existing != SCHEMA_VERSION:
         _migrate(conn, existing)
@@ -160,4 +180,24 @@ def _migrate_2_to_3(conn: sqlite3.Connection) -> None:
     conn.execute(ARCHIVE_DDL)
 
 
-_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3}
+def _migrate_3_to_4(conn: sqlite3.Connection) -> None:
+    # List polling reads small public summaries, never every historical file
+    # manifest. The same task transaction updates journal and summary later.
+    conn.execute("ALTER TABLE archive_tasks ADD COLUMN public_payload TEXT")
+    rows = conn.execute("SELECT id,payload FROM archive_tasks")
+    for row in rows:
+        task = json.loads(row["payload"])
+        summary = {key: value for key, value in task.items() if not key.startswith("_") and key != "items"}
+        summary["items"] = [{key: value for key, value in item.items()
+                             if key in {"name", "status", "size_bytes", "progress_bytes", "message"}}
+                            for item in task.get("items", [])]
+        conn.execute("UPDATE archive_tasks SET public_payload=? WHERE id=?",
+                     (json.dumps(summary, ensure_ascii=False), row["id"]))
+    conn.execute("CREATE INDEX archive_tasks_active_status ON archive_tasks"
+                 "(json_extract(coalesce(public_payload,payload),'$.status'))")
+    conn.execute(AUDIT_DDL)
+    conn.execute("CREATE INDEX idx_operation_events_task ON operation_events(task_id,id)")
+    conn.execute("CREATE INDEX idx_operation_events_operation ON operation_events(operation_id,outcome)")
+
+
+_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3, 3: _migrate_3_to_4}

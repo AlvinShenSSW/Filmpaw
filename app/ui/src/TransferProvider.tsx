@@ -11,19 +11,64 @@ import IconButton from "@mui/material/IconButton";
 import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createContext, type ReactNode, useContext, useState } from "react";
 import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  type ArchiveContext,
   type ArchiveTask,
   archiveError,
   createTransfer,
-  getLatestTransfer,
+  getTransferByRequest,
+  getTransfers,
   isTransferActive,
   stopTransfer,
+  type TransferList,
 } from "./archiveApi";
 import { tokens } from "./theme";
 
-const TASK_KEY = ["archive-transfer-latest"];
+const TASK_KEY = ["archive-transfers"];
+const PENDING_KEY = "filmpaw-transfer-requests";
+type Binding = Pick<
+  ArchiveContext,
+  "local_dir" | "subdir" | "performer_id" | "performer_name" | "source_path" | "target_path"
+>;
+type SubmitBody = Parameters<typeof createTransfer>[0];
+type Submission = SubmitBody & { binding?: Binding };
+type PendingRequest = { body: SubmitBody; binding?: Binding; state: "sending" | "unknown" };
+
+function restoreRequests(): PendingRequest[] {
+  try {
+    const saved: PendingRequest[] = JSON.parse(sessionStorage.getItem(PENDING_KEY) ?? "[]");
+    return saved
+      .filter(
+        (item) => item?.body?.request_id && item.body.context_id && Array.isArray(item.body.names),
+      )
+      .map((item) => ({ ...item, state: "unknown" }));
+  } catch {
+    return [];
+  }
+}
+
+function overlaps(a: Binding, b: Binding): boolean {
+  const normalize = (path: string) => path.replaceAll("/", "\\").replace(/\\+$/, "").toLowerCase();
+  const paths = (binding: Binding) =>
+    [binding.source_path, binding.target_path].filter(Boolean).map(normalize);
+  if (a.performer_id === b.performer_id) return true;
+  return paths(a).some((left) =>
+    paths(b).some(
+      (right) => left === right || left.startsWith(`${right}\\`) || right.startsWith(`${left}\\`),
+    ),
+  );
+}
 const PHASES = {
+  queued: "等待执行",
   preflight: "正在预检",
   copying: "正在复制",
   verifying: "正在校验",
@@ -32,8 +77,47 @@ const PHASES = {
   finished: "已结束",
 };
 
+function mergeTaskSnapshot(existing: ArchiveTask | undefined, incoming: ArchiveTask): ArchiveTask {
+  if (!existing) return incoming;
+  const sameActiveMoment =
+    existing.updated_at === incoming.updated_at &&
+    existing.status === incoming.status &&
+    isTransferActive(existing);
+  // Timestamps have second precision. Within that second, use the fixed movie
+  // order before phase: finishing movie 1 and starting movie 2 can share the
+  // same completed_count, while cleaning legitimately becomes copying.
+  const position = (task: ArchiveTask) => [
+    task.completed_count,
+    task.items.findIndex((item) => item.name === task.current_name),
+    Object.keys(PHASES).indexOf(task.phase),
+    task.progress_bytes,
+    task.verified_bytes,
+  ];
+  const before = position(existing),
+    after = position(incoming);
+  const difference = before.findIndex((value, index) => value !== after[index]);
+  const stale =
+    existing.updated_at > incoming.updated_at ||
+    (!isTransferActive(existing) && isTransferActive(incoming)) ||
+    (existing.status === "running" && incoming.status === "queued") ||
+    (sameActiveMoment && difference >= 0 && before[difference] > after[difference]);
+  return {
+    ...(stale ? existing : incoming),
+    // A delayed stop acknowledgement still carries a new user intention.
+    stop_requested: existing.stop_requested || incoming.stop_requested,
+    ...(sameActiveMoment
+      ? {
+          completed_count: Math.max(existing.completed_count, incoming.completed_count),
+          progress_bytes: Math.max(existing.progress_bytes, incoming.progress_bytes),
+          verified_bytes: Math.max(existing.verified_bytes, incoming.verified_bytes),
+        }
+      : {}),
+  };
+}
+
 export function transferLabel(task: ArchiveTask): string {
   if (task.stop_requested && isTransferActive(task)) return "正在安全停止";
+  if (task.status === "queued") return "等待执行";
   if (isTransferActive(task)) return PHASES[task.phase];
   if (task.conflicts.length) return "同名冲突 · 队列已停止";
   if (task.items.some((item) => item.status === "cleanup_pending"))
@@ -56,39 +140,138 @@ export function formatBytes(value: number | null | undefined): string {
   return `${(value / 1024 ** 3).toFixed(2)} GB`;
 }
 
-function useController() {
+function useController(submissionsBlocked: boolean) {
   const client = useQueryClient();
-  const [uncertain, setUncertain] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>(restoreRequests);
+  const requestsRef = useRef(pendingRequests);
   const [dismissedId, setDismissedId] = useState<string | null>(null);
   const [requestedTask, setRequestedTask] = useState<ArchiveTask | null>(null);
+  const [stoppingIds, setStoppingIds] = useState<string[]>([]);
+  const [stopErrors, setStopErrors] = useState<Record<string, string>>({});
+  const changeRequests = useCallback((change: (current: PendingRequest[]) => PendingRequest[]) => {
+    const next = change(requestsRef.current);
+    requestsRef.current = next;
+    setPendingRequests(next);
+    try {
+      sessionStorage.setItem(PENDING_KEY, JSON.stringify(next));
+    } catch {
+      /* Memory state still protects this session. */
+    }
+  }, []);
   const latest = useQuery({
     queryKey: TASK_KEY,
-    queryFn: ({ signal }) => getLatestTransfer(signal),
+    queryFn: ({ signal }) => getTransfers(signal),
     // Browser Internet reachability does not determine whether the local
     // 127.0.0.1 sidecar can report or safely stop an active queue.
     networkMode: "always",
     retry: false,
-    refetchInterval: (query) => (isTransferActive(query.state.data) || uncertain ? 1000 : 5000),
+    refetchInterval: (query) => (query.state.data?.busy || pendingRequests.length ? 1000 : 5000),
     refetchIntervalInBackground: true,
   });
-  const apply = async (task: ArchiveTask) => {
-    await client.cancelQueries({ queryKey: TASK_KEY });
-    client.setQueryData(TASK_KEY, task);
-    setDismissedId(null);
-  };
-  const start = useMutation({
-    mutationFn: (body: Parameters<typeof createTransfer>[0]) => createTransfer(body),
+  const apply = useCallback(
+    async (task: ArchiveTask) => {
+      await client.cancelQueries({ queryKey: TASK_KEY });
+      client.setQueryData<TransferList>(TASK_KEY, (current) => {
+        const existing = [...(current?.active ?? []), ...(current?.history ?? [])].find(
+          (item) => item.id === task.id,
+        );
+        const merged = mergeTaskSnapshot(existing, task);
+        const active = current?.active.filter((item) => item.id !== task.id) ?? [];
+        const history = current?.history.filter((item) => item.id !== task.id) ?? [];
+        if (isTransferActive(merged) || current?.active.some((item) => item.id === task.id))
+          active.unshift(merged);
+        else history.unshift(merged);
+        return {
+          active,
+          history,
+          next_cursor: current?.next_cursor ?? null,
+          busy: !!current?.busy || active.length > 0,
+          blocked_reason: current?.blocked_reason ?? null,
+          concurrency: current?.concurrency ?? 3,
+        };
+      });
+      setDismissedId(null);
+    },
+    [client],
+  );
+  // Recover each exact request independently. null is inconclusive: the original
+  // POST may still be in flight, and must never be replaced with a fresh ID.
+  const unknownIds = pendingRequests
+    .filter((item) => item.state === "unknown")
+    .map((item) => item.body.request_id);
+  const recovery = useQuery({
+    queryKey: ["archive-transfer-recovery", unknownIds],
+    enabled: unknownIds.length > 0,
+    queryFn: async ({ signal }) =>
+      Promise.all(unknownIds.map((id) => getTransferByRequest(id, signal))),
     networkMode: "always",
     retry: false,
-    onSuccess: async (task) => {
-      setUncertain(false);
-      await apply(task);
+    refetchInterval: 1000,
+    refetchIntervalInBackground: true,
+  });
+  useEffect(() => {
+    const recovered = recovery.data?.filter((task): task is ArchiveTask => task !== null) ?? [];
+    if (!recovered.length) return;
+    void Promise.all(recovered.map(apply)).then(() => {
+      const ids = new Set(recovered.map((task) => task.request_id));
+      changeRequests((current) => current.filter((item) => !ids.has(item.body.request_id)));
+    });
+  }, [recovery.data, apply, changeRequests]);
+  useEffect(() => {
+    const ids = new Set(
+      [...(latest.data?.active ?? []), ...(latest.data?.history ?? [])].map(
+        (task) => task.request_id,
+      ),
+    );
+    if (requestsRef.current.some((item) => ids.has(item.body.request_id))) {
+      changeRequests((current) => current.filter((item) => !ids.has(item.body.request_id)));
+    }
+  }, [latest.data, changeRequests]);
+  const start = useMutation({
+    mutationFn: ({ binding: _binding, ...body }: Submission) => {
+      if (submissionsBlocked)
+        throw Object.assign(new Error("清理进行中或状态待确认，请稍后提交。"), { status: 409 });
+      return createTransfer(body);
     },
-    onError: (error) => {
+    networkMode: "always",
+    retry: false,
+    onMutate: ({ binding, ...body }) => {
+      const savedBinding = binding
+        ? {
+            local_dir: binding.local_dir,
+            subdir: binding.subdir,
+            performer_id: binding.performer_id,
+            performer_name: binding.performer_name,
+            source_path: binding.source_path,
+            target_path: binding.target_path,
+          }
+        : undefined;
+      const wasUnknown = requestsRef.current.some(
+        (item) => item.body.request_id === body.request_id && item.state === "unknown",
+      );
+      changeRequests((current) => [
+        ...current.filter((item) => item.body.request_id !== body.request_id),
+        { body, binding: savedBinding, state: "sending" },
+      ]);
+      return { wasUnknown };
+    },
+    onSuccess: async (task) => {
+      await apply(task);
+      changeRequests((current) =>
+        current.filter((item) => item.body.request_id !== task.request_id),
+      );
+    },
+    onError: (error, variables, mutationContext) => {
       // Network/server failures may occur after the server accepted the job.
-      // Never automatically POST it again or allow an unrelated new queue.
+      // Never automatically POST it again. Independent bindings remain usable.
       const status = (error as { status?: number })?.status;
-      setUncertain(!status || status >= 500);
+      changeRequests((current) =>
+        mutationContext?.wasUnknown || !status || status >= 500
+          ? current.map((item) =>
+              item.body.request_id === variables.request_id ? { ...item, state: "unknown" } : item,
+            )
+          : current.filter((item) => item.body.request_id !== variables.request_id),
+      );
       client.invalidateQueries({ queryKey: TASK_KEY });
     },
   });
@@ -96,17 +279,56 @@ function useController() {
     mutationFn: (id: string) => stopTransfer(id),
     networkMode: "always",
     retry: false,
+    onMutate: (id) => {
+      setStoppingIds((ids) => [...ids, id]);
+      setStopErrors((errors) => ({ ...errors, [id]: "" }));
+    },
     onSuccess: apply,
-    onError: () => client.invalidateQueries({ queryKey: TASK_KEY }),
+    onError: (error, id) => {
+      setStopErrors((errors) => ({ ...errors, [id]: archiveError(error, "停止请求失败，请重试") }));
+      void client.invalidateQueries({ queryKey: TASK_KEY });
+    },
+    onSettled: (_data, _error, id) => setStoppingIds((ids) => ids.filter((value) => value !== id)),
   });
-  const task = latest.data ?? null;
-  // A confirmed task with the submitted id resolves a lost POST response.
-  const submissionRecovered = uncertain && task?.request_id === start.variables?.request_id;
-  const unresolved = uncertain && !submissionRecovered;
+  const activeTasks = latest.data?.active ?? [];
+  const history = latest.data?.history ?? [];
+  const tasks = [...activeTasks, ...history];
+  const task = tasks[0] ?? null;
+  const unresolved = pendingRequests.some((item) => item.state === "unknown");
+  const hasPending = pendingRequests.some((item) => item.state === "sending");
+  const unavailable = latest.isError || latest.isPending || !!latest.data?.blocked_reason;
+  const isBindingBusy = (binding: Binding) =>
+    activeTasks.some((task) => overlaps(task, binding)) ||
+    pendingRequests.some((item) => !item.binding || overlaps(item.binding, binding));
   return {
     task,
-    active: isTransferActive(task),
-    unavailable: latest.isError || latest.isPending || unresolved,
+    tasks,
+    activeTasks,
+    history,
+    pendingRequests,
+    hasPending,
+    stoppingIds,
+    stopErrors,
+    active: !!latest.data?.busy || activeTasks.length > 0,
+    unavailable,
+    submissionsBlocked,
+    blockedReason: latest.data?.blocked_reason,
+    concurrency: latest.data?.concurrency ?? 3,
+    nextCursor: latest.data?.next_cursor ?? null,
+    cleanupBlocked:
+      unavailable || !!latest.data?.busy || activeTasks.length > 0 || pendingRequests.length > 0,
+    isBindingBusy,
+    taskForBinding: (binding: Binding) =>
+      tasks.find(
+        (task) =>
+          task.local_dir === binding.local_dir &&
+          task.subdir === binding.subdir &&
+          task.performer_id === binding.performer_id,
+      ) ?? null,
+    bindingPending: (binding: Binding) =>
+      pendingRequests.some(
+        (item) => item.state === "sending" && (!item.binding || overlaps(item.binding, binding)),
+      ),
     unresolved,
     loading: latest.isPending,
     start,
@@ -115,20 +337,30 @@ function useController() {
     dismissed: task?.id === dismissedId && !isTransferActive(task),
     dismiss: () => setDismissedId(task?.id ?? null),
     requestedTask,
-    requestTaskView: () => setRequestedTask(task),
+    requestTaskView: (requested = task) => setRequestedTask(requested),
     clearTaskView: () => setRequestedTask(null),
-    retrySubmission: () => {
+    retrySubmission: (requestId?: string) => {
+      if (submissionsBlocked || unavailable) return;
       // Explicitly recover the already-authorized queue with the exact same
       // identity. A delayed first POST cannot create a second queue.
-      if (start.variables && !start.isPending) start.mutate(start.variables);
+      const request = requestsRef.current.find(
+        (item) => item.state === "unknown" && (!requestId || item.body.request_id === requestId),
+      );
+      if (request) start.mutate({ ...request.body, binding: request.binding });
     },
   };
 }
 
 const TransferContext = createContext<ReturnType<typeof useController> | null>(null);
 
-export function TransferProvider({ children }: { children: ReactNode }) {
-  const controller = useController();
+export function TransferProvider({
+  children,
+  submissionsBlocked = false,
+}: {
+  children: ReactNode;
+  submissionsBlocked?: boolean;
+}) {
+  const controller = useController(submissionsBlocked);
   return <TransferContext.Provider value={controller}>{children}</TransferContext.Provider>;
 }
 
@@ -139,7 +371,7 @@ export function useTransfer() {
 }
 
 export function TransferProgress({ task }: { task: ArchiveTask }) {
-  const known = task.total_bytes > 0 && task.phase !== "preflight";
+  const known = task.total_bytes > 0 && task.phase !== "preflight" && task.phase !== "queued";
   const done = task.phase === "verifying" ? task.verified_bytes : task.progress_bytes;
   const percent = known ? Math.min(100, (done / task.total_bytes) * 100) : 0;
   return (
@@ -164,7 +396,7 @@ export function TransferProgress({ task }: { task: ArchiveTask }) {
   );
 }
 
-function itemLabel(status: string): string {
+export function itemLabel(status: string): string {
   return (
     {
       pending: "待处理",
@@ -185,41 +417,35 @@ function itemLabel(status: string): string {
   );
 }
 
-export function TransferStatusBar({ onViewArchive }: { onViewArchive?: () => void }) {
+export function TransferTaskCard({
+  task,
+  onViewArchive,
+  onViewLogs,
+}: {
+  task: ArchiveTask;
+  onViewArchive?: () => void;
+  onViewLogs?: () => void;
+}) {
   const transfer = useTransfer();
   const [details, setDetails] = useState(false);
   const [confirmStop, setConfirmStop] = useState(false);
-  const { task } = transfer;
-  const recoveryAction = transfer.unresolved ? (
-    <Button disabled={transfer.start.isPending} onClick={transfer.retrySubmission}>
-      重试确认本次传输
-    </Button>
-  ) : (
-    <Button onClick={() => transfer.refresh()}>重试查询</Button>
-  );
-  if (!task || transfer.dismissed) {
-    return transfer.unavailable && !transfer.loading ? (
-      <Alert severity="warning" action={recoveryAction}>
-        {transfer.unresolved
-          ? "任务提交结果暂不可确认。可以重试确认本次传输，不会另建队列。"
-          : "归档任务状态暂不可确认，新传输暂不可用。"}
-      </Alert>
-    ) : null;
-  }
+  const active = isTransferActive(task);
   return (
     <>
       <Box
-        role="status"
-        aria-label="归档任务"
+        role="article"
+        aria-label={`归档任务 ${task.performer_name}`}
         sx={{
           flexShrink: 0,
-          borderTop: `1px solid ${tokens.lineStrong}`,
+          border: `1px solid ${tokens.lineStrong}`,
+          borderRadius: 2,
           bgcolor: "background.paper",
           px: 2.5,
           py: 1,
           display: "flex",
           gap: 2,
           alignItems: "center",
+          flexWrap: "wrap",
           minWidth: 0,
         }}
       >
@@ -229,12 +455,21 @@ export function TransferStatusBar({ onViewArchive }: { onViewArchive?: () => voi
           </Typography>
           <Typography
             variant="caption"
+            component="div"
+            noWrap
+            title={task.source_path}
+            color="text.secondary"
+          >
+            从 {task.source_path}
+          </Typography>
+          <Typography
+            variant="caption"
             noWrap
             component="div"
             title={task.target_path}
             color="text.secondary"
           >
-            {task.target_path}
+            到 {task.target_path}
           </Typography>
         </Box>
         <TransferProgress task={task} />
@@ -243,7 +478,7 @@ export function TransferStatusBar({ onViewArchive }: { onViewArchive?: () => voi
             size="small"
             sx={{ whiteSpace: "nowrap" }}
             onClick={() => {
-              transfer.requestTaskView();
+              transfer.requestTaskView(task);
               onViewArchive();
             }}
           >
@@ -253,32 +488,26 @@ export function TransferStatusBar({ onViewArchive }: { onViewArchive?: () => voi
         <Button size="small" sx={{ whiteSpace: "nowrap" }} onClick={() => setDetails(true)}>
           任务详情
         </Button>
-        {transfer.active ? (
+        {onViewLogs && (
+          <Button size="small" onClick={onViewLogs}>
+            操作日志
+          </Button>
+        )}
+        {active && (
           <Button
             size="small"
             color="inherit"
             startIcon={<StopCircleOutlinedIcon />}
             onClick={() => setConfirmStop(true)}
-            disabled={task.stop_requested || transfer.stop.isPending}
+            disabled={task.stop_requested || transfer.stoppingIds.includes(task.id)}
             sx={{ whiteSpace: "nowrap" }}
           >
             {task.stop_requested ? "停止中…" : "停止传输"}
           </Button>
-        ) : (
-          <IconButton size="small" aria-label="收起已结束任务" onClick={transfer.dismiss}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
         )}
       </Box>
-      {transfer.unavailable && (
-        <Alert severity="warning" action={recoveryAction}>
-          {transfer.unresolved
-            ? "新任务提交结果暂不可确认。可以重试确认本次传输，不会另建队列。"
-            : "任务状态暂不可确认。服务恢复前请勿关闭应用或重新提交。"}
-        </Alert>
-      )}
-      {transfer.stop.isError && (
-        <Alert severity="error">{archiveError(transfer.stop.error, "停止请求失败，请重试")}</Alert>
+      {transfer.stopErrors[task.id] && (
+        <Alert severity="error">{transfer.stopErrors[task.id]}</Alert>
       )}
       <Dialog open={details} onClose={() => setDetails(false)} maxWidth="md" fullWidth>
         <DialogTitle>归档任务 · {transferLabel(task)}</DialogTitle>
@@ -348,5 +577,87 @@ export function TransferStatusBar({ onViewArchive }: { onViewArchive?: () => voi
         </DialogActions>
       </Dialog>
     </>
+  );
+}
+
+export function TransferRecovery() {
+  const transfer = useTransfer();
+  return (
+    <>
+      {transfer.unavailable && !transfer.loading && (
+        <Alert
+          severity="warning"
+          action={<Button onClick={() => transfer.refresh()}>重试查询</Button>}
+        >
+          {transfer.blockedReason || "归档任务状态暂不可确认，新传输暂不可用。"}
+        </Alert>
+      )}
+      {transfer.pendingRequests
+        .filter((request) => request.state === "unknown")
+        .map((request) => (
+          <Alert
+            severity="warning"
+            key={request.body.request_id}
+            action={
+              <Button
+                disabled={transfer.submissionsBlocked || transfer.unavailable}
+                onClick={() => transfer.retrySubmission(request.body.request_id)}
+              >
+                重试确认本次传输
+              </Button>
+            }
+          >
+            {request.binding?.performer_name ?? "归档任务"}
+            ：提交结果暂不可确认。确认使用原请求，不会另建队列。
+          </Alert>
+        ))}
+    </>
+  );
+}
+
+export function TransferStatusBar({ onViewTasks }: { onViewTasks?: () => void }) {
+  const transfer = useTransfer();
+  if (
+    !transfer.active &&
+    !transfer.pendingRequests.length &&
+    !transfer.unavailable &&
+    (!transfer.task || transfer.dismissed)
+  )
+    return null;
+  if (transfer.loading) return null;
+  const running = transfer.activeTasks.filter((task) => task.status === "running").length;
+  const queued = transfer.activeTasks.filter((task) => task.status === "queued").length;
+  return (
+    <Box
+      role="status"
+      aria-label="归档任务"
+      sx={{
+        flexShrink: 0,
+        borderTop: `1px solid ${tokens.lineStrong}`,
+        bgcolor: "background.paper",
+        px: 2,
+        py: 0.5,
+        display: "flex",
+        alignItems: "center",
+        gap: 1,
+        minWidth: 0,
+      }}
+    >
+      <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+        {transfer.unavailable ? "任务状态待确认" : `${running} 个传输中 · ${queued} 个等待`}
+        {transfer.unresolved ? " · 有提交待确认" : transfer.hasPending ? " · 正在提交" : ""}
+        {transfer.active && !running && !queued ? " · 正在安全收尾" : ""}
+      </Typography>
+      {onViewTasks && (
+        <Button size="small" onClick={onViewTasks}>
+          任务与日志
+        </Button>
+      )}
+      {!transfer.active && !transfer.pendingRequests.length && !transfer.unavailable && (
+        <IconButton size="small" aria-label="收起已结束任务" onClick={transfer.dismiss}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      )}
+    </Box>
   );
 }
