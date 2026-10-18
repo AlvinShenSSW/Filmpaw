@@ -266,6 +266,8 @@ class CleanupService:
                 try:
                     self._worker.start()
                 except Exception as exc:
+                    # A Thread whose start failed cannot be joined at shutdown.
+                    self._worker = None
                     task.update(status="failed", message=f"清理工作器未能启动，未删除目录：{exc}")
                     self.transfers.release_cleanup(task["id"])
             return self._public(task)

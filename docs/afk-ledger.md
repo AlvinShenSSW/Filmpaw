@@ -225,3 +225,8 @@
   下一步 Windows CI → CTO → Kimi K3 唯一外门；通过后交付桌面安装包，PR 保持开放。
 - 本机／UNC／临时映射盘／上下文签发后重新映射 4 个实测场景全部通过；更换盘符映射后仍只处理原 batch，
   新目标、外部对照与 ADS 均保留。临时盘符与该组夹具已回收，未修改任何真实 NAS 共享。
+- [PR #39](https://github.com/AlvinShenSSW/Filmpaw/pull/39) 已建立，`7093e71` 的
+  [Windows CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39111172082) 全绿；CTO 无阻塞。
+  Kimi K3 初审 **APPROVE WITH COMMENTS**，唯一 Low 为线程启动失败后 close 等待未启动线程。
+  接受并先 RED 复现，再于失败分支清空工作器引用；新增两例，相关服务/API 45 passed。
+  [外审记录](evidence/issue-38/review.md) 保留意见，修复后重跑 CI 并接续同一 K3 会话定点核对。

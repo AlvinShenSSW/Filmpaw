@@ -479,3 +479,45 @@ def test_close_waits_for_cleanup_and_closes_shared_admission(cleanup_env, monkey
     assert closed.is_set()
     assert service.get_task(task["id"])["status"] == "completed"
     assert transfers.prepare_exit()["safe"]
+
+
+def test_worker_start_failure_can_close_without_joining_unstarted_thread(cleanup_env, monkeypatch):
+    service, transfers, batch, _ = cleanup_env
+    actor = batch / "Actor"
+    actor.mkdir()
+    service._auto_start = True
+    def fail_start(thread):
+        raise RuntimeError("cannot start a new thread")
+    with monkeypatch.context() as patch:
+        patch.setattr(threading.Thread, "start", fail_start)
+        task = start(cleanup_env)
+    assert task["status"] == "failed" and task["deleted_count"] == 0
+    assert actor.is_dir()
+    assert transfers.prepare_exit() == {"safe": True, "task_id": None}
+    try:
+        service.close()  # real Thread.join rejects a Thread whose start failed
+        transfers.close()
+    finally:
+        # Keep the RED test's fixture teardown independent of its close failure.
+        service._worker = None
+
+
+def test_worker_start_failure_releases_reservation_and_next_task_runs(cleanup_env, monkeypatch):
+    service, _, batch, _ = cleanup_env
+    actor = batch / "Actor"
+    actor.mkdir()
+    service._auto_start = True
+    def fail_start(thread):
+        raise RuntimeError("cannot start a new thread")
+    with monkeypatch.context() as patch:
+        patch.setattr(threading.Thread, "start", fail_start)
+        failed = start(cleanup_env)
+    assert failed["status"] == "failed" and actor.is_dir()
+    retry = start(cleanup_env, request_id="new-explicit-cleanup")
+    service._worker.join(timeout=5)
+    result = service.get_task(retry["id"])
+    assert result["status"] == "completed" and result["deleted_count"] == 1
+    assert not actor.exists()
+    actor.mkdir()
+    assert service.submit(failed["context_id"], failed["request_id"]) == failed
+    assert actor.is_dir(), "replaying the failed request must never start another cleanup"
