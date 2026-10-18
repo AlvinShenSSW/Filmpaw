@@ -17,6 +17,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel
@@ -371,6 +372,13 @@ def put_settings(request: Request, body: SettingsIn) -> dict:
             raise HTTPException(status_code=400, detail="不能选择磁盘根目录")
     conn = _conn(request)
     with _lock(request):
+        previous = conn.execute("SELECT value FROM settings WHERE key='last_local_dir'").fetchone()
+        if (previous["value"] if previous else None) != value:
+            conn.execute(
+                "INSERT INTO settings(key, value) VALUES ('last_local_dir_revision', ?)"
+                " ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                (uuid.uuid4().hex,),
+            )
         conn.execute(
             "INSERT INTO settings(key, value) VALUES ('last_local_dir', ?)"
             " ON CONFLICT(key) DO UPDATE SET value=excluded.value",

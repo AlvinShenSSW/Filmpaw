@@ -11,6 +11,8 @@ import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { ArchiveTransferView } from "./ArchiveTransferView";
+import type { PerformerOut } from "./client";
 import {
   getSettingsApiSettingsGet,
   listPerformersApiPerformersGet,
@@ -20,6 +22,7 @@ import {
 import { openArchivePair } from "./openTarget";
 import { PosterAvatar } from "./PerformersPage";
 import { pickDirectory } from "./pickDirectory";
+import { useTransfer } from "./TransferProvider";
 import { tokens } from "./theme";
 
 function detailOf(error: unknown, fallback: string): string {
@@ -29,9 +32,11 @@ function detailOf(error: unknown, fallback: string): string {
 
 export function ArchivePage() {
   const queryClient = useQueryClient();
+  const transfer = useTransfer();
   const [localDir, setLocalDir] = useState<string | null>(null);
   const [dirLoaded, setDirLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [target, setTarget] = useState<PerformerOut | null>(null);
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [toast, setToast] = useState("");
@@ -57,6 +62,31 @@ export function ArchivePage() {
     const t = setTimeout(() => setQ(search), 300);
     return () => clearTimeout(t);
   }, [search]);
+
+  const requestedTask = transfer.requestedTask;
+  const clearTaskView = transfer.clearTaskView;
+  useEffect(() => {
+    if (!dirLoaded || !requestedTask) return;
+    // Viewing an old task must never silently replace the approved batch.
+    // The immutable task details stay available even when this anchor changed.
+    if (localDir !== requestedTask.local_dir) {
+      setToast(`该任务来自 ${requestedTask.local_dir}；请先选择这个 batch，再查看目录。`);
+    } else {
+      setSelected(requestedTask.subdir);
+      setSearch(requestedTask.subdir);
+      setTarget({
+        id: requestedTask.performer_id,
+        name: requestedTask.performer_name,
+        source_id: 0,
+        source_label: requestedTask.source_label,
+        unc_path: requestedTask.target_path,
+        has_thumb: requestedTask.has_thumb,
+        is_missing: false,
+        aliases: [],
+      });
+    }
+    clearTaskView();
+  }, [requestedTask, dirLoaded, localDir, clearTaskView]);
 
   const subdirs = useQuery({
     queryKey: ["local-subdirs", localDir],
@@ -134,6 +164,7 @@ export function ArchivePage() {
     }
     setLocalDir(saved.data.last_local_dir ?? dir);
     setSelected(null);
+    setTarget(null);
     queryClient.invalidateQueries({ queryKey: ["local-subdirs"] });
   };
 
@@ -163,16 +194,17 @@ export function ArchivePage() {
 
   const pickFolder = (name: string) => {
     setSelected(name);
+    setTarget(null);
     setSearch(name); // auto-fill; manual edits later do NOT clear `selected`
   };
 
   const items = results.data?.items ?? [];
 
   return (
-    <Box sx={{ display: "flex", height: "100%" }}>
+    <Box sx={{ display: "flex", height: "100%", minHeight: 0, overflow: "hidden" }}>
       <Box
         sx={{
-          width: 260,
+          width: { xs: 210, lg: 250 },
           flexShrink: 0,
           borderRight: `1px solid ${tokens.line}`,
           p: 2,
@@ -259,126 +291,158 @@ export function ArchivePage() {
         )}
       </Box>
 
-      <Box sx={{ flex: 1, minWidth: 0, p: 2, display: "flex", flexDirection: "column" }}>
-        <TextField
-          fullWidth
-          size="small"
-          placeholder="点左侧文件夹自动匹配, 或手动输入名字/别名"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          slotProps={{ htmlInput: { "aria-label": "匹配搜索" } }}
+      {target && localDir && selected ? (
+        <ArchiveTransferView
+          key={`${localDir}:${selected}:${target.id}`}
+          localDir={localDir}
+          subdir={selected}
+          performer={target}
+          onBack={() => setTarget(null)}
         />
-        {results.isError && (
-          <Box sx={{ my: 1 }} role="alert">
-            <Typography variant="caption" sx={{ color: tokens.bad, mr: 1 }}>
-              匹配加载失败 — 请确认 server 正在运行
+      ) : (
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+            p: 2,
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="点左侧文件夹自动匹配, 或手动输入名字/别名"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            slotProps={{ htmlInput: { "aria-label": "匹配搜索" } }}
+          />
+          {results.isError && (
+            <Box sx={{ my: 1 }} role="alert">
+              <Typography variant="caption" sx={{ color: tokens.bad, mr: 1 }}>
+                匹配加载失败 — 请确认 server 正在运行
+              </Typography>
+              <Button size="small" onClick={() => results.refetch()}>
+                重试
+              </Button>
+            </Box>
+          )}
+          {q.trim() !== "" && !results.isError && (
+            <Typography variant="caption" color="text.secondary" sx={{ my: 1 }}>
+              {items.length} 条匹配(名字/别名 · 含繁简)
+              {(results.data?.total ?? 0) > items.length
+                ? ` · 共 ${results.data?.total} 条, 仅显示前 ${items.length} — 请细化搜索词`
+                : ""}
             </Typography>
-            <Button size="small" onClick={() => results.refetch()}>
-              重试
-            </Button>
-          </Box>
-        )}
-        {q.trim() !== "" && !results.isError && (
-          <Typography variant="caption" color="text.secondary" sx={{ my: 1 }}>
-            {items.length} 条匹配(名字/别名 · 含繁简)
-            {(results.data?.total ?? 0) > items.length
-              ? ` · 共 ${results.data?.total} 条, 仅显示前 ${items.length} — 请细化搜索词`
-              : ""}
-          </Typography>
-        )}
+          )}
 
-        <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
-          {q.trim() !== "" &&
-            items.map((p) => {
-              const pairDisabled = p.is_missing || !selected;
-              const pairTooltip = p.is_missing
-                ? "文件夹已失效"
-                : !selected
-                  ? "先选择左侧本地文件夹"
-                  : "";
-              return (
-                <Box
-                  key={p.id}
-                  sx={{
-                    border: "1px solid",
-                    borderColor: flashId === p.id ? tokens.orange : tokens.line,
-                    boxShadow: flashId === p.id ? `0 0 0 3px ${tokens.orange}33` : "none",
-                    borderRadius: "11px",
-                    p: "12px 14px",
-                    mb: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 1.5,
-                    opacity: p.is_missing ? 0.55 : 1,
-                    transition: "border-color .3s, box-shadow .3s",
-                  }}
-                >
-                  <PosterAvatar performer={p} size="card" />
-                  <Box sx={{ minWidth: 0, flex: 1 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {p.name}
-                      {p.aliases.length > 0 && (
-                        <Typography
-                          component="span"
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ ml: 1 }}
-                        >
-                          {p.aliases.map((a) => a.alias).join(" · ")}
-                        </Typography>
-                      )}
-                    </Typography>
-                    <Typography
-                      variant="caption"
-                      noWrap
-                      sx={{
-                        fontFamily: tokens.mono,
-                        color: "text.secondary",
-                        display: "block",
-                      }}
-                    >
-                      {p.unc_path}
-                    </Typography>
-                  </Box>
-                  <Tooltip title={pairTooltip}>
-                    <span>
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            {q.trim() !== "" &&
+              items.map((p) => {
+                const pairDisabled = p.is_missing || !selected;
+                const pairTooltip = p.is_missing
+                  ? "文件夹已失效"
+                  : !selected
+                    ? "先选择左侧本地文件夹"
+                    : "";
+                return (
+                  <Box
+                    key={p.id}
+                    sx={{
+                      border: "1px solid",
+                      borderColor: flashId === p.id ? tokens.orange : tokens.line,
+                      boxShadow: flashId === p.id ? `0 0 0 3px ${tokens.orange}33` : "none",
+                      borderRadius: "11px",
+                      p: "12px 14px",
+                      mb: 1,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 1.5,
+                      opacity: p.is_missing ? 0.55 : 1,
+                      transition: "border-color .3s, box-shadow .3s",
+                    }}
+                  >
+                    <PosterAvatar performer={p} size="card" />
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {p.name}
+                        {p.aliases.length > 0 && (
+                          <Typography
+                            component="span"
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ ml: 1 }}
+                          >
+                            {p.aliases.map((a) => a.alias).join(" · ")}
+                          </Typography>
+                        )}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        noWrap
+                        sx={{
+                          fontFamily: tokens.mono,
+                          color: "text.secondary",
+                          display: "block",
+                        }}
+                      >
+                        {p.unc_path}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: "flex", flexDirection: "column", gap: 1, flexShrink: 0 }}>
                       <Button
                         variant="contained"
                         disableElevation
                         size="small"
-                        startIcon={<SwapHorizIcon />}
-                        disabled={pairDisabled || openPair.isPending}
-                        onClick={() => openPair.mutate(p.id)}
+                        disabled={pairDisabled}
+                        onClick={() => setTarget(p)}
+                        aria-label={`选择此目录：${p.name} ${p.unc_path}`}
                         sx={{ fontWeight: 600, whiteSpace: "nowrap" }}
                       >
-                        双开
+                        选择此目录
                       </Button>
-                    </span>
-                  </Tooltip>
-                </Box>
-              );
-            })}
+                      <Tooltip title={pairTooltip}>
+                        <span>
+                          <Button
+                            variant="outlined"
+                            disableElevation
+                            size="small"
+                            startIcon={<SwapHorizIcon />}
+                            disabled={pairDisabled || openPair.isPending}
+                            onClick={() => openPair.mutate(p.id)}
+                            sx={{ fontWeight: 600, whiteSpace: "nowrap" }}
+                          >
+                            双开
+                          </Button>
+                        </span>
+                      </Tooltip>
+                    </Box>
+                  </Box>
+                );
+              })}
 
-          {q.trim() === "" && (
-            <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>
-              <SwapHorizIcon sx={{ fontSize: 36, color: "text.disabled" }} />
-              <Typography variant="body2" sx={{ mt: 1 }}>
-                选择左侧文件夹开始匹配, 或在上方手动输入
-              </Typography>
-            </Box>
-          )}
-          {q.trim() !== "" && results.data && items.length === 0 && (
-            <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
-                库中没有「{q}」
-              </Typography>
-              <Typography variant="caption">
-                可能用了别的艺名 — 改搜索词试试, 或者这是还没入库的新人
-              </Typography>
-            </Box>
-          )}
+            {q.trim() === "" && (
+              <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>
+                <SwapHorizIcon sx={{ fontSize: 36, color: "text.disabled" }} />
+                <Typography variant="body2" sx={{ mt: 1 }}>
+                  选择左侧文件夹开始匹配, 或在上方手动输入
+                </Typography>
+              </Box>
+            )}
+            {q.trim() !== "" && results.data && items.length === 0 && (
+              <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: "text.primary" }}>
+                  库中没有「{q}」
+                </Typography>
+                <Typography variant="caption">
+                  可能用了别的艺名 — 改搜索词试试, 或者这是还没入库的新人
+                </Typography>
+              </Box>
+            )}
+          </Box>
         </Box>
-      </Box>
+      )}
 
       <Snackbar
         open={toast !== ""}

@@ -151,3 +151,20 @@
 
 ## v1.5 运行结束 (2026-07-26)
 #31(前台激活)、0.4.0 版本、#34(关于页 + 文档同步)全部 merged。调度器/心跳待清理。
+
+## Issue #36 运行（2026-10-18）
+
+- 范围：已审阅的归档传输 UI 与整影片文件夹单向移动；紧凑演员头部、最大化双栏自适应。
+- 操作者明确指定 **Codex 主导 / Kimi K3 单外门**，覆盖默认双评审流程；不是服务降级。
+- 合并策略：`leave-open`；不自动合并、不部署。分支 `feat/36-archive-transfer`。
+- [设计文档](specs/2026-10-18-archive-transfer-design.md) 已完成两轮设计质询；
+  采用上下文绑定、持久串行任务、SHA-256 核对、不覆盖提交、精确源清理和原子退出 admission。
+- 已启动本地 30 分钟续跑 relay（仅本轮 `.git/afk-36/` 状态，活动主会话有租约，避免并发写树）；结束时清理。
+- TDD：前端首批用例、引擎测试、鉴权/迁移用例均先观察到 RED；首批 API/迁移/既有服务回归 47 项通过。
+- 当前阶段：实现与集成验证；CI、CTO 和 Kimi 外门尚未完成。
+- 实现集成：服务 125 passed / 1 skipped（缺少普通 symlink 创建权限，junction 实测通过），
+  UI 100 passed + typecheck/Biome，Rust 21 passed。实际 UI/服务端 E2E 与 4 种窗口尺寸通过。
+- 真实 SMB 回环临时目录完成 32 MiB 影片移动，另验证长路径不支持时保源失败。
+  不把本机回环结果等同于所有远程 NAS 的断网/大文件验收。
+- 自查收紧：OS 单库会话锁、batch revision、原地 reparse 防护、journal 保存失败后的安全退出、
+  实际 Python worker 句柄（不以 uv/onefile wrapper 死亡误判）。版本同步 0.5.0。

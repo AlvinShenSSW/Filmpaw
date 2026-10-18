@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddAliasApiPerformersPerformerIdAliasesPostData, AddAliasApiPerformersPerformerIdAliasesPostErrors, AddAliasApiPerformersPerformerIdAliasesPostResponses, AddSourceApiSourcesPostData, AddSourceApiSourcesPostErrors, AddSourceApiSourcesPostResponses, DeleteAliasApiAliasesAliasIdDeleteData, DeleteAliasApiAliasesAliasIdDeleteErrors, DeleteAliasApiAliasesAliasIdDeleteResponses, DeletePerformerApiPerformersPerformerIdDeleteData, DeletePerformerApiPerformersPerformerIdDeleteErrors, DeletePerformerApiPerformersPerformerIdDeleteResponses, DeleteSourceApiSourcesSourceIdDeleteData, DeleteSourceApiSourcesSourceIdDeleteErrors, DeleteSourceApiSourcesSourceIdDeleteResponses, GetSettingsApiSettingsGetData, GetSettingsApiSettingsGetResponses, GetThumbApiPerformersPerformerIdThumbGetData, GetThumbApiPerformersPerformerIdThumbGetErrors, GetThumbApiPerformersPerformerIdThumbGetResponses, HealthApiHealthGetData, HealthApiHealthGetResponses, ListPerformersApiPerformersGetData, ListPerformersApiPerformersGetErrors, ListPerformersApiPerformersGetResponses, ListSourcesApiSourcesGetData, ListSourcesApiSourcesGetResponses, LocalSubdirsApiLocalSubdirsGetData, LocalSubdirsApiLocalSubdirsGetErrors, LocalSubdirsApiLocalSubdirsGetResponses, OpenPairApiOpenPairPostData, OpenPairApiOpenPairPostErrors, OpenPairApiOpenPairPostResponses, OpenPerformerApiPerformersPerformerIdOpenPostData, OpenPerformerApiPerformersPerformerIdOpenPostErrors, OpenPerformerApiPerformersPerformerIdOpenPostResponses, PurgeMissingApiPerformersPurgeMissingPostData, PurgeMissingApiPerformersPurgeMissingPostResponses, PutSettingsApiSettingsPutData, PutSettingsApiSettingsPutErrors, PutSettingsApiSettingsPutResponses, ResolvePairApiResolvePairPostData, ResolvePairApiResolvePairPostErrors, ResolvePairApiResolvePairPostResponses, ResolvePerformerApiPerformersPerformerIdResolvePostData, ResolvePerformerApiPerformersPerformerIdResolvePostErrors, ResolvePerformerApiPerformersPerformerIdResolvePostResponses, ScanAllApiScanAllPostData, ScanAllApiScanAllPostResponses, ScanOneApiSourcesSourceIdScanPostData, ScanOneApiSourcesSourceIdScanPostErrors, ScanOneApiSourcesSourceIdScanPostResponses } from './types.gen';
+import type { AddAliasApiPerformersPerformerIdAliasesPostData, AddAliasApiPerformersPerformerIdAliasesPostErrors, AddAliasApiPerformersPerformerIdAliasesPostResponses, AddSourceApiSourcesPostData, AddSourceApiSourcesPostErrors, AddSourceApiSourcesPostResponses, CreateContextApiArchiveContextsPostData, CreateContextApiArchiveContextsPostErrors, CreateContextApiArchiveContextsPostResponses, CreateTransferApiArchiveTransfersPostData, CreateTransferApiArchiveTransfersPostErrors, CreateTransferApiArchiveTransfersPostResponses, DeleteAliasApiAliasesAliasIdDeleteData, DeleteAliasApiAliasesAliasIdDeleteErrors, DeleteAliasApiAliasesAliasIdDeleteResponses, DeletePerformerApiPerformersPerformerIdDeleteData, DeletePerformerApiPerformersPerformerIdDeleteErrors, DeletePerformerApiPerformersPerformerIdDeleteResponses, DeleteSourceApiSourcesSourceIdDeleteData, DeleteSourceApiSourcesSourceIdDeleteErrors, DeleteSourceApiSourcesSourceIdDeleteResponses, GetSettingsApiSettingsGetData, GetSettingsApiSettingsGetResponses, GetThumbApiPerformersPerformerIdThumbGetData, GetThumbApiPerformersPerformerIdThumbGetErrors, GetThumbApiPerformersPerformerIdThumbGetResponses, GetTransferApiArchiveTransfersTaskIdGetData, GetTransferApiArchiveTransfersTaskIdGetErrors, GetTransferApiArchiveTransfersTaskIdGetResponses, HealthApiHealthGetData, HealthApiHealthGetResponses, LatestTransferApiArchiveTransfersLatestGetData, LatestTransferApiArchiveTransfersLatestGetResponses, ListPerformersApiPerformersGetData, ListPerformersApiPerformersGetErrors, ListPerformersApiPerformersGetResponses, ListSourcesApiSourcesGetData, ListSourcesApiSourcesGetResponses, LocalSubdirsApiLocalSubdirsGetData, LocalSubdirsApiLocalSubdirsGetErrors, LocalSubdirsApiLocalSubdirsGetResponses, OpenPairApiOpenPairPostData, OpenPairApiOpenPairPostErrors, OpenPairApiOpenPairPostResponses, OpenPerformerApiPerformersPerformerIdOpenPostData, OpenPerformerApiPerformersPerformerIdOpenPostErrors, OpenPerformerApiPerformersPerformerIdOpenPostResponses, PrepareExitApiArchivePrepareExitPostData, PrepareExitApiArchivePrepareExitPostResponses, PurgeMissingApiPerformersPurgeMissingPostData, PurgeMissingApiPerformersPurgeMissingPostResponses, PutSettingsApiSettingsPutData, PutSettingsApiSettingsPutErrors, PutSettingsApiSettingsPutResponses, ResolvePairApiResolvePairPostData, ResolvePairApiResolvePairPostErrors, ResolvePairApiResolvePairPostResponses, ResolvePerformerApiPerformersPerformerIdResolvePostData, ResolvePerformerApiPerformersPerformerIdResolvePostErrors, ResolvePerformerApiPerformersPerformerIdResolvePostResponses, ScanAllApiScanAllPostData, ScanAllApiScanAllPostResponses, ScanOneApiSourcesSourceIdScanPostData, ScanOneApiSourcesSourceIdScanPostErrors, ScanOneApiSourcesSourceIdScanPostResponses, StopTransferApiArchiveTransfersTaskIdStopPostData, StopTransferApiArchiveTransfersTaskIdStopPostErrors, StopTransferApiArchiveTransfersTaskIdStopPostResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -163,3 +163,47 @@ export const resolvePairApiResolvePairPost = <ThrowOnError extends boolean = fal
         ...options.headers
     }
 });
+
+/**
+ * Create Context
+ */
+export const createContextApiArchiveContextsPost = <ThrowOnError extends boolean = false>(options: Options<CreateContextApiArchiveContextsPostData, ThrowOnError>): RequestResult<CreateContextApiArchiveContextsPostResponses, CreateContextApiArchiveContextsPostErrors, ThrowOnError> => (options.client ?? client).post<CreateContextApiArchiveContextsPostResponses, CreateContextApiArchiveContextsPostErrors, ThrowOnError>({
+    url: '/api/archive/contexts',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Create Transfer
+ */
+export const createTransferApiArchiveTransfersPost = <ThrowOnError extends boolean = false>(options: Options<CreateTransferApiArchiveTransfersPostData, ThrowOnError>): RequestResult<CreateTransferApiArchiveTransfersPostResponses, CreateTransferApiArchiveTransfersPostErrors, ThrowOnError> => (options.client ?? client).post<CreateTransferApiArchiveTransfersPostResponses, CreateTransferApiArchiveTransfersPostErrors, ThrowOnError>({
+    url: '/api/archive/transfers',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Latest Transfer
+ */
+export const latestTransferApiArchiveTransfersLatestGet = <ThrowOnError extends boolean = false>(options?: Options<LatestTransferApiArchiveTransfersLatestGetData, ThrowOnError>): RequestResult<LatestTransferApiArchiveTransfersLatestGetResponses, unknown, ThrowOnError> => (options?.client ?? client).get<LatestTransferApiArchiveTransfersLatestGetResponses, unknown, ThrowOnError>({ url: '/api/archive/transfers/latest', ...options });
+
+/**
+ * Get Transfer
+ */
+export const getTransferApiArchiveTransfersTaskIdGet = <ThrowOnError extends boolean = false>(options: Options<GetTransferApiArchiveTransfersTaskIdGetData, ThrowOnError>): RequestResult<GetTransferApiArchiveTransfersTaskIdGetResponses, GetTransferApiArchiveTransfersTaskIdGetErrors, ThrowOnError> => (options.client ?? client).get<GetTransferApiArchiveTransfersTaskIdGetResponses, GetTransferApiArchiveTransfersTaskIdGetErrors, ThrowOnError>({ url: '/api/archive/transfers/{task_id}', ...options });
+
+/**
+ * Stop Transfer
+ */
+export const stopTransferApiArchiveTransfersTaskIdStopPost = <ThrowOnError extends boolean = false>(options: Options<StopTransferApiArchiveTransfersTaskIdStopPostData, ThrowOnError>): RequestResult<StopTransferApiArchiveTransfersTaskIdStopPostResponses, StopTransferApiArchiveTransfersTaskIdStopPostErrors, ThrowOnError> => (options.client ?? client).post<StopTransferApiArchiveTransfersTaskIdStopPostResponses, StopTransferApiArchiveTransfersTaskIdStopPostErrors, ThrowOnError>({ url: '/api/archive/transfers/{task_id}/stop', ...options });
+
+/**
+ * Prepare Exit
+ */
+export const prepareExitApiArchivePrepareExitPost = <ThrowOnError extends boolean = false>(options?: Options<PrepareExitApiArchivePrepareExitPostData, ThrowOnError>): RequestResult<PrepareExitApiArchivePrepareExitPostResponses, unknown, ThrowOnError> => (options?.client ?? client).post<PrepareExitApiArchivePrepareExitPostResponses, unknown, ThrowOnError>({ url: '/api/archive/prepare-exit', ...options });

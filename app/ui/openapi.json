@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "filmpaw-server",
-  "version": "0.4.0"
+  "version": "0.5.0"
  },
  "paths": {
   "/api/health": {
@@ -832,6 +832,222 @@
      }
     }
    }
+  },
+  "/api/archive/contexts": {
+   "post": {
+    "tags": [
+     "archive"
+    ],
+    "summary": "Create Context",
+    "operationId": "create_context_api_archive_contexts_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ContextIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ContextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/transfers": {
+   "post": {
+    "tags": [
+     "archive"
+    ],
+    "summary": "Create Transfer",
+    "operationId": "create_transfer_api_archive_transfers_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/TransferIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TaskOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/transfers/latest": {
+   "get": {
+    "tags": [
+     "archive"
+    ],
+    "summary": "Latest Transfer",
+    "operationId": "latest_transfer_api_archive_transfers_latest_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/TaskOut"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Latest Transfer Api Archive Transfers Latest Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/transfers/{task_id}": {
+   "get": {
+    "tags": [
+     "archive"
+    ],
+    "summary": "Get Transfer",
+    "operationId": "get_transfer_api_archive_transfers__task_id__get",
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TaskOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/transfers/{task_id}/stop": {
+   "post": {
+    "tags": [
+     "archive"
+    ],
+    "summary": "Stop Transfer",
+    "operationId": "stop_transfer_api_archive_transfers__task_id__stop_post",
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/TaskOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/prepare-exit": {
+   "post": {
+    "tags": [
+     "archive"
+    ],
+    "summary": "Prepare Exit",
+    "operationId": "prepare_exit_api_archive_prepare_exit_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ExitOut"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -867,6 +1083,157 @@
     ],
     "title": "AliasOut"
    },
+   "ContextIn": {
+    "properties": {
+     "local_dir": {
+      "type": "string",
+      "maxLength": 32767,
+      "minLength": 1,
+      "title": "Local Dir"
+     },
+     "subdir": {
+      "type": "string",
+      "maxLength": 255,
+      "minLength": 1,
+      "title": "Subdir"
+     },
+     "performer_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Performer Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "local_dir",
+     "subdir",
+     "performer_id"
+    ],
+    "title": "ContextIn"
+   },
+   "ContextOut": {
+    "properties": {
+     "local_dir": {
+      "type": "string",
+      "title": "Local Dir"
+     },
+     "subdir": {
+      "type": "string",
+      "title": "Subdir"
+     },
+     "performer_id": {
+      "type": "string",
+      "title": "Performer Id"
+     },
+     "performer_name": {
+      "type": "string",
+      "title": "Performer Name"
+     },
+     "source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Label"
+     },
+     "has_thumb": {
+      "type": "boolean",
+      "title": "Has Thumb",
+      "default": false
+     },
+     "source_path": {
+      "type": "string",
+      "title": "Source Path"
+     },
+     "target_path": {
+      "type": "string",
+      "title": "Target Path"
+     },
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "source_items": {
+      "items": {
+       "$ref": "#/components/schemas/MovieOut"
+      },
+      "type": "array",
+      "title": "Source Items"
+     },
+     "target_items": {
+      "items": {
+       "$ref": "#/components/schemas/MovieOut"
+      },
+      "type": "array",
+      "title": "Target Items"
+     },
+     "source_error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Error"
+     },
+     "target_error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Target Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "local_dir",
+     "subdir",
+     "performer_id",
+     "performer_name",
+     "source_path",
+     "target_path",
+     "id",
+     "source_items",
+     "target_items"
+    ],
+    "title": "ContextOut"
+   },
+   "ExitOut": {
+    "properties": {
+     "safe": {
+      "type": "boolean",
+      "title": "Safe"
+     },
+     "task_id": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Task Id"
+     }
+    },
+    "type": "object",
+    "required": [
+     "safe"
+    ],
+    "title": "ExitOut"
+   },
    "HTTPValidationError": {
     "properties": {
      "detail": {
@@ -897,6 +1264,52 @@
      "version"
     ],
     "title": "HealthOut"
+   },
+   "MovieOut": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "size_bytes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Size Bytes"
+     },
+     "files": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Files"
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name"
+    ],
+    "title": "MovieOut"
    },
    "OpenPairIn": {
     "properties": {
@@ -1306,6 +1719,242 @@
      "subdirs"
     ],
     "title": "SubdirsOut"
+   },
+   "TaskOut": {
+    "properties": {
+     "local_dir": {
+      "type": "string",
+      "title": "Local Dir"
+     },
+     "subdir": {
+      "type": "string",
+      "title": "Subdir"
+     },
+     "performer_id": {
+      "type": "string",
+      "title": "Performer Id"
+     },
+     "performer_name": {
+      "type": "string",
+      "title": "Performer Name"
+     },
+     "source_label": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Source Label"
+     },
+     "has_thumb": {
+      "type": "boolean",
+      "title": "Has Thumb",
+      "default": false
+     },
+     "source_path": {
+      "type": "string",
+      "title": "Source Path"
+     },
+     "target_path": {
+      "type": "string",
+      "title": "Target Path"
+     },
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "request_id": {
+      "type": "string",
+      "title": "Request Id"
+     },
+     "context_id": {
+      "type": "string",
+      "title": "Context Id"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "queued",
+       "running",
+       "completed",
+       "stopped",
+       "failed",
+       "needs_review"
+      ],
+      "title": "Status"
+     },
+     "phase": {
+      "type": "string",
+      "title": "Phase"
+     },
+     "current_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Name"
+     },
+     "progress_bytes": {
+      "type": "integer",
+      "title": "Progress Bytes",
+      "default": 0
+     },
+     "total_bytes": {
+      "type": "integer",
+      "title": "Total Bytes",
+      "default": 0
+     },
+     "verified_bytes": {
+      "type": "integer",
+      "title": "Verified Bytes",
+      "default": 0
+     },
+     "completed_count": {
+      "type": "integer",
+      "title": "Completed Count",
+      "default": 0
+     },
+     "total_count": {
+      "type": "integer",
+      "title": "Total Count"
+     },
+     "conflicts": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Conflicts"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     },
+     "stop_requested": {
+      "type": "boolean",
+      "title": "Stop Requested",
+      "default": false
+     },
+     "created_at": {
+      "type": "string",
+      "title": "Created At"
+     },
+     "updated_at": {
+      "type": "string",
+      "title": "Updated At"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/TransferItemOut"
+      },
+      "type": "array",
+      "title": "Items"
+     }
+    },
+    "type": "object",
+    "required": [
+     "local_dir",
+     "subdir",
+     "performer_id",
+     "performer_name",
+     "source_path",
+     "target_path",
+     "id",
+     "request_id",
+     "context_id",
+     "status",
+     "phase",
+     "total_count",
+     "created_at",
+     "updated_at",
+     "items"
+    ],
+    "title": "TaskOut"
+   },
+   "TransferIn": {
+    "properties": {
+     "context_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Context Id"
+     },
+     "names": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "maxItems": 1000,
+      "minItems": 1,
+      "title": "Names"
+     },
+     "request_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Request Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "context_id",
+     "names",
+     "request_id"
+    ],
+    "title": "TransferIn"
+   },
+   "TransferItemOut": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "status": {
+      "type": "string",
+      "title": "Status"
+     },
+     "size_bytes": {
+      "type": "integer",
+      "title": "Size Bytes",
+      "default": 0
+     },
+     "progress_bytes": {
+      "type": "integer",
+      "title": "Progress Bytes",
+      "default": 0
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "status"
+    ],
+    "title": "TransferItemOut"
    },
    "ValidationError": {
     "properties": {

@@ -8,7 +8,15 @@ import os
 import sqlite3
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
+
+ARCHIVE_DDL = """
+CREATE TABLE archive_tasks (
+  id TEXT PRIMARY KEY,
+  request_id TEXT NOT NULL UNIQUE,
+  payload TEXT NOT NULL
+)
+"""
 
 DDL = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -84,8 +92,12 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
     conn.executescript(DDL)
     if existing is None:
         if _read_version(conn) is None:
-            conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
-            conn.commit()
+            # Journal creation and its version marker are one transaction,
+            # including a first launch interrupted before committing.
+            conn.execute("BEGIN")
+            with conn:
+                conn.execute(ARCHIVE_DDL)
+                conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
     elif existing != SCHEMA_VERSION:
         _migrate(conn, existing)
     return conn
@@ -144,4 +156,8 @@ def _migrate_1_to_2(conn: sqlite3.Connection) -> None:
     conn.execute("UPDATE performers SET thumb_side = 256 WHERE thumb IS NOT NULL")
 
 
-_MIGRATIONS = {1: _migrate_1_to_2}
+def _migrate_2_to_3(conn: sqlite3.Connection) -> None:
+    conn.execute(ARCHIVE_DDL)
+
+
+_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3}

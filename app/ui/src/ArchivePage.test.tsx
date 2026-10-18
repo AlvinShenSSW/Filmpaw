@@ -19,6 +19,12 @@ vi.mock("./client", () => ({
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
+vi.mock("./archiveApi", () => ({
+  getLatestTransfer: vi.fn().mockResolvedValue(null),
+  createTransfer: vi.fn(),
+  stopTransfer: vi.fn(),
+  isTransferActive: () => false,
+}));
 
 import { ArchivePage } from "./ArchivePage";
 import {
@@ -28,6 +34,7 @@ import {
 } from "./client";
 import { openArchivePair } from "./openTarget";
 import { pickDirectory } from "./pickDirectory";
+import { TransferProvider } from "./TransferProvider";
 
 const REC = {
   id: "a3f2aaaa-0000-0000-0000-000000000001",
@@ -59,7 +66,9 @@ function renderPage() {
   return render(
     <QueryClientProvider client={qc}>
       <ThemeProvider theme={theme}>
-        <ArchivePage />
+        <TransferProvider>
+          <ArchivePage />
+        </TransferProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   );

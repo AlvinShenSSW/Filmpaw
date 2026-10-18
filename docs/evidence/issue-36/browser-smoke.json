@@ -1,0 +1,124 @@
+{
+  "pageErrors": [],
+  "measurements": [
+    {
+      "viewport": "960x640",
+      "panes": [
+        {
+          "width": 324,
+          "height": 406
+        },
+        {
+          "width": 324,
+          "height": 406
+        }
+      ],
+      "lists": [
+        {
+          "height": 269,
+          "width": 324,
+          "scroll": 1914
+        },
+        {
+          "height": 269,
+          "width": 324,
+          "scroll": 1798
+        }
+      ],
+      "buttonBottom": 622.96875,
+      "documentHeight": 640,
+      "documentWidth": 960
+    },
+    {
+      "viewport": "1200x800",
+      "panes": [
+        {
+          "width": 413,
+          "height": 551
+        },
+        {
+          "width": 413,
+          "height": 551
+        }
+      ],
+      "lists": [
+        {
+          "height": 414,
+          "width": 413,
+          "scroll": 1914
+        },
+        {
+          "height": 414,
+          "width": 413,
+          "scroll": 1798
+        }
+      ],
+      "buttonBottom": 782.96875,
+      "documentHeight": 800,
+      "documentWidth": 1200
+    },
+    {
+      "viewport": "1920x1080",
+      "panes": [
+        {
+          "width": 773,
+          "height": 831
+        },
+        {
+          "width": 773,
+          "height": 831
+        }
+      ],
+      "lists": [
+        {
+          "height": 694,
+          "width": 773,
+          "scroll": 1914
+        },
+        {
+          "height": 694,
+          "width": 773,
+          "scroll": 1798
+        }
+      ],
+      "buttonBottom": 1062.96875,
+      "documentHeight": 1080,
+      "documentWidth": 1920
+    },
+    {
+      "viewport": "2560x1440",
+      "panes": [
+        {
+          "width": 1093,
+          "height": 1191
+        },
+        {
+          "width": 1093,
+          "height": 1191
+        }
+      ],
+      "lists": [
+        {
+          "height": 1054,
+          "width": 1093,
+          "scroll": 1914
+        },
+        {
+          "height": 1054,
+          "width": 1093,
+          "scroll": 1798
+        }
+      ],
+      "buttonBottom": 1422.96875,
+      "documentHeight": 1440,
+      "documentWidth": 2560
+    }
+  ],
+  "checks": [
+    "explicit performer selection; no automatic movie selection; target is read only",
+    "initial conflict stops entire selection with zero moves",
+    "actual two-film move preserves nested contents/digests/empty directories and actor portrait",
+    "task survives route change and full browser reload"
+  ],
+  "filesystem": "disposable local NTFS; not a remote SMB share"
+}
