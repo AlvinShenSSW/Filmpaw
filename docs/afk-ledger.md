@@ -230,3 +230,14 @@
   Kimi K3 初审 **APPROVE WITH COMMENTS**，唯一 Low 为线程启动失败后 close 等待未启动线程。
   接受并先 RED 复现，再于失败分支清空工作器引用；新增两例，相关服务/API 45 passed。
   [外审记录](evidence/issue-38/review.md) 保留意见，修复后重跑 CI 并接续同一 K3 会话定点核对。
+
+## Issue #40 运行（2026-10-18）
+
+- 用户授权：结果弹窗仅显示已清理目录名称；Codex 执行、Kimi K3 唯一外门、版本提升 0.0.1、exe 放桌面并合并关闭 issue。
+- 前置 PR #37 / #39 已按用户指示合并，#36 / #38 已关闭。本轮从 `main` 的 `d95267e` 建立 `fix/cleanup-result-names`。
+- [设计](specs/2026-10-18-cleanup-result-names-design.md) 两轮质询通过；仅调整弹窗显示，全局进度／失败统计与后端行为不变。
+- 已有回归先观察 6 个 RED；修复后 UI **140 passed**、TypeScript／Biome／生产构建通过；
+  后端 **211 passed / 1 skipped**，`uv lock --check` 通过。版本锚点与 OpenAPI 同步 **0.5.3**。
+- 两轮实现自查无阻塞：只筛选 deleted 项、名称保序／换行；零候选、全部保留／跳过、失败与运行中统一使用准确的零删除空态。
+- 已启动 `.git/afk-40/` 30 分钟续跑进程，合并策略 `merge-when-green`；最终 CI、CTO、K3 结论／服务限制及桌面产物摘要记录在本轮 PR，收尾停止进程。
+- 生产 UI + Edge 实际浏览器检查通过：1200×800、960×640 只显示 deleted 名称，长中文换行、零删除空态与外部统计正确；无溢出／页面错误／API 写请求。全部 API 使用模拟数据，没有启动 sidecar 或操作真实目录，证据在 `docs/evidence/issue-40/`。

@@ -200,7 +200,7 @@ describe("batch empty actor cleanup", () => {
     expect(screen.queryByRole("heading", { name: "影片文件夹" })).not.toBeInTheDocument();
     expect(screen.getByLabelText("匹配搜索")).toHaveValue("Actor A");
     await userEvent.click(screen.getByRole("button", { name: "清理详情" }));
-    expect(within(screen.getByRole("dialog")).getByText("Actor A · 已删除")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Actor A")).toBeInTheDocument();
   });
 
   it("preserves the current target when another actor was deleted", async () => {
@@ -284,7 +284,7 @@ describe("batch empty actor cleanup", () => {
     expect(await screen.findByRole("button", { name: /^Actor A$/ })).toBeInTheDocument();
     expect(createCleanup).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "清理详情" }));
-    expect(within(screen.getByRole("dialog")).getByText("Actor A · 已删除")).toBeInTheDocument();
+    expect(within(screen.getByRole("dialog")).getByText("Actor A")).toBeInTheDocument();
   });
 
   it("allows selecting a recreated actor after refreshing the same batch", async () => {
@@ -344,38 +344,94 @@ describe("batch empty actor cleanup", () => {
     expect(screen.getByRole("heading", { name: "影片文件夹" })).toBeInTheDocument();
   });
 
-  it("reports retained, skipped and failed results without claiming every directory was deleted", async () => {
+  it("shows only deleted names in the result dialog while retaining global failure status and counts", async () => {
     vi.mocked(getLatestCleanup).mockResolvedValue({
       ...done(),
+      status: "failed",
+      current_name: null,
+      checked_count: 5,
+      total_count: 5,
+      deleted_count: 2,
       failed_count: 1,
       kept_count: 1,
       skipped_count: 1,
+      message: "部分目录无法处理",
       items: [
-        { name: "Actor A", status: "deleted", message: null },
+        { name: "Actor Z", status: "deleted", message: "已完成删除" },
         { name: "Has poster", status: "not_empty", message: "包含 folder.jpg" },
+        { name: "Actor A", status: "deleted", message: null },
         { name: "Link", status: "skipped", message: "链接目录保留" },
         { name: "Denied", status: "failed", message: "拒绝访问" },
       ],
     });
     renderPage();
-    await userEvent.click(await screen.findByRole("button", { name: "清理详情" }));
+    const details = await screen.findByRole("button", { name: "清理详情" });
+    const status = screen.getByRole("status", { name: "空演员目录清理" });
+    expect(status).toHaveTextContent("清理未完成");
+    expect(status).toHaveTextContent("已检查 5 / 5 · 已删除 2 · 非空保留 1 · 跳过 1 · 失败 1");
+    await userEvent.click(details);
     const dialog = within(screen.getByRole("dialog"));
-    expect(dialog.getByText("Has poster · 非空保留")).toBeInTheDocument();
-    expect(dialog.getByText("Link · 已跳过")).toBeInTheDocument();
-    expect(dialog.getByText("Denied · 失败，已保留")).toBeInTheDocument();
-    expect(dialog.getByText("拒绝访问")).toBeInTheDocument();
+    expect(dialog.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Actor Z",
+      "Actor A",
+    ]);
+    for (const text of [
+      batch,
+      "Has poster",
+      "Link",
+      "Denied",
+      "部分目录无法处理",
+      "已完成删除",
+      "包含 folder.jpg",
+      "链接目录保留",
+      "拒绝访问",
+      "结果保留在当前应用会话；重启后不会自动继续清理。",
+    ]) {
+      expect(dialog.queryByText(text)).not.toBeInTheDocument();
+    }
   });
 
-  it("reports that a completed empty batch has no actor directories to clean", async () => {
+  it.each<[string, Partial<CleanupTask>]>([
+    ["zero candidates", { status: "completed", total_count: 0 }],
+    [
+      "all retained",
+      {
+        status: "completed",
+        total_count: 1,
+        kept_count: 1,
+        items: [{ name: "Has poster", status: "not_empty", message: "包含 folder.jpg" }],
+      },
+    ],
+    [
+      "all skipped",
+      {
+        status: "completed",
+        total_count: 1,
+        skipped_count: 1,
+        items: [{ name: "Link", status: "skipped", message: "链接目录保留" }],
+      },
+    ],
+    [
+      "failed",
+      {
+        status: "failed",
+        total_count: 1,
+        failed_count: 1,
+        items: [{ name: "Denied", status: "failed", message: "拒绝访问" }],
+      },
+    ],
+    ["still running", { status: "running", total_count: 1 }],
+  ])("shows a truthful zero-deletion result for %s", async (_label, state) => {
     vi.mocked(getLatestCleanup).mockResolvedValue({
       ...task,
-      status: "completed",
       current_name: null,
-      total_count: 0,
+      ...state,
     });
     renderPage();
     await userEvent.click(await screen.findByRole("button", { name: "清理详情" }));
-    expect(screen.getByText("当前 batch 没有可清理的演员目录。")).toBeInTheDocument();
+    const dialog = within(screen.getByRole("dialog"));
+    expect(dialog.getByText("暂无已清理的目录。")).toBeInTheDocument();
+    expect(dialog.queryAllByRole("listitem")).toHaveLength(0);
     expect(createCleanup).not.toHaveBeenCalled();
   });
 

@@ -279,17 +279,12 @@ export function useCleanup() {
   return value;
 }
 
-const ITEM_LABELS = {
-  deleted: "已删除",
-  not_empty: "非空保留",
-  skipped: "已跳过",
-  failed: "失败，已保留",
-};
 export function CleanupStatusBar() {
   const cleanup = useCleanup();
   const [details, setDetails] = useState(false);
   const task =
     cleanup.preparing || cleanup.submit.isPending || cleanup.unresolved ? null : cleanup.task;
+  const deletedItems = task?.items.filter((item) => item.status === "deleted") ?? [];
   const displayPath = task?.batch_path ?? cleanup.pendingPath ?? cleanup.binding.path;
   const visibleTask = task && !cleanup.dismissed;
   const busy = cleanup.preparing || cleanup.submit.isPending || cleanup.active;
@@ -370,37 +365,17 @@ export function CleanupStatusBar() {
       <Dialog open={details} onClose={() => setDetails(false)} fullWidth maxWidth="sm">
         <DialogTitle>空演员目录清理结果</DialogTitle>
         <DialogContent dividers>
-          <Typography variant="body2" sx={{ overflowWrap: "anywhere", fontFamily: tokens.mono }}>
-            {task?.batch_path}
-          </Typography>
-          {task?.message && (
-            <Alert
-              severity={task.status === "failed" || task.failed_count ? "warning" : "info"}
-              sx={{ my: 1 }}
-            >
-              {task.message}
-            </Alert>
+          {deletedItems.length === 0 ? (
+            <Typography sx={{ my: 1 }}>暂无已清理的目录。</Typography>
+          ) : (
+            <Box component="ul" sx={{ pl: 2.5 }}>
+              {deletedItems.map((item) => (
+                <Box component="li" key={item.name} sx={{ py: 0.75, overflowWrap: "anywhere" }}>
+                  <Typography variant="body2">{item.name}</Typography>
+                </Box>
+              ))}
+            </Box>
           )}
-          {task?.status === "completed" && task.total_count === 0 && (
-            <Typography sx={{ my: 1 }}>当前 batch 没有可清理的演员目录。</Typography>
-          )}
-          <Box component="ul" sx={{ pl: 2.5 }}>
-            {task?.items.map((item) => (
-              <Box component="li" key={item.name} sx={{ py: 0.75, overflowWrap: "anywhere" }}>
-                <Typography variant="body2">
-                  {item.name} · {ITEM_LABELS[item.status]}
-                </Typography>
-                {item.message && (
-                  <Typography variant="caption" color="text.secondary">
-                    {item.message}
-                  </Typography>
-                )}
-              </Box>
-            ))}
-          </Box>
-          <Typography variant="caption" color="text.secondary">
-            结果保留在当前应用会话；重启后不会自动继续清理。
-          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDetails(false)}>关闭</Button>
