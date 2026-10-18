@@ -255,3 +255,5 @@
 - 更新实测证据：四演员各 32 MiB、三个真实 worker 并行、第四 FIFO 补位；12 条文件及 12 条目录删除成功回执与实际一致。生产界面两种尺寸分别显示三个独立进度和一个等待任务。
 - 三并发提交 `7e0f00f` 的 [Windows CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39137583650) 全绿：后端 241、UI 163、Rust 24，打包启动验证与 NSIS 均通过。
 - CI 绿后内部交叉检查发现同秒迟到的 running 响应可能短暂回退界面进度；不影响实际传输或退出安全，仍接受并补定点回归修复。后续精确提交的 CI、CTO、Kimi K3 唯一外门结论与最终交付状态统一记录在 [PR #43](https://github.com/AlvinShenSSW/Filmpaw/pull/43)，本轮继续 `leave-open`。
+- 实现提交 `63a1b806` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39138858399) 全绿：后端 241、UI 169、Rust 24；CTO 无剩余阻塞，Kimi K3 同会话续接后正式 **APPROVE**，未降级，完整记录见 PR #43。
+- 2026-10-19 用户追加授权：版本提升一个补丁号、exe 放桌面并合并。版本同步为 **0.5.4**，仅更新八处版本／锁文件／OpenAPI 元数据，不改变已批准实现；沿用 K3 结构评审，重新验证精确提交的 Windows CI 与安装包版本。交付产物来源、SHA-256、合并及 issue 关闭结果记录在 PR #43。
