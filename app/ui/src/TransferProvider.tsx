@@ -64,6 +64,9 @@ function useController() {
   const latest = useQuery({
     queryKey: TASK_KEY,
     queryFn: ({ signal }) => getLatestTransfer(signal),
+    // Browser Internet reachability does not determine whether the local
+    // 127.0.0.1 sidecar can report or safely stop an active queue.
+    networkMode: "always",
     retry: false,
     refetchInterval: (query) => (isTransferActive(query.state.data) || uncertain ? 1000 : 5000),
     refetchIntervalInBackground: true,
@@ -75,6 +78,8 @@ function useController() {
   };
   const start = useMutation({
     mutationFn: (body: Parameters<typeof createTransfer>[0]) => createTransfer(body),
+    networkMode: "always",
+    retry: false,
     onSuccess: async (task) => {
       setUncertain(false);
       await apply(task);
@@ -89,6 +94,8 @@ function useController() {
   });
   const stop = useMutation({
     mutationFn: (id: string) => stopTransfer(id),
+    networkMode: "always",
+    retry: false,
     onSuccess: apply,
     onError: () => client.invalidateQueries({ queryKey: TASK_KEY }),
   });

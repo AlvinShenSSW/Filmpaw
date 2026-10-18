@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material/styles";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { onlineManager, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,7 +18,12 @@ vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
 
 import { ArchiveTransferView } from "./ArchiveTransferView";
-import { createArchiveContext, createTransfer, getLatestTransfer } from "./archiveApi";
+import {
+  createArchiveContext,
+  createTransfer,
+  getLatestTransfer,
+  stopTransfer,
+} from "./archiveApi";
 import { openArchivePair } from "./openTarget";
 import { TransferProvider, TransferStatusBar } from "./TransferProvider";
 
@@ -98,7 +103,67 @@ beforeEach(() => {
   vi.mocked(createTransfer)
     .mockReset()
     .mockResolvedValue(task as never);
+  vi.mocked(stopTransfer)
+    .mockReset()
+    .mockResolvedValue({ ...task, stop_requested: true } as never);
   vi.mocked(openArchivePair).mockResolvedValue(undefined);
+});
+
+describe("local sidecar transport while the browser is offline", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => {
+    act(() => onlineManager.setOnline(true));
+    vi.useRealTimers();
+  });
+  const tick = async (ms: number) => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  };
+
+  it("sends stop immediately to the local sidecar despite the offline flag", async () => {
+    vi.mocked(getLatestTransfer).mockResolvedValue({ ...task, status: "running" } as never);
+    vi.mocked(stopTransfer).mockRejectedValue(new TypeError("Failed to fetch"));
+    renderView();
+    await tick(1);
+    act(() => onlineManager.setOnline(false));
+    fireEvent.click(screen.getByRole("button", { name: "停止传输" }));
+    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "停止队列" }));
+    await tick(1);
+    expect(stopTransfer).toHaveBeenCalledExactlyOnceWith(task.id);
+    await tick(10_000);
+    act(() => onlineManager.setOnline(true));
+    await tick(10_000);
+    expect(stopTransfer).toHaveBeenCalledExactlyOnceWith(task.id);
+  });
+
+  it("continues loading and polling local task status while offline", async () => {
+    vi.mocked(getLatestTransfer).mockResolvedValue({ ...task, status: "running" } as never);
+    act(() => onlineManager.setOnline(false));
+    renderView();
+    await tick(1);
+    expect(getLatestTransfer).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("status", { name: "归档任务" })).toBeInTheDocument();
+    await tick(1000);
+    expect(getLatestTransfer).toHaveBeenCalledTimes(2);
+  });
+
+  it("submits locally while offline, reports network uncertainty, and never automatically replays", async () => {
+    renderView();
+    await tick(1);
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 MOV-3" }));
+    vi.mocked(createTransfer).mockRejectedValue(new TypeError("Failed to fetch"));
+    act(() => onlineManager.setOnline(false));
+    fireEvent.click(screen.getByRole("button", { name: /^传输到 NAS/ }));
+    await tick(1);
+    expect(createTransfer).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "重试确认本次传输" })).toBeInTheDocument();
+    await tick(20_000);
+    expect(createTransfer).toHaveBeenCalledTimes(1);
+    act(() => onlineManager.setOnline(true));
+    await tick(20_000);
+    expect(createTransfer).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("directory read retries", () => {
@@ -109,6 +174,32 @@ describe("directory read retries", () => {
       await vi.advanceTimersByTimeAsync(ms);
     });
   };
+
+  it("blocks transmission while an offline refresh is paused and resumes only the directory read", async () => {
+    renderView();
+    await tick(1);
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 MOV-3" }));
+    expect(screen.getByRole("button", { name: /^传输到 NAS/ })).toBeEnabled();
+    try {
+      act(() => onlineManager.setOnline(false));
+      fireEvent.click(screen.getByRole("button", { name: "刷新本地影片" }));
+      await tick(1);
+      expect(createArchiveContext).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("button", { name: /^传输到 NAS/ })).toBeDisabled();
+      expect(screen.getByText(/等待连接恢复/)).toBeInTheDocument();
+      expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeChecked();
+      fireEvent.click(screen.getByRole("button", { name: /^传输到 NAS/ }));
+      expect(createTransfer).not.toHaveBeenCalled();
+      act(() => onlineManager.setOnline(true));
+      await tick(1);
+      expect(createArchiveContext).toHaveBeenCalledTimes(2);
+      expect(screen.queryByText(/等待连接恢复/)).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^传输到 NAS/ })).toBeEnabled();
+      expect(createTransfer).not.toHaveBeenCalled();
+    } finally {
+      act(() => onlineManager.setOnline(true));
+    }
+  });
 
   it("retries a transient NAS partial response and keeps the local list visible", async () => {
     vi.mocked(createArchiveContext)

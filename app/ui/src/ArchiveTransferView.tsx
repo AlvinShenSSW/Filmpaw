@@ -384,7 +384,7 @@ export function ArchiveTransferView({
     !data ||
     !!data.source_error ||
     !!data.target_error ||
-    context.isFetching ||
+    context.fetchStatus !== "idle" ||
     context.isError ||
     transfer.active ||
     transfer.unavailable ||
@@ -608,13 +608,18 @@ export function ArchiveTransferView({
             本地 batch <ArrowForwardIcon sx={{ fontSize: 15, color: tokens.orangeDeep }} /> NAS 片库
           </Typography>
         </Box>
+        {context.isPaused && (
+          <Alert severity="info" sx={{ mb: 1 }} role="status">
+            目录读取已暂停，等待连接恢复。恢复后将自动继续读取。
+          </Alert>
+        )}
         {context.retrying && (
           <Alert severity="info" sx={{ mb: 1 }} role="status">
             目录读取暂未完成，正在自动重试（{Math.min(context.failureCount, DIRECTORY_RETRIES)} /{" "}
             {DIRECTORY_RETRIES}）…
           </Alert>
         )}
-        {context.isError && !context.isFetching && (
+        {context.isError && context.fetchStatus === "idle" && (
           <Alert
             severity="error"
             action={
@@ -675,7 +680,7 @@ export function ArchiveTransferView({
               error={data.source_error}
               selected={selected}
               disabled={disabled}
-              busy={context.isFetching || transfer.active}
+              busy={context.fetchStatus !== "idle" || transfer.active}
               onToggle={toggle}
               onSelectAll={selectAll}
               onRefresh={refresh}
@@ -687,7 +692,7 @@ export function ArchiveTransferView({
               error={data.target_error}
               selected={new Set()}
               disabled
-              busy={context.isFetching || transfer.active}
+              busy={context.fetchStatus !== "idle" || transfer.active}
               onToggle={() => {}}
               onSelectAll={() => {}}
               onRefresh={refresh}

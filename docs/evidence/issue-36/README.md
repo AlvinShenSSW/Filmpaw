@@ -26,5 +26,5 @@
 junction；本机普通 symlink 创建缺少权限，因此该独立用例 skip，junction 用例实际执行。
 长路径支持取决于 Windows/共享设置；不支持时明确失败并保源，不宣称所有长路径可移动。
 
-本地检查阶段：pytest 151 passed / 1 skipped；UI 109 passed、TypeScript 与 Biome 通过；
+本地检查阶段：pytest 151 passed / 1 skipped；UI 113 passed、TypeScript 与 Biome 通过；
 Rust 21 passed。CI、最终外部门和后续修复以 PR 与 AFK ledger 的最终记录为准。

@@ -179,3 +179,7 @@
   初次超时探针有一个独立测试目录删除被工具 `rejected: blocked by policy` 拒绝；
   保留测试解包文件及隔离 DB/锁文件，没有绕过。后续探针已验证正常/超时均无新增残留。
 - 当前等待追加需求提交的 CI，再完成 CTO 结论和 Kimi K3 单外门；尚未合并。
+- 追加需求提交 `149db4c` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39101353070)
+  全绿。自查用定点 RED 试验确认并修复两处浏览器离线状态边界：目录读取 paused 时禁用
+  传输并提示等待连接；任务状态、提交和停止 RPC 不依赖浏览器在线标记，写请求明确不自动重试。
+  修复后全 UI 113 passed，typecheck/Biome 和生产构建通过；服务和 Rust 无变动。
