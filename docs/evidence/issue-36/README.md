@@ -35,4 +35,5 @@ junction；本机普通 symlink 创建缺少权限，因此该独立用例 skip�
 枚举接口参见 [GetFileInformationByHandleEx](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getfileinformationbyhandleex)。
 
 本地检查阶段：pytest 166 passed / 1 skipped；UI 113 passed、TypeScript 与 Biome 通过；
-Rust 21 passed。CI、最终外部门和后续修复以 PR 与 AFK ledger 的最终记录为准。
+Rust 21 passed。代码 `4639355` 的 Windows CI/NSIS 通过，CTO 通过，Kimi K3 最终 **APPROVE / CLEAN**。
+[评审记录](review.md) 保存完整结论；最终文档提交的检查与交付状态见 PR #37。

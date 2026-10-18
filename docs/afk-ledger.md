@@ -193,3 +193,9 @@
   11 项真实 NTFS 用例覆盖预检、复制后、提交后、最终删除前新增附加流与未选中资料对照；
   不宣称能原子阻止敌对并发新增流。完整服务回归 166 passed / 1 skipped，补跑 32 MiB
   实际 SMB 移动与独立摘要通过。等待本批 CI 后重新完成 CTO 和 K3 修复核对。
+- 修复提交 `4639355` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39104073308)
+  全绿（含 NSIS）。CTO：**APPROVE WITH NON-BLOCKING COMMENTS**；Kimi K3 复审：
+  **APPROVE / CLEAN**，没有高置信度可操作问题，另实际执行 12 项针对回归通过。
+  [完整评审记录](evidence/issue-36/review.md) 保留原文、确认修复和已知边界。
+  本轮实现及外门完成，交付 PR #37，策略仍为 `leave-open`；最终记录提交仅更新文档，
+  最新检查和开放状态以 PR 为准，收尾时关闭本轮本地 relay。
