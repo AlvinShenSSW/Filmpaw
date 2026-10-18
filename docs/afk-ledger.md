@@ -257,3 +257,10 @@
 - CI 绿后内部交叉检查发现同秒迟到的 running 响应可能短暂回退界面进度；不影响实际传输或退出安全，仍接受并补定点回归修复。后续精确提交的 CI、CTO、Kimi K3 唯一外门结论与最终交付状态统一记录在 [PR #43](https://github.com/AlvinShenSSW/Filmpaw/pull/43)，本轮继续 `leave-open`。
 - 实现提交 `63a1b806` 的 [CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39138858399) 全绿：后端 241、UI 169、Rust 24；CTO 无剩余阻塞，Kimi K3 同会话续接后正式 **APPROVE**，未降级，完整记录见 PR #43。
 - 2026-10-19 用户追加授权：版本提升一个补丁号、exe 放桌面并合并。版本同步为 **0.5.4**，仅更新八处版本／锁文件／OpenAPI 元数据，不改变已批准实现；沿用 K3 结构评审，重新验证精确提交的 Windows CI 与安装包版本。交付产物来源、SHA-256、合并及 issue 关闭结果记录在 PR #43。
+
+## Issue #44 运行（2026-10-19）
+
+- 用户报告0.5.4打开NAS演员双栏目录时报WinError87，明确授权AFK修复、Kimi单外门、完成后merge、补丁版本增加0.0.1和exe放桌面。本轮沿用Kimi K3，版本为 **0.5.5**。
+- 从主分支 `df4f874` 创建 `fix/smb-directory-identity`；[设计](specs/2026-10-19-smb-directory-identity-design.md)与独立质询确定同句柄兼容身份、精确错误白名单、混合模式别名桥接及ReFS拒绝边界。
+- 在报告目录及全部祖先只读确认FileIdInfo不支持且返回87，其余必要句柄接口正常。修复后的capture和目录枚举已通过，12个目录、零条目错误；未传输或删除任何NAS内容，见[证据](evidence/issue-44/README.md)。
+- 本轮30分钟续跑进程位于 `.git/afk-smb87/`，策略 `merge-when-green`。回归、精确提交Windows CI、CTO、Kimi K3结论及桌面产物版本／哈希将在关联PR记录；交付后关闭续跑进程。

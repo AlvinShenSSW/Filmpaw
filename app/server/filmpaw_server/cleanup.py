@@ -18,6 +18,7 @@ from pathlib import Path
 
 from filmpaw_server.audit import AuditError
 from filmpaw_server.directory_reads import directory_error_retryable
+from filmpaw_server.windows_identity import NotPlainDirectory, directory_identity
 from filmpaw_server.transfer import (
     NamedStreamsError,
     TransferError,
@@ -45,25 +46,10 @@ def _native_info(handle) -> dict:
     """Read identity and final path from this handle, never from path.stat()."""
     from ctypes import wintypes
     kernel = _kernel()
-    get_info = kernel.GetFileInformationByHandleEx
-    get_info.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
-    get_info.restype = wintypes.BOOL
-
-    class AttributeInfo(ctypes.Structure):
-        _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
-
-    class FileIdInfo(ctypes.Structure):
-        _fields_ = [("volume", ctypes.c_ulonglong), ("file_id", ctypes.c_ubyte * 16)]
-
-    attributes = AttributeInfo()
-    identity = FileIdInfo()
-    for kind, data in [(9, attributes), (18, identity)]:  # FileAttributeTagInfo, FileIdInfo
-        if not get_info(handle, kind, ctypes.byref(data), ctypes.sizeof(data)):
-            raise ctypes.WinError(ctypes.get_last_error())
-    if attributes.attributes & 0x400 or not attributes.attributes & 0x10:
-        raise _SkipDirectory("不是普通目录或属于重解析点，已保留")
-    if not any(identity.file_id):
-        raise TransferError("无法取得可靠的目录身份，已保留")
+    try:
+        identity = directory_identity(handle, kernel=kernel)
+    except NotPlainDirectory as exc:
+        raise _SkipDirectory(str(exc)) from None
 
     final_path = kernel.GetFinalPathNameByHandleW
     final_path.argtypes = [wintypes.HANDLE, wintypes.LPWSTR, wintypes.DWORD, wintypes.DWORD]
@@ -75,8 +61,7 @@ def _native_info(handle) -> dict:
         if not length:
             raise ctypes.WinError(ctypes.get_last_error())
         if length < size:
-            return {"identity": [identity.volume, bytes(identity.file_id).hex()],
-                    "path": buffer.value, "attributes": attributes.attributes}
+            return {**identity, "path": buffer.value}
         size = length + 1
     raise TransferError("目录规范路径过长，无法安全核验，已保留")
 
