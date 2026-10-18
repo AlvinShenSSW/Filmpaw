@@ -1,6 +1,9 @@
 """Disposable local/UNC/mapped-drive cleanup checks; never uses a real library.
 
 Run: uv run --project app/server --locked python docs/evidence/issue-38/cleanup-smoke.py
+Add --timeout-probe to prove recovery after a worker is killed with its own
+temporary mapping still active. The supervisor always closes stdin and waits
+at most 180 seconds (3 seconds for the intentional timeout probe).
 Uses an existing localhost administrative share only, with no share/ACL changes.
 An optional free drive letter is mapped temporarily and removed after its check.
 """
@@ -144,7 +147,7 @@ def run_case(client, root, batch_path, label, after_context=None):
     ads = local_batch / "Only Directory ADS"
     ads.mkdir()
     Path(str(ads) + ":fixture-note").write_bytes(b"named stream must survive")
-    # Existing NAS/other-batch paths are deliberate same-name controls.
+    # Disposable sibling directories stand in for an unselected batch/library.
     outside = root / (label + "-outside")
     (outside / "Empty Actor 中文, 1").mkdir(parents=True)
     (outside / "Film" / "nested").mkdir(parents=True)
@@ -204,9 +207,11 @@ def run_case(client, root, batch_path, label, after_context=None):
     }
 
 
-def worker(root):
+def worker(root, timeout_probe=False):
     assert os.name == "nt", "This checks the Windows product's native deletion path"
-    report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "cases": []}
+    report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "cases": [],
+              "transport": "FastAPI TestClient (in-process ASGI)",
+              "filesystem": "Windows native deletion; disposable local and localhost SMB directories"}
     assert root.parent == Path(tempfile.gettempdir()).resolve()
     assert root.name.startswith("filmpaw-38-cleanup-")
     database = root / "isolated.db"
@@ -242,6 +247,9 @@ def worker(root):
                     def switch():
                         remap(unc_root / "replacement")
                         assert (mapped / "mapped-switch" / "Film" / "marker.bin").read_bytes() == b"replacement mapping must remain untouched"
+                        if timeout_probe:
+                            (root / "mapping-switch-ready").write_text("ready", encoding="utf-8")
+                            time.sleep(180)  # Deliberately killed by the supervisor.
                     result = run_case(client, original, mapped / "mapped-switch", "mapped-switch", switch)
                     assert snapshot(replacement) == before
                     result["alias_replaced_after_context_before_worker"] = True
@@ -252,7 +260,7 @@ def worker(root):
         (root / "worker-report.json").write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def main():
+def main(timeout_probe=False):
     assert os.name == "nt"
     report = {"executed_utc": datetime.now(timezone.utc).isoformat(), "cases": []}
     temporary = tempfile.TemporaryDirectory(prefix="filmpaw-38-cleanup-")
@@ -262,11 +270,13 @@ def main():
     environment = os.environ.copy()
     environment["FILMPAW_DB"] = str(root / "isolated.db")
     cleanup_errors = []
+    timeout = 3 if timeout_probe else 180
     try:
         try:
-            completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), "--worker", str(root)],
+            mode = "--timeout-worker" if timeout_probe else "--worker"
+            completed = subprocess.run([sys.executable, str(Path(__file__).resolve()), mode, str(root)],
                                        stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                       encoding="utf-8", errors="replace", env=environment, timeout=180)
+                                       encoding="utf-8", errors="replace", env=environment, timeout=timeout)
             child_report = root / "worker-report.json"
             if child_report.exists():
                 report.update(json.loads(child_report.read_text(encoding="utf-8")))
@@ -276,8 +286,9 @@ def main():
                 report["failure"] = completed.stderr[-6000:]
         except subprocess.TimeoutExpired:
             report["status"] = "hard_timeout"
+            report["mapping_active_when_worker_killed"] = (root / "mapping-switch-ready").exists()
         report["stdin_closed"] = True
-        report["hard_timeout_seconds"] = 180
+        report["hard_timeout_seconds"] = timeout
     finally:
         ledger = root / "mapping-ownership.json"
         if ledger.exists():
@@ -299,15 +310,17 @@ def main():
         if cleanup_errors:
             report["cleanup_errors"] = cleanup_errors
             report["status"] = "failed"
-    output = Path(__file__).with_suffix(".json")
+    if timeout_probe and report.get("status") == "hard_timeout" and report.get("mapping_active_when_worker_killed"):
+        report["status"] = "timeout_probe_passed"
+    output = Path(__file__).with_name("cleanup-smoke-timeout.json") if timeout_probe else Path(__file__).with_suffix(".json")
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps({"report": str(output), "cases": len(report["cases"]),
                       "status": report["status"], "temporary_fixture_removed": report["temporary_fixture_removed"]}))
-    return 0 if report["status"] == "passed" else 1
+    return 0 if report["status"] in {"passed", "timeout_probe_passed"} else 1
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--worker":
-        worker(Path(sys.argv[2]).resolve())
+    if len(sys.argv) == 3 and sys.argv[1] in {"--worker", "--timeout-worker"}:
+        worker(Path(sys.argv[2]).resolve(), sys.argv[1] == "--timeout-worker")
     else:
-        raise SystemExit(main())
+        raise SystemExit(main("--timeout-probe" in sys.argv))
