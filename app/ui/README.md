@@ -25,6 +25,14 @@ Closing the desktop app during a transfer offers continuing, waiting for the
 queue to finish, or stopping the queue and waiting for a safe exit. A server-side
 admission check prevents a new transfer from starting while the shell exits.
 
+The archive sidebar can clean strictly empty first-level actor directories in the
+selected batch, including a NAS temporary batch. Cleanup has a separate session
+status provider and no automatic mutation retries. Transfer and cleanup buttons
+share busy/unknown-state guards, backed by server admission. During cleanup the
+exit dialog offers continuing or waiting; a cleanup ID is never sent to the
+transfer-stop endpoint. Confirmed deletions and a failed list refresh are shown
+separately so a refresh error cannot erase an already-known cleanup result.
+
 Browser development requires the same `FILMPAW_SESSION_TOKEN` as the server,
 with `FILMPAW_DEV=1`. See [server setup](../server/README.md). Rsbuild injects this
 credential only into the development bundle; the packaged Tauri shell supplies

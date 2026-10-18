@@ -16,6 +16,13 @@ vi.mock("./archiveApi", () => ({
 }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
+vi.mock("./cleanupApi", () => ({
+  getLatestCleanup: vi.fn().mockResolvedValue(null),
+  readCleanupContext: vi.fn(),
+  createCleanup: vi.fn(),
+  isCleanupActive: (task: { status: string } | null) =>
+    task?.status === "running" || task?.status === "queued",
+}));
 
 import { ArchiveTransferView } from "./ArchiveTransferView";
 import {
@@ -24,6 +31,7 @@ import {
   getLatestTransfer,
   stopTransfer,
 } from "./archiveApi";
+import { CleanupProvider } from "./CleanupProvider";
 import { openArchivePair } from "./openTarget";
 import { TransferProvider, TransferStatusBar } from "./TransferProvider";
 
@@ -81,15 +89,17 @@ function renderView() {
   const content = (subdir: string) => (
     <QueryClientProvider client={client}>
       <ThemeProvider theme={theme}>
-        <TransferProvider>
-          <ArchiveTransferView
-            localDir={context.local_dir}
-            subdir={subdir}
-            performer={performer}
-            onBack={vi.fn()}
-          />
-          <TransferStatusBar />
-        </TransferProvider>
+        <CleanupProvider>
+          <TransferProvider>
+            <ArchiveTransferView
+              localDir={context.local_dir}
+              subdir={subdir}
+              performer={performer}
+              onBack={vi.fn()}
+            />
+            <TransferStatusBar />
+          </TransferProvider>
+        </CleanupProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

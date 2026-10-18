@@ -1,0 +1,233 @@
+{
+  "executed_utc": "2026-10-18T08:19:38.874008+00:00",
+  "cases": [
+    {
+      "location": "local",
+      "input_batch": "C:\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\local",
+      "approved_batch": "C:\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\local",
+      "native_root": {
+        "identity": [
+          8689928167723588456,
+          "6a530c00000052000000000000000000"
+        ],
+        "path": "\\\\?\\C:\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\local",
+        "attributes": 16
+      },
+      "status": "completed",
+      "safe_refusal": false,
+      "seconds": 0.036,
+      "deleted": 2,
+      "kept": 4,
+      "outside_tree_unchanged": true,
+      "root_retained": true,
+      "directory_ads_retained": true,
+      "replay_did_not_delete_recreated_actor": true,
+      "max_status_asgi_ms": 1.16,
+      "items": [
+        {
+          "name": "Empty Actor 2",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Empty Actor 中文, 1",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Only Directory ADS",
+          "status": "not_empty",
+          "message": "目录带有附加数据流，已保留"
+        },
+        {
+          "name": "Only Hidden",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Poster",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Subdirectory",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        }
+      ]
+    },
+    {
+      "location": "unc",
+      "input_batch": "\\\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\unc",
+      "approved_batch": "\\\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\unc",
+      "native_root": {
+        "identity": [
+          8689928167723588456,
+          "84850c000000c6000000000000000000"
+        ],
+        "path": "\\\\?\\UNC\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\unc",
+        "attributes": 16
+      },
+      "status": "completed",
+      "safe_refusal": false,
+      "seconds": 0.028,
+      "deleted": 2,
+      "kept": 4,
+      "outside_tree_unchanged": true,
+      "root_retained": true,
+      "directory_ads_retained": true,
+      "replay_did_not_delete_recreated_actor": true,
+      "max_status_asgi_ms": 1.252,
+      "items": [
+        {
+          "name": "Empty Actor 2",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Empty Actor 中文, 1",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Only Directory ADS",
+          "status": "not_empty",
+          "message": "目录带有附加数据流，已保留"
+        },
+        {
+          "name": "Only Hidden",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Poster",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Subdirectory",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        }
+      ]
+    },
+    {
+      "location": "mapped",
+      "input_batch": "Z:\\mapped",
+      "approved_batch": "\\\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\mapped",
+      "native_root": {
+        "identity": [
+          8689928167723588456,
+          "12940c0000001e000000000000000000"
+        ],
+        "path": "\\\\?\\UNC\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\mapped",
+        "attributes": 16
+      },
+      "status": "completed",
+      "safe_refusal": false,
+      "seconds": 0.027,
+      "deleted": 2,
+      "kept": 4,
+      "outside_tree_unchanged": true,
+      "root_retained": true,
+      "directory_ads_retained": true,
+      "replay_did_not_delete_recreated_actor": true,
+      "max_status_asgi_ms": 1.037,
+      "items": [
+        {
+          "name": "Empty Actor 2",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Empty Actor 中文, 1",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Only Directory ADS",
+          "status": "not_empty",
+          "message": "目录带有附加数据流，已保留"
+        },
+        {
+          "name": "Only Hidden",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Poster",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Subdirectory",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        }
+      ]
+    },
+    {
+      "location": "mapped-switch",
+      "input_batch": "Z:\\mapped-switch",
+      "approved_batch": "\\\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\original\\mapped-switch",
+      "native_root": {
+        "identity": [
+          8689928167723588456,
+          "7d8b0c00000020000000000000000000"
+        ],
+        "path": "\\\\?\\UNC\\localhost\\C$\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-cleanup-60wl6lug\\original\\mapped-switch",
+        "attributes": 16
+      },
+      "status": "completed",
+      "safe_refusal": false,
+      "seconds": 0.028,
+      "deleted": 2,
+      "kept": 4,
+      "outside_tree_unchanged": true,
+      "root_retained": true,
+      "directory_ads_retained": true,
+      "replay_did_not_delete_recreated_actor": true,
+      "max_status_asgi_ms": 1.003,
+      "items": [
+        {
+          "name": "Empty Actor 2",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Empty Actor 中文, 1",
+          "status": "deleted",
+          "message": "已删除空目录"
+        },
+        {
+          "name": "Only Directory ADS",
+          "status": "not_empty",
+          "message": "目录带有附加数据流，已保留"
+        },
+        {
+          "name": "Only Hidden",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Poster",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        },
+        {
+          "name": "Only Subdirectory",
+          "status": "not_empty",
+          "message": "目录含文件或子目录，已保留"
+        }
+      ],
+      "alias_replaced_after_context_before_worker": true,
+      "replacement_tree_unchanged": true
+    }
+  ],
+  "status": "passed",
+  "worker_exit_code": 0,
+  "stdin_closed": true,
+  "hard_timeout_seconds": 180,
+  "temporary_drive_released": true,
+  "temporary_fixture_removed": true
+}

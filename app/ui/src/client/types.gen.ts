@@ -29,6 +29,132 @@ export type AliasOut = {
 };
 
 /**
+ * CleanupContextIn
+ */
+export type CleanupContextIn = {
+    /**
+     * Batch Path
+     */
+    batch_path: string;
+};
+
+/**
+ * CleanupContextOut
+ */
+export type CleanupContextOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Batch Path
+     */
+    batch_path: string;
+    /**
+     * Batch Revision
+     */
+    batch_revision: string;
+};
+
+/**
+ * CleanupIn
+ */
+export type CleanupIn = {
+    /**
+     * Context Id
+     */
+    context_id: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+};
+
+/**
+ * CleanupItemOut
+ */
+export type CleanupItemOut = {
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Status
+     */
+    status: 'deleted' | 'not_empty' | 'skipped' | 'failed';
+    /**
+     * Message
+     */
+    message?: string | null;
+};
+
+/**
+ * CleanupTaskOut
+ */
+export type CleanupTaskOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Batch Path
+     */
+    batch_path: string;
+    /**
+     * Batch Revision
+     */
+    batch_revision: string;
+    /**
+     * Context Id
+     */
+    context_id: string;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Status
+     */
+    status: 'queued' | 'running' | 'completed' | 'failed';
+    /**
+     * Current Name
+     */
+    current_name?: string | null;
+    /**
+     * Checked Count
+     */
+    checked_count: number;
+    /**
+     * Total Count
+     */
+    total_count: number;
+    /**
+     * Deleted Count
+     */
+    deleted_count: number;
+    /**
+     * Kept Count
+     */
+    kept_count: number;
+    /**
+     * Skipped Count
+     */
+    skipped_count: number;
+    /**
+     * Failed Count
+     */
+    failed_count: number;
+    /**
+     * Message
+     */
+    message?: string | null;
+    /**
+     * Items
+     */
+    items: Array<CleanupItemOut>;
+};
+
+/**
  * ContextIn
  */
 export type ContextIn = {
@@ -124,6 +250,10 @@ export type ExitOut = {
      * Task Id
      */
     task_id?: string | null;
+    /**
+     * Operation
+     */
+    operation?: 'transfer' | 'cleanup' | null;
 };
 
 /**
@@ -1321,3 +1451,101 @@ export type PrepareExitApiArchivePrepareExitPostResponses = {
 };
 
 export type PrepareExitApiArchivePrepareExitPostResponse = PrepareExitApiArchivePrepareExitPostResponses[keyof PrepareExitApiArchivePrepareExitPostResponses];
+
+export type CreateCleanupContextApiArchiveCleanupContextsPostData = {
+    body: CleanupContextIn;
+    path?: never;
+    query?: never;
+    url: '/api/archive/cleanup-contexts';
+};
+
+export type CreateCleanupContextApiArchiveCleanupContextsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateCleanupContextApiArchiveCleanupContextsPostError = CreateCleanupContextApiArchiveCleanupContextsPostErrors[keyof CreateCleanupContextApiArchiveCleanupContextsPostErrors];
+
+export type CreateCleanupContextApiArchiveCleanupContextsPostResponses = {
+    /**
+     * Successful Response
+     */
+    201: CleanupContextOut;
+};
+
+export type CreateCleanupContextApiArchiveCleanupContextsPostResponse = CreateCleanupContextApiArchiveCleanupContextsPostResponses[keyof CreateCleanupContextApiArchiveCleanupContextsPostResponses];
+
+export type CreateCleanupApiArchiveCleanupsPostData = {
+    body: CleanupIn;
+    path?: never;
+    query?: never;
+    url: '/api/archive/cleanups';
+};
+
+export type CreateCleanupApiArchiveCleanupsPostErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateCleanupApiArchiveCleanupsPostError = CreateCleanupApiArchiveCleanupsPostErrors[keyof CreateCleanupApiArchiveCleanupsPostErrors];
+
+export type CreateCleanupApiArchiveCleanupsPostResponses = {
+    /**
+     * Successful Response
+     */
+    202: CleanupTaskOut;
+};
+
+export type CreateCleanupApiArchiveCleanupsPostResponse = CreateCleanupApiArchiveCleanupsPostResponses[keyof CreateCleanupApiArchiveCleanupsPostResponses];
+
+export type LatestCleanupApiArchiveCleanupsLatestGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/archive/cleanups/latest';
+};
+
+export type LatestCleanupApiArchiveCleanupsLatestGetResponses = {
+    /**
+     * Response Latest Cleanup Api Archive Cleanups Latest Get
+     *
+     * Successful Response
+     */
+    200: CleanupTaskOut | null;
+};
+
+export type LatestCleanupApiArchiveCleanupsLatestGetResponse = LatestCleanupApiArchiveCleanupsLatestGetResponses[keyof LatestCleanupApiArchiveCleanupsLatestGetResponses];
+
+export type GetCleanupApiArchiveCleanupsTaskIdGetData = {
+    body?: never;
+    path: {
+        /**
+         * Task Id
+         */
+        task_id: string;
+    };
+    query?: never;
+    url: '/api/archive/cleanups/{task_id}';
+};
+
+export type GetCleanupApiArchiveCleanupsTaskIdGetErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetCleanupApiArchiveCleanupsTaskIdGetError = GetCleanupApiArchiveCleanupsTaskIdGetErrors[keyof GetCleanupApiArchiveCleanupsTaskIdGetErrors];
+
+export type GetCleanupApiArchiveCleanupsTaskIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: CleanupTaskOut;
+};
+
+export type GetCleanupApiArchiveCleanupsTaskIdGetResponse = GetCleanupApiArchiveCleanupsTaskIdGetResponses[keyof GetCleanupApiArchiveCleanupsTaskIdGetResponses];

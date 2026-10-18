@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "filmpaw-server",
-  "version": "0.5.1"
+  "version": "0.5.2"
  },
  "paths": {
   "/api/health": {
@@ -1048,6 +1048,159 @@
      }
     }
    }
+  },
+  "/api/archive/cleanup-contexts": {
+   "post": {
+    "tags": [
+     "archive-cleanup"
+    ],
+    "summary": "Create Cleanup Context",
+    "operationId": "create_cleanup_context_api_archive_cleanup_contexts_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CleanupContextIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "201": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CleanupContextOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/cleanups": {
+   "post": {
+    "tags": [
+     "archive-cleanup"
+    ],
+    "summary": "Create Cleanup",
+    "operationId": "create_cleanup_api_archive_cleanups_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CleanupIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CleanupTaskOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/cleanups/latest": {
+   "get": {
+    "tags": [
+     "archive-cleanup"
+    ],
+    "summary": "Latest Cleanup",
+    "operationId": "latest_cleanup_api_archive_cleanups_latest_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/CleanupTaskOut"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Latest Cleanup Api Archive Cleanups Latest Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/archive/cleanups/{task_id}": {
+   "get": {
+    "tags": [
+     "archive-cleanup"
+    ],
+    "summary": "Get Cleanup",
+    "operationId": "get_cleanup_api_archive_cleanups__task_id__get",
+    "parameters": [
+     {
+      "name": "task_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Task Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CleanupTaskOut"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -1082,6 +1235,207 @@
      "alias"
     ],
     "title": "AliasOut"
+   },
+   "CleanupContextIn": {
+    "properties": {
+     "batch_path": {
+      "type": "string",
+      "maxLength": 32767,
+      "minLength": 1,
+      "title": "Batch Path"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "batch_path"
+    ],
+    "title": "CleanupContextIn"
+   },
+   "CleanupContextOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "batch_path": {
+      "type": "string",
+      "title": "Batch Path"
+     },
+     "batch_revision": {
+      "type": "string",
+      "title": "Batch Revision"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "batch_path",
+     "batch_revision"
+    ],
+    "title": "CleanupContextOut"
+   },
+   "CleanupIn": {
+    "properties": {
+     "context_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Context Id"
+     },
+     "request_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Request Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "context_id",
+     "request_id"
+    ],
+    "title": "CleanupIn"
+   },
+   "CleanupItemOut": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "deleted",
+       "not_empty",
+       "skipped",
+       "failed"
+      ],
+      "title": "Status"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "status"
+    ],
+    "title": "CleanupItemOut"
+   },
+   "CleanupTaskOut": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "batch_path": {
+      "type": "string",
+      "title": "Batch Path"
+     },
+     "batch_revision": {
+      "type": "string",
+      "title": "Batch Revision"
+     },
+     "context_id": {
+      "type": "string",
+      "title": "Context Id"
+     },
+     "request_id": {
+      "type": "string",
+      "title": "Request Id"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "queued",
+       "running",
+       "completed",
+       "failed"
+      ],
+      "title": "Status"
+     },
+     "current_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Current Name"
+     },
+     "checked_count": {
+      "type": "integer",
+      "title": "Checked Count"
+     },
+     "total_count": {
+      "type": "integer",
+      "title": "Total Count"
+     },
+     "deleted_count": {
+      "type": "integer",
+      "title": "Deleted Count"
+     },
+     "kept_count": {
+      "type": "integer",
+      "title": "Kept Count"
+     },
+     "skipped_count": {
+      "type": "integer",
+      "title": "Skipped Count"
+     },
+     "failed_count": {
+      "type": "integer",
+      "title": "Failed Count"
+     },
+     "message": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Message"
+     },
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/CleanupItemOut"
+      },
+      "type": "array",
+      "title": "Items"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "batch_path",
+     "batch_revision",
+     "context_id",
+     "request_id",
+     "status",
+     "checked_count",
+     "total_count",
+     "deleted_count",
+     "kept_count",
+     "skipped_count",
+     "failed_count",
+     "items"
+    ],
+    "title": "CleanupTaskOut"
    },
    "ContextIn": {
     "properties": {
@@ -1236,6 +1590,21 @@
        }
       ],
       "title": "Task Id"
+     },
+     "operation": {
+      "anyOf": [
+       {
+        "type": "string",
+        "enum": [
+         "transfer",
+         "cleanup"
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Operation"
      }
     },
     "type": "object",

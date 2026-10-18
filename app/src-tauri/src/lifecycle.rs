@@ -15,10 +15,18 @@ pub fn new_session_token() -> Result<String, getrandom::Error> {
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExitOperation {
+    Transfer,
+    Cleanup,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExitStatus {
     pub safe: bool,
     pub task_id: Option<String>,
+    pub operation: Option<ExitOperation>,
 }
 
 pub fn prepare_exit(port: u16, token: &str, timeout: Duration) -> Result<ExitStatus, ApiError> {
@@ -38,6 +46,7 @@ pub fn prepare_exit_for_worker(
         false => Ok(ExitStatus {
             safe: true,
             task_id: None,
+            operation: None,
         }),
         true => prepare_exit(port, token, timeout),
     }
@@ -77,7 +86,7 @@ fn parse_exit_status(payload: &str) -> Result<ExitStatus, ApiError> {
     let status: ExitStatus = serde_json::from_str(payload)
         .map_err(|_| ApiError::local("无法确认传输状态，已保留窗口，请稍后重试"))?;
     // Only an explicit, internally consistent answer can permit destruction.
-    if (status.safe && status.task_id.is_none())
+    if (status.safe && status.task_id.is_none() && status.operation.is_none())
         || (!status.safe && status.task_id.as_ref().is_some_and(|id| !id.is_empty()))
     {
         Ok(status)
@@ -177,7 +186,9 @@ mod tests {
             socket.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{\"safe\":false,\"task_id\":\"active-1\"}").unwrap();
             // Keep the fixture alive until the client has read our FIN, so
             // Windows does not race the response with a connection reset.
-            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
             socket.shutdown(std::net::Shutdown::Write).unwrap();
             let _ = reader.read_to_end(&mut Vec::new());
             request
@@ -282,6 +293,53 @@ mod tests {
             r#"{"safe":true,"task_id":"task-1"}"#,
             r#"{"safe":false,"task_id":null}"#,
             r#"{"safe":false,"task_id":""}"#,
+        ] {
+            assert!(parse_exit_status(payload).is_err(), "{payload}");
+        }
+    }
+
+    #[test]
+    fn busy_exit_preserves_the_operation_that_owns_the_task() {
+        for operation in ["cleanup", "transfer"] {
+            let payload =
+                format!(r#"{{"safe":false,"task_id":"active-1","operation":"{operation}"}}"#);
+            let status = parse_exit_status(&payload).unwrap();
+            assert!(!status.safe);
+            assert_eq!(status.task_id.as_deref(), Some("active-1"));
+            assert_eq!(
+                serde_json::to_value(status).unwrap()["operation"],
+                operation
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_busy_and_idle_responses_remain_compatible() {
+        for payload in [
+            r#"{"safe":false,"task_id":"legacy-1"}"#,
+            r#"{"safe":false,"task_id":"legacy-1","operation":null}"#,
+        ] {
+            let status = parse_exit_status(payload).unwrap();
+            assert!(!status.safe);
+            assert_eq!(status.task_id.as_deref(), Some("legacy-1"));
+        }
+        for payload in [
+            r#"{"safe":true,"task_id":null}"#,
+            r#"{"safe":true,"task_id":null,"operation":null}"#,
+        ] {
+            assert!(parse_exit_status(payload).unwrap().safe);
+        }
+    }
+
+    #[test]
+    fn inconsistent_or_unknown_exit_operations_never_allow_close() {
+        for payload in [
+            r#"{"safe":true,"task_id":null,"operation":"cleanup"}"#,
+            r#"{"safe":true,"task_id":null,"operation":"transfer"}"#,
+            r#"{"safe":false,"task_id":null,"operation":"cleanup"}"#,
+            r#"{"safe":false,"task_id":"","operation":"cleanup"}"#,
+            r#"{"safe":false,"task_id":"active-1","operation":"unknown"}"#,
+            r#"{"safe":true,"task_id":null,"operation":null,"extra":true}"#,
         ] {
             assert!(parse_exit_status(payload).is_err(), "{payload}");
         }
