@@ -15,7 +15,7 @@ def test_list_lookup_stop_set_and_log_contract(client, tmp_path):
     listing = client.get("/api/archive/transfers")
     assert listing.status_code == 200
     assert listing.json()["active"][0]["id"] == task["id"]
-    assert listing.json()["busy"] and listing.json()["concurrency"] == 2
+    assert listing.json()["busy"] and listing.json()["concurrency"] == 3
     assert listing.json()["blocked_reason"] is None
     assert listing.json()["history"] == []
     assert client.get("/api/archive/transfers/by-request/not-accepted").json() is None

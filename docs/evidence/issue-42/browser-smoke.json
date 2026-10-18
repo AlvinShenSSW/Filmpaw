@@ -3,7 +3,7 @@
   "ui_version": "0.5.3",
   "browser": "Microsoft Edge headless",
   "ui_bundles": [
-    "index.ff8f58a3.js"
+    "index.a3b8ba1f.js"
   ],
   "mode": "production UI with fully mocked API; no sidecar, NAS, transfer, or deletion",
   "temporary_FILMPAW_DB": true,
@@ -11,11 +11,13 @@
     {
       "view": "tasks",
       "viewport": "960x640",
-      "running": 2,
+      "running": 3,
       "queued": 1,
+      "concurrency": 3,
       "individual_progress": [
         25,
-        65
+        65,
+        40
       ],
       "page_no_overflow": true,
       "main_no_horizontal_overflow": true,
@@ -34,11 +36,13 @@
     {
       "view": "tasks",
       "viewport": "1920x1080",
-      "running": 2,
+      "running": 3,
       "queued": 1,
+      "concurrency": 3,
       "individual_progress": [
         25,
-        65
+        65,
+        40
       ],
       "page_no_overflow": true,
       "main_no_horizontal_overflow": true,

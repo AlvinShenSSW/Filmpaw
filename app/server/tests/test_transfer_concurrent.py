@@ -47,9 +47,9 @@ def wait_until(check):
     raise AssertionError("condition did not become true")
 
 
-def test_two_actors_really_run_together_and_third_waits(multi, monkeypatch):
+def test_three_actors_really_run_together_and_fourth_waits(multi, monkeypatch):
     service, batch, nas, _ = multi
-    releases = {name: threading.Event() for name in ["Actor-A", "Actor-B", "Actor-C"]}
+    releases = {name: threading.Event() for name in ["Actor-A", "Actor-B", "Actor-C", "Actor-D"]}
     entered = set()
     def pause(stage, task, item):
         if stage == "before_copy":
@@ -59,15 +59,15 @@ def test_two_actors_really_run_together_and_third_waits(multi, monkeypatch):
     service._auto_start = True
     try:
         tasks = [submit(multi, name) for name in releases]
-        wait_until(lambda: len(entered) == 2)
-        assert entered == {"Actor-A", "Actor-B"}
-        assert service.get_task(tasks[2]["id"])["status"] == "queued"
+        wait_until(lambda: len(entered) == 3)
+        assert entered == {"Actor-A", "Actor-B", "Actor-C"}
+        assert service.get_task(tasks[3]["id"])["status"] == "queued"
         listing = service.list_tasks()
-        assert listing["busy"] and listing["concurrency"] == 2
-        assert len(listing["active"]) == 3
+        assert listing["busy"] and listing["concurrency"] == 3
+        assert len(listing["active"]) == 4
         releases["Actor-A"].set()
-        wait_until(lambda: "Actor-C" in entered)
-        assert service.get_task(tasks[1]["id"])["status"] == "running"
+        wait_until(lambda: "Actor-D" in entered)
+        assert all(service.get_task(task["id"])["status"] == "running" for task in tasks[1:3])
         for release in releases.values():
             release.set()
         wait_until(lambda: not service.list_tasks()["busy"])
@@ -218,7 +218,7 @@ def test_terminal_worker_keeps_slot_paths_and_exit_busy_until_actual_return(mult
 ])
 def test_log_failure_freezes_all_tasks_and_recovery_never_replays_actions(multi, monkeypatch, action, outcome):
     service, batch, nas, db = multi
-    releases = {name: threading.Event() for name in ["Actor-A", "Actor-B"]}
+    releases = {name: threading.Event() for name in ["Actor-A", "Actor-B", "Actor-C"]}
     entered = set()
     def pause(stage, task, item):
         if stage == "before_copy":
@@ -227,8 +227,9 @@ def test_log_failure_freezes_all_tasks_and_recovery_never_replays_actions(multi,
     monkeypatch.setattr(service, "_checkpoint", pause)
     service._auto_start = True
     try:
-        a, b, c = [submit(multi, name) for name in ["Actor-A", "Actor-B", "Actor-C"]]
-        wait_until(lambda: len(entered) == 2)
+        a, b, c, d = [submit(multi, name) for name in ["Actor-A", "Actor-B", "Actor-C", "Actor-D"]]
+        wait_until(lambda: len(entered) == 3)
+        assert service.get_task(d["id"])["status"] == "queued"
         with service.db_lock:
             db.execute(f"CREATE TRIGGER fail_receipt BEFORE INSERT ON operation_events "
                 f"WHEN NEW.task_id='{a['id']}' AND NEW.action='{action}' AND NEW.outcome='{outcome}' "
@@ -237,15 +238,16 @@ def test_log_failure_freezes_all_tasks_and_recovery_never_replays_actions(multi,
         releases["Actor-A"].set()
         wait_until(lambda: service.get_task(a["id"])["status"] == "needs_review")
         assert service.list_tasks()["blocked_reason"]
-        assert service.prepare_exit()["safe"] is False, "Actor-B still has a real worker"
+        assert service.prepare_exit()["safe"] is False, "Actor-B and Actor-C still have real workers"
         with pytest.raises(TransferError):
-            submit(multi, "Actor-D")
+            submit(multi, "Actor-D", "new-after-fault")
         releases["Actor-B"].set()
+        releases["Actor-C"].set()
         wait_until(lambda: not service.list_tasks()["busy"])
-        assert entered == {"Actor-A", "Actor-B"}
-        assert all(service.get_task(task["id"])["status"] == "needs_review" for task in [a, b, c])
-        assert (batch / "Actor-B" / "MOV-001").exists() and (batch / "Actor-C" / "MOV-001").exists()
-        assert not (nas / "Actor-B" / "MOV-001").exists() and not (nas / "Actor-C" / "MOV-001").exists()
+        assert entered == {"Actor-A", "Actor-B", "Actor-C"}, "queued Actor-D must never start"
+        assert all(service.get_task(task["id"])["status"] == "needs_review" for task in [a, b, c, d])
+        assert all((batch / name / "MOV-001").exists() for name in ["Actor-B", "Actor-C", "Actor-D"])
+        assert all(not (nas / name / "MOV-001").exists() for name in ["Actor-B", "Actor-C", "Actor-D"])
         assert (batch / "Actor-A" / "MOV-001").exists()
         assert (nas / "Actor-A" / "MOV-001").exists() == (action != "commit_movie" or outcome != "started")
         assert service.prepare_exit()["safe"]
@@ -261,7 +263,7 @@ def test_log_failure_freezes_all_tasks_and_recovery_never_replays_actions(multi,
     try:
         assert sorted(str(path.relative_to(batch)) for path in batch.rglob("*")) == before
         assert not restored.list_tasks()["busy"]
-        assert all(restored.get_task(task["id"])["status"] == "needs_review" for task in [a, b, c])
+        assert all(restored.get_task(task["id"])["status"] == "needs_review" for task in [a, b, c, d])
         events = restored.audit.list(task_id=a["id"], action=action)["items"]
         if outcome == "succeeded":
             assert any(row["outcome"] == "needs_review" for row in events)

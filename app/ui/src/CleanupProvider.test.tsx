@@ -28,7 +28,7 @@ vi.mock("./archiveApi", () => {
         next_cursor: null,
         busy: !!active,
         blocked_reason: null,
-        concurrency: 2,
+        concurrency: 3,
       };
     }),
     getTransferByRequest: vi.fn().mockResolvedValue(null),

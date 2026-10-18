@@ -33,7 +33,7 @@ vi.mock("./archiveApi", () => ({
     next_cursor: null,
     busy: false,
     blocked_reason: null,
-    concurrency: 2,
+    concurrency: 3,
   }),
   getTransferByRequest: vi.fn().mockResolvedValue(null),
   getLatestTransfer: vi.fn().mockResolvedValue(null),

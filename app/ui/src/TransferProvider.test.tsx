@@ -104,7 +104,7 @@ beforeEach(() => {
     next_cursor: null,
     busy: false,
     blocked_reason: null,
-    concurrency: 2,
+    concurrency: 3,
   });
   vi.mocked(getTransferByRequest).mockResolvedValue(null);
 });
@@ -200,7 +200,7 @@ it("blocks all bindings on service recovery or persistence failure", async () =>
     next_cursor: null,
     busy: true,
     blocked_reason: "正在恢复",
-    concurrency: 2,
+    concurrency: 3,
   });
   mount();
   await waitFor(() => expect(getTransfers).toHaveBeenCalled());
@@ -226,7 +226,7 @@ it("keeps the newer running snapshot when an older accepted POST arrives late", 
       next_cursor: null,
       busy: true,
       blocked_reason: null,
-      concurrency: 2,
+      concurrency: 3,
     }),
   );
   await act(async () => resolve({ ...task("A"), status: "queued", phase: "queued" }));
@@ -242,7 +242,7 @@ it("honors a terminal task still present in active while the server finishes cle
     next_cursor: null,
     busy: true,
     blocked_reason: null,
-    concurrency: 2,
+    concurrency: 3,
   });
   mount();
   await waitFor(() => expect(screen.getByText("Start B")).toBeEnabled());

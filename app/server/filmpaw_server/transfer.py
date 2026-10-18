@@ -30,7 +30,7 @@ from filmpaw_server import path_resources
 CHUNK_SIZE = 1024 * 1024
 STAGING_PREFIX = ".filmpaw-transfer-"
 ACTIVE = {"queued", "running"}
-CONCURRENCY = 2
+CONCURRENCY = 3
 QUEUE_LIMIT = 100
 
 

@@ -157,7 +157,7 @@ function useController(submissionsBlocked: boolean) {
           next_cursor: current?.next_cursor ?? null,
           busy: !!current?.busy || active.length > 0,
           blocked_reason: current?.blocked_reason ?? null,
-          concurrency: current?.concurrency ?? 2,
+          concurrency: current?.concurrency ?? 3,
         };
       });
       setDismissedId(null);
@@ -283,7 +283,7 @@ function useController(submissionsBlocked: boolean) {
     unavailable,
     submissionsBlocked,
     blockedReason: latest.data?.blocked_reason,
-    concurrency: latest.data?.concurrency ?? 2,
+    concurrency: latest.data?.concurrency ?? 3,
     nextCursor: latest.data?.next_cursor ?? null,
     cleanupBlocked:
       unavailable || !!latest.data?.busy || activeTasks.length > 0 || pendingRequests.length > 0,

@@ -12,7 +12,7 @@ import {
   type TransferList,
 } from "./archiveApi";
 import { TaskCenter } from "./TasksPage";
-import { TransferProvider } from "./TransferProvider";
+import { TransferProvider, TransferStatusBar } from "./TransferProvider";
 import { theme } from "./theme";
 
 vi.mock("./archiveApi", async (original) => ({
@@ -59,7 +59,7 @@ const snapshot = (
   next_cursor,
   busy: active.length > 0,
   blocked_reason: null,
-  concurrency: 2,
+  concurrency: 3,
 });
 const event = (id: number, outcome: OperationEvent["outcome"]): OperationEvent => ({
   id,
@@ -85,6 +85,7 @@ function mount() {
         <ThemeProvider theme={theme}>
           <TransferProvider>
             <TaskCenter />
+            <TransferStatusBar />
           </TransferProvider>
         </ThemeProvider>
       </QueryClientProvider>,
@@ -98,11 +99,12 @@ beforeEach(() => {
   vi.mocked(getOperationLogs).mockResolvedValue({ items: [], next_cursor: null });
 });
 
-it("shows each actor's independent progress and can stop B while A's stop response is pending", async () => {
+it("shows three actors progressing and a fourth queued, with independent stop controls", async () => {
   const first = task("A"),
     second = task("B", { progress_bytes: 70 }),
-    queued = task("C", { status: "queued", phase: "preflight" });
-  vi.mocked(getTransfers).mockResolvedValue(snapshot([first, second, queued]));
+    third = task("C", { phase: "verifying", verified_bytes: 45 }),
+    queued = task("D", { status: "queued", phase: "queued" });
+  vi.mocked(getTransfers).mockResolvedValue(snapshot([first, second, third, queued]));
   let finish!: (value: ArchiveTask) => void;
   vi.mocked(stopTransfer).mockImplementation((id) =>
     id === "A"
@@ -116,7 +118,14 @@ it("shows each actor's independent progress and can stop B while A's stop respon
   const b = screen.getByRole("article", { name: "归档任务 B" });
   expect(within(a).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "20");
   expect(within(b).getByRole("progressbar")).toHaveAttribute("aria-valuenow", "70");
-  expect(screen.getByRole("article", { name: "归档任务 C" })).toHaveTextContent("等待执行");
+  expect(
+    within(screen.getByRole("article", { name: "归档任务 C" })).getByRole("progressbar"),
+  ).toHaveAttribute("aria-valuenow", "45");
+  expect(screen.getByRole("article", { name: "归档任务 D" })).toHaveTextContent("等待执行");
+  expect(screen.getByText("4 个活动任务 · 同时执行上限 3")).toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "归档任务" })).toHaveTextContent(
+    "3 个传输中 · 1 个等待",
+  );
   await userEvent.click(within(a).getByRole("button", { name: "停止传输" }));
   await userEvent.click(
     within(screen.getByRole("dialog")).getByRole("button", { name: "停止队列" }),
