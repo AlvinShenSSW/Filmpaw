@@ -13,6 +13,7 @@ import os
 import shutil
 import sqlite3
 import stat
+import struct
 import sys
 import threading
 import time
@@ -179,15 +180,67 @@ def _directory_guard(path: Path, expected: list[int] | None = None, *, committin
                 raise TransferError(f"目录已变化：{part}")
         if expected is not None and _identity(value) != expected:
             raise TransferError(f"目录身份已变化：{path}", 409)
-        yield
+        yield handles[-1]
     finally:
         for handle in reversed(handles):
             close(handle)
 
 
+def _check_named_streams(handle, path: Path) -> None:
+    """Reject content the default-stream copier cannot preserve, by handle.
+
+    Windows sharing is per stream: even a default-stream DELETE handle cannot
+    atomically exclude a new named stream. Recheck immediately before deleting,
+    but concurrent external modifications must still stop during a transfer.
+    """
+    if sys.platform != "win32":
+        return
+    from ctypes import wintypes
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    get_info = kernel.GetFileInformationByHandleEx
+    get_info.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+    get_info.restype = wintypes.BOOL
+    size = 4096
+    while True:
+        buffer = ctypes.create_string_buffer(size)
+        if get_info(handle, 7, buffer, size):  # FileStreamInfo
+            break
+        error = ctypes.get_last_error()
+        if error == 38:  # ERROR_HANDLE_EOF: no streams (e.g. a plain directory)
+            return
+        if error in {122, 234} and size < 1024 * 1024:
+            size *= 2
+            continue
+        raise TransferError(f"无法核验额外数据流，保留本地源：{path}；{ctypes.WinError(error)}")
+    offset = 0
+    while True:
+        # FILE_STREAM_INFO has a 24-byte header followed by a non-terminated
+        # UTF-16 name. A malformed or oversized response must fail closed.
+        if offset + 24 > size:
+            raise TransferError(f"额外数据流信息无效，保留本地源：{path}")
+        next_offset, name_size = struct.unpack_from("<II", buffer, offset)
+        end = offset + 24 + name_size
+        if not name_size or name_size % 2 or end > size:
+            raise TransferError(f"额外数据流信息无效，保留本地源：{path}")
+        name = buffer.raw[offset + 24:end].decode("utf-16-le", errors="surrogatepass")
+        if name != "::$DATA":
+            raise TransferError(f"不支持额外数据流（ADS），保留本地源：{path} {name}")
+        if not next_offset:
+            return
+        if next_offset < 24 + name_size or next_offset % 8:
+            raise TransferError(f"额外数据流信息无效，保留本地源：{path}")
+        offset += next_offset
+
+
+def _check_file_streams(stream, path: Path) -> None:
+    if sys.platform == "win32":
+        import msvcrt
+        _check_named_streams(msvcrt.get_osfhandle(stream.fileno()), path)
+
+
 @contextmanager
 def _open_read(path: Path, *, deleting: bool = False):
-    """Windows denies concurrent write/delete while hashing this exact file.
+    """Windows denies writes to this default stream and file rename/delete.
 
     Cleanup requests DELETE access up front and marks this same handle for
     deletion, eliminating a hash-close-unlink window on the shipped platform.
@@ -249,6 +302,7 @@ def _windows_directory_change(path: Path, expected: list[int], target: Path | No
         set_info.restype = wintypes.BOOL
         if target is None:
             delete = ctypes.c_ubyte(1)
+            _check_named_streams(handle, path)
             ok = set_info(handle, 4, ctypes.byref(delete), ctypes.sizeof(delete))
         else:
             class RenameInfo(ctypes.Structure):
@@ -306,6 +360,7 @@ def _delete_exact(path: Path, destination: Path, entry: dict) -> None:
             set_info.restype = wintypes.BOOL
             # FILE_DISPOSITION_INFO.DeleteFile is BOOLEAN (one byte).
             delete = ctypes.c_ubyte(1)
+            _check_file_streams(source_stream, path)
             if not set_info(msvcrt.get_osfhandle(source_stream.fileno()), 4, ctypes.byref(delete), ctypes.sizeof(delete)):
                 raise ctypes.WinError(ctypes.get_last_error())
         else:
@@ -577,6 +632,23 @@ class TransferService:
             present = {entry.name.casefold() for entry in entries}
         return [name for name in names if name.casefold() in present]
 
+    def _check_source_metadata(self, task: dict, item: dict, *, stopping: bool = True) -> None:
+        """Check every selected file and directory before moving or cleaning."""
+        source = Path(task["source_path"]) / item["name"]
+        for relative, entry in item["manifest"].items():
+            if stopping:
+                self._check_stop(task)
+            path = source / relative
+            if entry["kind"] == "dir":
+                with _directory_guard(path, entry["identity"]) as handle:
+                    _check_named_streams(handle, path)
+            else:
+                with _directory_guard(path.parent), _open_read(path) as stream:
+                    if _fingerprint(os.fstat(stream.fileno())) != entry["fingerprint"]:
+                        raise TransferError(f"源文件已变化：{relative}")
+                    _check_file_streams(stream, path)
+                    stream.read(1)  # detect unreadable/locked files in the whole queue
+
     def _preflight(self, task: dict) -> None:
         self._check_binding(task["_binding"])
         target = Path(task["target_path"])
@@ -588,13 +660,7 @@ class TransferService:
             source = Path(task["source_path"]) / item["name"]
             item["manifest"] = _manifest(source)
             item["size_bytes"] = sum(value["size"] for value in item["manifest"].values())
-            for relative, entry in item["manifest"].items():
-                if entry["kind"] == "file":
-                    self._check_stop(task)
-                    with _directory_guard((source / relative).parent), _open_read(source / relative) as stream:
-                        if _fingerprint(os.fstat(stream.fileno())) != entry["fingerprint"]:
-                            raise TransferError(f"源文件已变化：{relative}")
-                        stream.read(1)  # detect unreadable/locked files in the whole queue
+            self._check_source_metadata(task, item)
         task["total_bytes"] = sum(item["size_bytes"] for item in task["items"])
         if shutil.disk_usage(target).free < task["total_bytes"]:
             raise TransferError("NAS 可用空间不足，整批未开始")
@@ -672,6 +738,11 @@ class TransferService:
                 with _directory_guard((root / relative).parent), _open_read(root / relative) as stream:
                     if _hash(stream, progress) != entry["sha256"]:
                         raise TransferError(f"SHA-256 内容校验失败：{relative}")
+                    if source:
+                        _check_file_streams(stream, root / relative)
+            elif source:
+                with _directory_guard(root / relative, entry["identity"]) as handle:
+                    _check_named_streams(handle, root / relative)
 
     def _cleanup(self, task: dict, item: dict) -> None:
         source = Path(task["source_path"]) / item["name"]
@@ -682,6 +753,7 @@ class TransferService:
         _check_manifest(target, manifest, identities=False)
         # A complete recheck detects new files before *any* source deletion.
         _check_manifest(source, manifest, identities=True)
+        self._check_source_metadata(task, item, stopping=False)
         for relative, entry in manifest.items():
             if entry["kind"] != "file":
                 continue

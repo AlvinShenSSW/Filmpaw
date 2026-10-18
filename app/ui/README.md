@@ -6,7 +6,7 @@ React 19 + MUI 7 + TanStack Router/Query, built with rsbuild.
 pnpm install
 pnpm dev          # http://localhost:3000 (expects server on 8720 outside Tauri)
 pnpm typecheck
-pnpm ci           # biome
+pnpm run ci       # biome
 pnpm build
 ```
 

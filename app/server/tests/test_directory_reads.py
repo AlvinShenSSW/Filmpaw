@@ -1,8 +1,11 @@
 """Bounded read-only retries distinguish transient SMB errors from refusals."""
 
 import errno
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from types import SimpleNamespace
 
 import pytest
 
@@ -10,6 +13,40 @@ from filmpaw_server.directory_reads import directory_error_retryable
 from filmpaw_server.scan import SourceUnreachable
 from filmpaw_server.transfer import TransferError
 from tests.test_archive_api import seed_pair
+
+
+def _fail_entry_stat(monkeypatch, root, name, error):
+    """Exercise the Windows hidden-attribute check on every test platform."""
+    import filmpaw_server.scan as scan
+
+    attempts = []
+    original_scandir = os.scandir
+
+    class Entry:
+        def __init__(self, entry):
+            self.entry = entry
+            self.name = entry.name
+
+        def is_dir(self, *, follow_symlinks):
+            return self.entry.is_dir(follow_symlinks=follow_symlinks)
+
+        def stat(self, *, follow_symlinks):
+            if self.name == name:
+                attempts.append(self.name)
+                raise error
+            result = self.entry.stat(follow_symlinks=follow_symlinks)
+            return SimpleNamespace(st_file_attributes=getattr(result, "st_file_attributes", 0))
+
+    @contextmanager
+    def scandir(path):
+        assert str(path) == str(root)
+        with original_scandir(path) as entries:
+            yield (Entry(entry) for entry in entries)
+
+    # Replace this module's facades, not the shared os/sys modules used by pytest.
+    monkeypatch.setattr(scan, "os", SimpleNamespace(stat=os.stat, scandir=scandir))
+    monkeypatch.setattr(scan, "sys", SimpleNamespace(platform="win32"))
+    return attempts
 
 
 @pytest.mark.parametrize("code", [32, 33, 53, 64, 67, 121, 170, 1231, 1460])
@@ -150,6 +187,65 @@ def test_local_subdirs_preserves_classification_and_releases_gate(client, tmp_pa
     assert client.get("/api/local/subdirs", params={"path": str(tmp_path)}).status_code == status
     monkeypatch.setattr(routes, "list_subdirs", original)
     assert client.get("/api/local/subdirs", params={"path": str(tmp_path)}).status_code == 200
+
+
+@pytest.mark.parametrize("error,status", [
+    (TimeoutError(errno.ETIMEDOUT, "entry stat timed out"), 503),
+    (FileNotFoundError(errno.ENOENT, "entry disappeared"), 422),
+    (PermissionError(errno.EACCES, "entry access denied"), 422),
+])
+def test_local_subdirs_entry_stat_failure_rejects_partial_list_and_recovers(
+    client, tmp_path, monkeypatch, error, status,
+):
+    root = tmp_path / "batch"
+    root.mkdir()
+    for name in ["A visible", "B unreadable"]:
+        (root / name).mkdir()
+    with monkeypatch.context() as patch:
+        attempts = _fail_entry_stat(patch, root, "B unreadable", error)
+        failed = client.get("/api/local/subdirs", params={"path": str(root)})
+        assert failed.status_code == status
+        assert "subdirs" not in failed.json()  # no successful but incomplete snapshot
+        assert attempts == ["B unreadable"]  # retries belong to the caller
+
+    recovered = client.get("/api/local/subdirs", params={"path": str(root)})
+    assert recovered.status_code == 200
+    assert recovered.json()["subdirs"] == ["A visible", "B unreadable"]
+
+
+def test_scan_entry_stat_failure_preserves_all_records_and_scan_timestamp(db, tmp_path, monkeypatch):
+    from filmpaw_server.scan import scan_source
+
+    root = tmp_path / "nas"
+    root.mkdir()
+    for name in ["A existing", "B unreadable"]:
+        (root / name).mkdir()
+    source_id = db.execute(
+        "INSERT INTO sources(unc_path, label) VALUES (?, ?)", (str(root), "NAS"),
+    ).lastrowid
+    db.commit()
+    scan_source(db, source_id)
+    # A deterministic old timestamp makes an unintended successful rescan visible.
+    db.execute("UPDATE sources SET last_scan_at='before failure' WHERE id=?", (source_id,))
+    db.commit()
+    before = [dict(row) for row in db.execute("SELECT * FROM performers ORDER BY folder_name")]
+    source_before = dict(db.execute("SELECT * FROM sources WHERE id=?", (source_id,)).fetchone())
+    (root / "C new").mkdir()
+    error = TimeoutError(errno.ETIMEDOUT, "entry stat timed out")
+    with monkeypatch.context() as patch:
+        attempts = _fail_entry_stat(patch, root, "B unreadable", error)
+        with pytest.raises(SourceUnreachable) as failure:
+            scan_source(db, source_id)
+        assert failure.value.__cause__ is error
+        assert attempts == ["B unreadable"]
+
+    assert not db.in_transaction
+    db.commit()  # an unrelated later commit must not persist partial scan writes
+    after = [dict(row) for row in db.execute("SELECT * FROM performers ORDER BY folder_name")]
+    assert after == before  # no new row, refreshed row or false missing actor
+    assert dict(db.execute("SELECT * FROM sources WHERE id=?", (source_id,)).fetchone()) == source_before
+    recovered = scan_source(db, source_id)
+    assert (recovered.added, recovered.refreshed, recovered.missing) == (1, 2, 0)
 
 
 def test_local_subdirs_gate_bounds_concurrent_os_reads(client, tmp_path, monkeypatch):

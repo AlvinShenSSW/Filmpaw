@@ -29,3 +29,11 @@ commit tokens or put them in URLs.
 Archive contexts bind the approved batch and a performer ID. Tasks persist in
 schema v3; recovery only reconciles existing evidence and never resumes moving
 or deleting automatically. All tests use disposable directories and databases.
+
+Named NTFS data streams (ADS) are currently unsupported: a selected movie that
+contains them fails preflight without moving any selected movie. Source metadata
+is checked again before cleanup and on the exact handle before deletion; a late
+stream produces a retained source / cleanup-pending result. Unverifiable stream
+metadata fails closed. Stop external writes to selected movies during transfer:
+Windows sharing is per stream, so the final check and deletion are not atomic
+against another process adding a stream.

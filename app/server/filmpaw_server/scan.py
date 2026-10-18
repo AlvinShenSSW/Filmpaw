@@ -56,11 +56,10 @@ def _is_hidden(entry: os.DirEntry) -> bool:
     if entry.name.startswith("."):
         return True
     if sys.platform == "win32":
-        try:
-            attrs = entry.stat(follow_symlinks=False).st_file_attributes
-            return bool(attrs & (stat.FILE_ATTRIBUTE_HIDDEN | stat.FILE_ATTRIBUTE_SYSTEM))
-        except OSError:
-            return True
+        # An unreadable entry is not a hidden entry. Let list_subdirs reject
+        # the entire snapshot so callers can retry and scans cannot mark it missing.
+        attrs = entry.stat(follow_symlinks=False).st_file_attributes
+        return bool(attrs & (stat.FILE_ATTRIBUTE_HIDDEN | stat.FILE_ATTRIBUTE_SYSTEM))
     return False
 
 

@@ -15,6 +15,8 @@
   源生成流与目标 UNC 重读的独立 SHA-256 一致，演员海报及附属文件、空目录均符合预期。
   86 次任务状态请求最大耗时 2.699 ms（进程内 ASGI 处理时延，不是网络或 WebView 时延）。
   可复跑：`uv run --project app/server --locked python docs/evidence/issue-36/smb-smoke.py --video-mib 2049 --output docs/evidence/issue-36/smb-large-file-smoke.json`。
+- `smb-post-review.json`：新增 NTFS 附加数据流保源检查后，再跑 32 MiB 实际 UNC/SMB
+  传输，摘要一致、源成功清理、演员资料及空目录保留，临时夹具清理完成。
 - `frozen-sidecar-smoke.py` / `.json`：实际 PyInstaller 产物的 PORT/PID 握手、0.5.0 版本、
   临时数据库、会话鉴权、错误 Origin 拒绝、无配置凭据时关闭写入、启动器退出后真实 worker
   继续存活，以及安全退出和精确进程回收。`frozen-sidecar-timeout.json` 记录 1 秒超时故障注入：
@@ -26,5 +28,11 @@
 junction；本机普通 symlink 创建缺少权限，因此该独立用例 skip，junction 用例实际执行。
 长路径支持取决于 Windows/共享设置；不支持时明确失败并保源，不宣称所有长路径可移动。
 
-本地检查阶段：pytest 151 passed / 1 skipped；UI 113 passed、TypeScript 与 Biome 通过；
+真实 NTFS 回归覆盖文件/目录/零字节附加流、预检后新增并恢复 mtime、持有源删除句柄时新增流、
+最后删除目录前新增流，以及未选中演员资料的范围对照。含流时整批不开始，提交后检测到则
+保留剩余源并显示清理未完成。最终枚举→删除不是抵御外部并发写入的原子事务；传输时应停止
+改动所选影片。共享模式语义参见 [Microsoft File Streams](https://learn.microsoft.com/en-us/windows/win32/fileio/file-streams)，
+枚举接口参见 [GetFileInformationByHandleEx](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getfileinformationbyhandleex)。
+
+本地检查阶段：pytest 166 passed / 1 skipped；UI 113 passed、TypeScript 与 Biome 通过；
 Rust 21 passed。CI、最终外部门和后续修复以 PR 与 AFK ledger 的最终记录为准。

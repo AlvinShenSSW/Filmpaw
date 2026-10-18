@@ -1,5 +1,6 @@
 """Archive moves use disposable folders and explicit failure injection only."""
 
+import os
 import shutil
 import subprocess
 import sys
@@ -604,3 +605,131 @@ def test_unwritable_journal_is_visible_and_cannot_strand_exit(archive, monkeypat
     result = restored.get_task(task["id"])
     assert result["status"] == ("completed" if failure_phase == "finished" else "needs_review")
     restored.close()
+
+
+def _add_named_stream(path, data=b"extra content that must survive", *, preserve_mtime=False):
+    """Use SHARE_DELETE too: stream sharing does not exclude another stream."""
+    import ctypes
+    from ctypes import wintypes
+    previous = path.stat()
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                       wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    create.restype = wintypes.HANDLE
+    write = kernel.WriteFile
+    write.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD,
+                      ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+    close = kernel.CloseHandle
+    close.argtypes = [wintypes.HANDLE]
+    named = Path(str(path) + ":filmpaw-test")
+    handle = create(str(named), 0x40000000, 7, None, 2, 0, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        written = wintypes.DWORD()
+        if not write(handle, data, len(data), ctypes.byref(written), None):
+            raise ctypes.WinError(ctypes.get_last_error())
+        assert written.value == len(data)
+    finally:
+        close(handle)
+    if preserve_mtime:
+        os.utime(path, ns=(previous.st_atime_ns, previous.st_mtime_ns))
+        assert path.stat().st_mtime_ns == previous.st_mtime_ns
+    return named
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="NTFS named streams")
+@pytest.mark.parametrize("relative,data", [("video.mp4", b"hidden video metadata"),
+                                          ("poster.jpg", b""), ("", b"directory data"),
+                                          ("empty", b"empty directory data")])
+def test_named_stream_preflight_preserves_entire_selection(archive, relative, data):
+    _, _, source, target, _ = archive
+    first = movie(source)
+    second = movie(source, "MOV-002")
+    named = _add_named_stream(second / relative, data)
+    task = run(archive, submit(archive, ["MOV-001", "MOV-002"]))
+    assert task["status"] == "failed", task["message"]
+    assert "数据流" in task["message"]
+    assert named.read_bytes() == data
+    assert (first / "video.mp4").exists() and (second / "video.mp4").exists()
+    assert list(target.iterdir()) == [], "full preflight must fail before any movie copy"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="NTFS named streams")
+@pytest.mark.parametrize("stage", ["after_copy", "after_commit"])
+@pytest.mark.parametrize("relative", ["video.mp4", "empty"])
+def test_late_named_stream_with_original_mtime_preserves_source(archive, monkeypatch, stage, relative):
+    service, _, source, target, _ = archive
+    original = movie(source)
+    def add(actual, task, item):
+        if actual == stage:
+            _add_named_stream(original / relative, preserve_mtime=True)
+    monkeypatch.setattr(service, "_checkpoint", add)
+    task = run(archive, submit(archive))
+    assert task["status"] == ("needs_review" if stage == "after_commit" else "failed"), task["message"]
+    assert "数据流" in task["message"]
+    assert Path(str(original / relative) + ":filmpaw-test").read_bytes() == b"extra content that must survive"
+    assert (original / "video.mp4").exists(), "cleanup must check the whole tree before deleting any file"
+    assert (target / "MOV-001").exists() == (stage == "after_commit")
+    if stage == "after_commit":
+        assert task["items"][0]["status"] == "cleanup_pending"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="NTFS named streams")
+def test_named_stream_added_while_exact_delete_handle_is_open_is_preserved(archive, monkeypatch):
+    import filmpaw_server.transfer as transfer
+    _, _, source, target, _ = archive
+    original = movie(source)
+    file = original / "video.mp4"
+    identity = transfer._identity(file.stat())
+    actual = transfer._hash
+    source_reads = 0
+    def add_after_last_hash(stream, progress=None):
+        nonlocal source_reads
+        digest = actual(stream, progress)
+        if transfer._identity(os.fstat(stream.fileno())) == identity:
+            source_reads += 1
+            if source_reads == 2:  # source verification, then exact-handle cleanup
+                _add_named_stream(file, preserve_mtime=True)
+        return digest
+    monkeypatch.setattr(transfer, "_hash", add_after_last_hash)
+    task = run(archive, submit(archive))
+    assert source_reads == 2
+    assert task["status"] == "needs_review", task["message"]
+    assert task["items"][0]["status"] == "cleanup_pending"
+    assert "数据流" in task["message"]
+    assert Path(str(file) + ":filmpaw-test").read_bytes() == b"extra content that must survive"
+    assert file.read_bytes() == (target / "MOV-001" / "video.mp4").read_bytes()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="NTFS named streams")
+def test_named_directory_stream_added_at_last_remove_is_preserved(archive, monkeypatch):
+    import filmpaw_server.transfer as transfer
+    _, _, source, target, _ = archive
+    original = movie(source)
+    directory = original / "empty"
+    actual = transfer._windows_directory_change
+    def add_before_remove(path, expected, target=None):
+        if path == directory and target is None:
+            _add_named_stream(directory, preserve_mtime=True)
+        return actual(path, expected, target)
+    monkeypatch.setattr(transfer, "_windows_directory_change", add_before_remove)
+    task = run(archive, submit(archive))
+    assert task["status"] == "needs_review", task["message"]
+    assert task["items"][0]["status"] == "cleanup_pending"
+    assert "数据流" in task["message"]
+    assert Path(str(directory) + ":filmpaw-test").read_bytes() == b"extra content that must survive"
+    assert (target / "MOV-001" / "video.mp4").exists()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="NTFS named streams")
+def test_unselected_actor_named_stream_does_not_block_movie_move(archive):
+    _, _, source, target, _ = archive
+    movie(source)
+    actor_stream = _add_named_stream(source)
+    portrait_stream = _add_named_stream(source / "folder.jpg")
+    task = run(archive, submit(archive))
+    assert task["status"] == "completed", task["message"]
+    assert actor_stream.exists() and portrait_stream.exists()
+    assert (target / "MOV-001" / "video.mp4").exists()
