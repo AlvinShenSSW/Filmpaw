@@ -1,0 +1,35 @@
+{
+  "issue": 40,
+  "ui_version": "0.5.3",
+  "browser": "Microsoft Edge headless",
+  "mode": "production UI, fully mocked API; no sidecar, NAS, or deletion",
+  "temporary_FILMPAW_DB": true,
+  "checks": [
+    {
+      "viewport": "1200x800",
+      "deleted_names_only": true,
+      "outside_counts_preserved": true,
+      "dialogWithinViewport": true,
+      "dialogNoHorizontalOverflow": true,
+      "pageNoOverflow": true,
+      "longNameWrapped": true,
+      "longNameNoHorizontalOverflow": true
+    },
+    {
+      "viewport": "960x640",
+      "deleted_names_only": true,
+      "outside_counts_preserved": true,
+      "dialogWithinViewport": true,
+      "dialogNoHorizontalOverflow": true,
+      "pageNoOverflow": true,
+      "longNameWrapped": true,
+      "longNameNoHorizontalOverflow": true
+    }
+  ],
+  "zero_deleted_generic_empty_state": true,
+  "api_write_requests": 0,
+  "unexpected_requests": [],
+  "page_errors": [],
+  "screenshot": "cleanup-result-names.png",
+  "result": "passed"
+}
