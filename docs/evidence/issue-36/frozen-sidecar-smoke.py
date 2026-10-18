@@ -196,7 +196,7 @@ def scenario(configured: bool, fixture_root: Path) -> dict:
                         pass
                     assert time.monotonic() < deadline, "health readiness deadline"
                     time.sleep(0.1)
-                assert health["version"] == EXPECTED == "0.5.0", health
+                assert health["version"] == EXPECTED, health
                 result["version"] = health["version"]
                 assert request("/api/settings")[1]["db_path"] == str(db)
                 result["temporary_database_verified"] = True

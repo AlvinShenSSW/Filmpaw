@@ -37,3 +37,7 @@ junction；本机普通 symlink 创建缺少权限，因此该独立用例 skip�
 本地检查阶段：pytest 166 passed / 1 skipped；UI 113 passed、TypeScript 与 Biome 通过；
 Rust 21 passed。代码 `4639355` 的 Windows CI/NSIS 通过，CTO 通过，Kimi K3 最终 **APPROVE / CLEAN**。
 [评审记录](review.md) 保存完整结论；最终文档提交的检查与交付状态见 PR #37。
+
+最终交付按用户要求提升为 **0.5.1**，并将 NSIS exe 放到桌面。版本同步后重新运行
+Windows CI（含冻结服务版本一致性检查），产物与检查链接见 PR #37。上面的 0.5.0
+证据记录实际执行时的版本；交付补丁只变更版本元数据和文档，不改变已审实现。
