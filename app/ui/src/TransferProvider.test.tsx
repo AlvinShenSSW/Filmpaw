@@ -3,7 +3,13 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, it, vi } from "vitest";
 import type { ArchiveContext, ArchiveTask } from "./archiveApi";
-import { createTransfer, getTransferByRequest, getTransfers } from "./archiveApi";
+import {
+  createTransfer,
+  getTransferByRequest,
+  getTransfers,
+  stopTransfer,
+  type TransferList,
+} from "./archiveApi";
 import { TransferProvider, useTransfer } from "./TransferProvider";
 
 vi.mock("./archiveApi", async (original) => ({
@@ -11,6 +17,7 @@ vi.mock("./archiveApi", async (original) => ({
   createTransfer: vi.fn(),
   getTransfers: vi.fn(),
   getTransferByRequest: vi.fn(),
+  stopTransfer: vi.fn(),
   getLatestTransfer: vi.fn().mockResolvedValue(null),
 }));
 
@@ -78,6 +85,9 @@ function Controls() {
       <span data-testid="cleanup">{String(transfer.cleanupBlocked)}</span>
       <button type="button" onClick={() => transfer.retrySubmission("request-A")}>
         Confirm A
+      </button>
+      <button type="button" onClick={() => transfer.stop.mutate("task-A")}>
+        Stop A
       </button>
     </>
   );
@@ -267,3 +277,168 @@ it("does not resend an unknown request while cleanup has the global submission l
   expect(createTransfer).not.toHaveBeenCalled();
   expect(screen.getByTestId("unknown")).toHaveTextContent("request-A");
 });
+
+const item = (name: string, status: string) => ({
+  name,
+  status,
+  size_bytes: 1000,
+  progress_bytes: 1000,
+  message: null,
+});
+const progressing = (overrides: Partial<ArchiveTask>): ArchiveTask => ({
+  ...task("A"),
+  updated_at: "2026-10-18T12:00:00Z",
+  current_name: "MOV-1",
+  total_count: 2,
+  total_bytes: 2000,
+  items: [item("MOV-1", "copying"), item("MOV-2", "pending")],
+  ...overrides,
+});
+
+it.each([
+  {
+    label: "same-movie phase and byte regression",
+    current: progressing({ phase: "verifying", progress_bytes: 1000, verified_bytes: 800 }),
+    response: progressing({
+      phase: "copying",
+      progress_bytes: 100,
+      verified_bytes: 0,
+      stop_requested: true,
+    }),
+    expected: {
+      phase: "verifying",
+      current_name: "MOV-1",
+      completed_count: 0,
+      progress_bytes: 1000,
+      verified_bytes: 800,
+      stop_requested: true,
+    },
+  },
+  {
+    label: "same-phase verified byte regression",
+    current: progressing({
+      phase: "verifying",
+      progress_bytes: 1000,
+      verified_bytes: 800,
+      stop_requested: true,
+    }),
+    response: progressing({ phase: "verifying", progress_bytes: 1000, verified_bytes: 50 }),
+    expected: { phase: "verifying", verified_bytes: 800, stop_requested: true },
+  },
+  {
+    label: "a late response from the previous movie",
+    current: progressing({
+      phase: "copying",
+      current_name: "MOV-2",
+      completed_count: 1,
+      progress_bytes: 1500,
+      verified_bytes: 1000,
+      items: [item("MOV-1", "completed"), item("MOV-2", "copying")],
+    }),
+    response: progressing({
+      phase: "cleaning",
+      completed_count: 0,
+      progress_bytes: 1000,
+      verified_bytes: 1000,
+      stop_requested: true,
+    }),
+    expected: {
+      phase: "copying",
+      current_name: "MOV-2",
+      completed_count: 1,
+      progress_bytes: 1500,
+      verified_bytes: 1000,
+      stop_requested: true,
+    },
+  },
+  {
+    label: "the next movie starts after the count already incremented",
+    current: progressing({
+      phase: "cleaning",
+      completed_count: 1,
+      progress_bytes: 1000,
+      verified_bytes: 1000,
+      items: [item("MOV-1", "completed"), item("MOV-2", "pending")],
+    }),
+    response: progressing({
+      phase: "copying",
+      current_name: "MOV-2",
+      completed_count: 1,
+      progress_bytes: 1100,
+      verified_bytes: 1000,
+      stop_requested: true,
+      items: [item("MOV-1", "completed"), item("MOV-2", "copying")],
+    }),
+    expected: {
+      phase: "copying",
+      current_name: "MOV-2",
+      completed_count: 1,
+      progress_bytes: 1100,
+      verified_bytes: 1000,
+      stop_requested: true,
+    },
+  },
+  {
+    label: "an older timestamp still confirms a requested stop",
+    current: progressing({ phase: "verifying", progress_bytes: 1000 }),
+    response: progressing({
+      updated_at: "2026-10-18T11:59:59Z",
+      phase: "copying",
+      progress_bytes: 100,
+      stop_requested: true,
+    }),
+    expected: { phase: "verifying", progress_bytes: 1000, stop_requested: true },
+  },
+  {
+    label: "a same-second fatal result remains visible rather than preserving running progress",
+    current: progressing({ phase: "verifying", progress_bytes: 1000, verified_bytes: 800 }),
+    response: progressing({
+      status: "needs_review",
+      phase: "finished",
+      message: "日志保存失败",
+      progress_bytes: 100,
+      verified_bytes: 0,
+      stop_requested: true,
+    }),
+    expected: {
+      status: "needs_review",
+      phase: "finished",
+      message: "日志保存失败",
+      progress_bytes: 100,
+      verified_bytes: 0,
+      stop_requested: true,
+    },
+  },
+])(
+  "merges a late stop acknowledgement without losing progress: $label",
+  async ({ current, response, expected }) => {
+    let resolve!: (value: ArchiveTask) => void;
+    vi.mocked(stopTransfer).mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    vi.mocked(getTransfers).mockResolvedValue({
+      active: [current],
+      history: [],
+      next_cursor: null,
+      busy: true,
+      blocked_reason: null,
+      concurrency: 3,
+    });
+    const { client } = mount();
+    await waitFor(() => expect(screen.getByTestId("tasks")).toHaveTextContent("task-A:running"));
+    await userEvent.click(screen.getByText("Stop A"));
+    act(() =>
+      client.setQueryData<TransferList>(["archive-transfers"], (old) =>
+        old ? { ...old, active: [current] } : old,
+      ),
+    );
+    await act(async () => resolve(response));
+    expect(client.getQueryData<TransferList>(["archive-transfers"])?.active[0]).toMatchObject(
+      expected,
+    );
+    expect(stopTransfer).toHaveBeenCalledExactlyOnceWith("task-A");
+  },
+);

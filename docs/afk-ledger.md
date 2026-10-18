@@ -253,3 +253,5 @@
 - 首轮完整回归曾在既有 ADS 用例出现一次 WinError 32，程序在清理前保源并标待核对；后续 20 个独立定点进程及完整回归均通过，来源未定，不放宽删除检查。正在进入 Windows CI → CTO → Kimi K3。
 - 用户随后明确确认同时 **3 个演员**、其他排队，并接受持久日志范围及冲突只停止对应演员。覆盖先前临时默认的两个执行槽；核心排队和日志故障测试先 RED 后调整，完整服务仍 240 passed / 1 skipped。
 - 更新实测证据：四演员各 32 MiB、三个真实 worker 并行、第四 FIFO 补位；12 条文件及 12 条目录删除成功回执与实际一致。生产界面两种尺寸分别显示三个独立进度和一个等待任务。
+- 三并发提交 `7e0f00f` 的 [Windows CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39137583650) 全绿：后端 241、UI 163、Rust 24，打包启动验证与 NSIS 均通过。
+- CI 绿后内部交叉检查发现同秒迟到的 running 响应可能短暂回退界面进度；不影响实际传输或退出安全，仍接受并补定点回归修复。后续精确提交的 CI、CTO、Kimi K3 唯一外门结论与最终交付状态统一记录在 [PR #43](https://github.com/AlvinShenSSW/Filmpaw/pull/43)，本轮继续 `leave-open`。

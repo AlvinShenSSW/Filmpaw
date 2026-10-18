@@ -77,6 +77,44 @@ const PHASES = {
   finished: "已结束",
 };
 
+function mergeTaskSnapshot(existing: ArchiveTask | undefined, incoming: ArchiveTask): ArchiveTask {
+  if (!existing) return incoming;
+  const sameActiveMoment =
+    existing.updated_at === incoming.updated_at &&
+    existing.status === incoming.status &&
+    isTransferActive(existing);
+  // Timestamps have second precision. Within that second, use the fixed movie
+  // order before phase: finishing movie 1 and starting movie 2 can share the
+  // same completed_count, while cleaning legitimately becomes copying.
+  const position = (task: ArchiveTask) => [
+    task.completed_count,
+    task.items.findIndex((item) => item.name === task.current_name),
+    Object.keys(PHASES).indexOf(task.phase),
+    task.progress_bytes,
+    task.verified_bytes,
+  ];
+  const before = position(existing),
+    after = position(incoming);
+  const difference = before.findIndex((value, index) => value !== after[index]);
+  const stale =
+    existing.updated_at > incoming.updated_at ||
+    (!isTransferActive(existing) && isTransferActive(incoming)) ||
+    (existing.status === "running" && incoming.status === "queued") ||
+    (sameActiveMoment && difference >= 0 && before[difference] > after[difference]);
+  return {
+    ...(stale ? existing : incoming),
+    // A delayed stop acknowledgement still carries a new user intention.
+    stop_requested: existing.stop_requested || incoming.stop_requested,
+    ...(sameActiveMoment
+      ? {
+          completed_count: Math.max(existing.completed_count, incoming.completed_count),
+          progress_bytes: Math.max(existing.progress_bytes, incoming.progress_bytes),
+          verified_bytes: Math.max(existing.verified_bytes, incoming.verified_bytes),
+        }
+      : {}),
+  };
+}
+
 export function transferLabel(task: ArchiveTask): string {
   if (task.stop_requested && isTransferActive(task)) return "正在安全停止";
   if (task.status === "queued") return "等待执行";
@@ -137,20 +175,12 @@ function useController(submissionsBlocked: boolean) {
         const existing = [...(current?.active ?? []), ...(current?.history ?? [])].find(
           (item) => item.id === task.id,
         );
-        // An accepted POST or recovery read can arrive after a newer poll.
-        // A task never goes backwards from terminal to running, or running to queued.
-        if (
-          existing &&
-          (existing.updated_at > task.updated_at ||
-            (!isTransferActive(existing) && isTransferActive(task)) ||
-            (existing.status === "running" && task.status === "queued"))
-        )
-          return current;
+        const merged = mergeTaskSnapshot(existing, task);
         const active = current?.active.filter((item) => item.id !== task.id) ?? [];
         const history = current?.history.filter((item) => item.id !== task.id) ?? [];
-        if (isTransferActive(task) || current?.active.some((item) => item.id === task.id))
-          active.unshift(task);
-        else history.unshift(task);
+        if (isTransferActive(merged) || current?.active.some((item) => item.id === task.id))
+          active.unshift(merged);
+        else history.unshift(merged);
         return {
           active,
           history,
