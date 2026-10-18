@@ -175,6 +175,11 @@ mod tests {
             reader.read_exact(&mut body).unwrap();
             assert_eq!(&body, b"{}");
             socket.write_all(b"HTTP/1.1 200 OK\r\nConnection: close\r\n\r\n{\"safe\":false,\"task_id\":\"active-1\"}").unwrap();
+            // Keep the fixture alive until the client has read our FIN, so
+            // Windows does not race the response with a connection reset.
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.shutdown(std::net::Shutdown::Write).unwrap();
+            let _ = reader.read_to_end(&mut Vec::new());
             request
         });
         let token = "a".repeat(64);

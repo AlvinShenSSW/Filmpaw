@@ -331,6 +331,12 @@ mod tests {
             }
             std::thread::sleep(delay);
             let _ = sock.write_all(response.as_bytes());
+            // Finish the response with FIN, then let the client close before
+            // dropping the last socket handle. Immediate closesocket after a
+            // write can reset the connection on Windows under parallel tests.
+            sock.set_read_timeout(Some(TIMEOUT)).unwrap();
+            let _ = sock.shutdown(std::net::Shutdown::Write);
+            let _ = reader.read_to_end(&mut Vec::new());
             request
         });
         (port, handle)
@@ -537,7 +543,8 @@ mod tests {
         ));
         let (l, opened) = fake(Some("C:\\local")); // first one blows up
                                                    // Server validation succeeded, so the click is NOT reported as an error.
-        assert!(open_pair_with(port, TOKEN, "sub", "pid", &l, TIMEOUT).is_ok());
+        let result = open_pair_with(port, TOKEN, "sub", "pid", &l, TIMEOUT);
+        assert!(result.is_ok(), "{result:?}");
         assert_eq!(*opened.lock().unwrap(), vec![r"C:\local", r"\\nas\perf"]);
     }
 }
