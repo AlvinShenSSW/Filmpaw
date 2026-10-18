@@ -69,7 +69,7 @@ export class ArchiveApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function archiveRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   // A request timeout only stops waiting for the response. It never implies
   // that a submitted transfer stopped; the persistent task is the authority.
   const signal = options.signal
@@ -92,7 +92,7 @@ export function createArchiveContext(
   body: { local_dir: string; subdir: string; performer_id: string },
   signal?: AbortSignal,
 ): Promise<ArchiveContext> {
-  return request("/contexts", { method: "POST", body: JSON.stringify(body), signal });
+  return archiveRequest("/contexts", { method: "POST", body: JSON.stringify(body), signal });
 }
 
 export function createTransfer(body: {
@@ -100,19 +100,19 @@ export function createTransfer(body: {
   names: string[];
   request_id: string;
 }): Promise<ArchiveTask> {
-  return request("/transfers", { method: "POST", body: JSON.stringify(body) });
+  return archiveRequest("/transfers", { method: "POST", body: JSON.stringify(body) });
 }
 
 export function getLatestTransfer(signal?: AbortSignal): Promise<ArchiveTask | null> {
-  return request("/transfers/latest", { signal });
+  return archiveRequest("/transfers/latest", { signal });
 }
 
 export function getTransfer(id: string, signal?: AbortSignal): Promise<ArchiveTask> {
-  return request(`/transfers/${encodeURIComponent(id)}`, { signal });
+  return archiveRequest(`/transfers/${encodeURIComponent(id)}`, { signal });
 }
 
 export function stopTransfer(id: string): Promise<ArchiveTask> {
-  return request(`/transfers/${encodeURIComponent(id)}/stop`, { method: "POST" });
+  return archiveRequest(`/transfers/${encodeURIComponent(id)}/stop`, { method: "POST" });
 }
 
 export function isTransferActive(task: ArchiveTask | null | undefined): boolean {

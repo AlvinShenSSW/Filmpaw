@@ -12,6 +12,7 @@ import Typography from "@mui/material/Typography";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { ArchiveTransferView } from "./ArchiveTransferView";
+import { useCleanup } from "./CleanupProvider";
 import type { PerformerOut } from "./client";
 import {
   getSettingsApiSettingsGet,
@@ -40,6 +41,8 @@ function detailOf(error: unknown, fallback: string): string {
 export function ArchivePage() {
   const queryClient = useQueryClient();
   const transfer = useTransfer();
+  const cleanup = useCleanup();
+  const bindBatch = cleanup.bindBatch;
   const [localDir, setLocalDir] = useState<string | null>(null);
   const [dirLoaded, setDirLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -58,12 +61,20 @@ export function ArchivePage() {
 
   // Restore the remembered directory once on mount.
   useEffect(() => {
+    let disposed = false;
     (async () => {
       const r = await getSettingsApiSettingsGet();
-      if (r.data?.last_local_dir) setLocalDir(r.data.last_local_dir);
+      if (disposed) return;
+      if (r.data?.last_local_dir) {
+        setLocalDir(r.data.last_local_dir);
+        bindBatch(r.data.last_local_dir);
+      }
       setDirLoaded(true);
     })();
-  }, []);
+    return () => {
+      disposed = true;
+    };
+  }, [bindBatch]);
 
   useEffect(() => {
     const t = setTimeout(() => setQ(search), 300);
@@ -122,14 +133,33 @@ export function ArchivePage() {
   // updates on SUCCESS — a failed refresh keeps the list and the selection
   // intact so the user can retry. The search term is deliberately left
   // alone (design §7.3: left selection and right search are independent).
-  // Functional updater + data-only deps: the decision reads the LATEST
-  // selection, so a click landing between the refreshed render and this
-  // effect's flush can't be clobbered by a stale closure value.
+  // Reconcile the latest selection with a successful snapshot. Clearing the
+  // actor also clears its NAS target, so a deleted actor cannot reopen details.
   useEffect(() => {
     const data = subdirs.data;
     if (!data) return;
-    setSelected((current) => (current && !data.subdirs.includes(current) ? null : current));
-  }, [subdirs.data]);
+    if (selected && !data.subdirs.includes(selected)) {
+      setSelected(null);
+      setTarget(null);
+    }
+  }, [subdirs.data, selected]);
+
+  const appliedCleanup = cleanup.applied;
+  const consumedCleanup = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !appliedCleanup ||
+      appliedCleanup.path !== localDir ||
+      appliedCleanup.epoch !== cleanup.binding.epoch ||
+      consumedCleanup.current === appliedCleanup.eventId
+    )
+      return;
+    consumedCleanup.current = appliedCleanup.eventId;
+    if (selected && appliedCleanup.names.includes(selected)) {
+      setSelected(null);
+      setTarget(null);
+    }
+  }, [appliedCleanup, localDir, cleanup.binding.epoch, selected]);
 
   const results = useQuery({
     queryKey: ["archive-match", q],
@@ -154,7 +184,7 @@ export function ArchivePage() {
   };
 
   const runChooseDir = async () => {
-    const raw = await pickDirectory("选择本地下载目录");
+    const raw = await pickDirectory("选择 batch 目录（本机或 NAS 临时目录）");
     if (!raw) return;
     // Defensive normalization: some pickers/platforms hand back forward
     // slashes or a trailing separator; keep the stored anchor canonical
@@ -181,6 +211,7 @@ export function ArchivePage() {
       return;
     }
     setLocalDir(saved.data.last_local_dir ?? dir);
+    bindBatch(saved.data.last_local_dir ?? dir, true);
     setSelected(null);
     setTarget(null);
     queryClient.invalidateQueries({ queryKey: ["local-subdirs"] });
@@ -239,6 +270,7 @@ export function ArchivePage() {
             startIcon={<FolderIcon />}
             onClick={chooseDir}
             disabled={isPicking}
+            title={localDir ?? undefined}
             sx={{
               flex: 1,
               minWidth: 0,
@@ -273,6 +305,32 @@ export function ArchivePage() {
           </Tooltip>
         </Box>
 
+        <Tooltip title="只删除当前 batch 一级完全空的演员目录；含文件或子目录的保留">
+          <span>
+            <Button
+              size="small"
+              color="inherit"
+              onClick={() => localDir && void cleanup.begin(localDir)}
+              disabled={
+                !localDir ||
+                isPicking ||
+                cleanup.blocked ||
+                transfer.active ||
+                transfer.unavailable ||
+                transfer.start.isPending
+              }
+              sx={{
+                fontSize: 12,
+                color: "text.secondary",
+                width: "100%",
+                justifyContent: "flex-start",
+              }}
+            >
+              清理空演员目录
+            </Button>
+          </span>
+        </Tooltip>
+
         {subdirs.isFetching && subdirs.failureCount > 0 && (
           <Typography
             variant="caption"
@@ -286,6 +344,12 @@ export function ArchivePage() {
         )}
         {subdirs.isError && !subdirs.isFetching && localDir && (
           <Box>
+            {appliedCleanup?.path === localDir &&
+              appliedCleanup.epoch === cleanup.binding.epoch && (
+                <Typography variant="caption" role="alert" color="warning.main">
+                  清理结果已保留，目录刷新失败。已确认删除的目录已从列表移除。
+                </Typography>
+              )}
             <Typography variant="caption" sx={{ color: tokens.bad }} role="alert">
               读取失败: {detailOf(subdirs.error, "server 未响应")} —{" "}
               {transientDirectoryError(subdirs.error) ? "请稍后重试" : "请重新选择"}

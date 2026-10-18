@@ -1,0 +1,31 @@
+{
+  "page_errors": [],
+  "checks": [
+    "actual deletion recovered from lost response with one POST; strict nonempty and NAS control retained",
+    "cleanup result survives route change and reload without replay"
+  ],
+  "viewports": [
+    {
+      "width": 960,
+      "height": 640,
+      "cleanup_button_visible": true
+    },
+    {
+      "width": 1200,
+      "height": 800,
+      "cleanup_button_visible": true
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "cleanup_button_visible": true
+    },
+    {
+      "width": 2560,
+      "height": 1440,
+      "cleanup_button_visible": true
+    }
+  ],
+  "fixture": "C:\\Users\\304\\AppData\\Local\\Temp\\filmpaw-38-browser-dbwgiity",
+  "version": "0.5.2"
+}

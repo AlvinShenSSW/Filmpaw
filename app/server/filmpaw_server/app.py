@@ -13,8 +13,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from filmpaw_server import __version__
+from filmpaw_server.cleanup import CleanupService
 from filmpaw_server.db import connect, default_db_path
 from filmpaw_server.routes_archive import router as archive_router
+from filmpaw_server.routes_cleanup import router as cleanup_router
 from filmpaw_server.routes_performers import router as performers_router
 from filmpaw_server.routes_sources import router as sources_router
 from filmpaw_server.session import library_session
@@ -31,10 +33,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             # This short-lived thread lock protects the shared SQLite connection.
             app.state.db_lock = threading.RLock()
             app.state.transfers = TransferService(app.state.db, app.state.db_lock)
+            app.state.cleanups = CleanupService(app.state.transfers)
             try:
                 app.state.transfers.recover()
                 yield
             finally:
+                app.state.cleanups.close()
                 app.state.transfers.close()
                 app.state.db.close()
 
@@ -90,4 +94,5 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(sources_router)
     app.include_router(performers_router)
     app.include_router(archive_router)
+    app.include_router(cleanup_router)
     return app

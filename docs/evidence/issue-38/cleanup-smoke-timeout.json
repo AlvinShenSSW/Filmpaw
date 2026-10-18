@@ -1,0 +1,10 @@
+{
+  "executed_utc": "2026-10-18T08:20:36.789659+00:00",
+  "cases": [],
+  "status": "timeout_probe_passed",
+  "mapping_active_when_worker_killed": true,
+  "stdin_closed": true,
+  "hard_timeout_seconds": 3,
+  "temporary_drive_released": true,
+  "temporary_fixture_removed": true
+}

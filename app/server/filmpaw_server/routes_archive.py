@@ -81,6 +81,7 @@ class TaskOut(BindingOut):
 class ExitOut(BaseModel):
     safe: bool
     task_id: str | None = None
+    operation: Literal["transfer", "cleanup"] | None = None
 
 
 @router.post("/contexts", status_code=201, response_model=ContextOut)
@@ -113,6 +114,6 @@ def stop_transfer(request: Request, task_id: str):
     return request.app.state.transfers.stop(task_id)
 
 
-@router.post("/prepare-exit", response_model=ExitOut)
+@router.post("/prepare-exit", response_model=ExitOut, response_model_exclude_unset=True)
 def prepare_exit(request: Request):
     return request.app.state.transfers.prepare_exit()

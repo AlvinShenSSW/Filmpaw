@@ -32,6 +32,13 @@ vi.mock("./client", () => ({
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
 vi.mock("./ExitCoordinator", () => ({ ExitCoordinator: () => null }));
+vi.mock("./cleanupApi", () => ({
+  getLatestCleanup: vi.fn().mockResolvedValue(null),
+  readCleanupContext: vi.fn(),
+  createCleanup: vi.fn(),
+  isCleanupActive: (task: { status: string } | null) =>
+    task?.status === "running" || task?.status === "queued",
+}));
 vi.mock("./archiveApi", () => ({
   getLatestTransfer: vi.fn(),
   createTransfer: vi.fn(),

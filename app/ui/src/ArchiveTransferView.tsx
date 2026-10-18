@@ -25,6 +25,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { serverBase } from "./api";
 import { type ArchiveFolder, archiveError } from "./archiveApi";
+import { useCleanup } from "./CleanupProvider";
 import type { PerformerOut } from "./client";
 import { DIRECTORY_RETRIES, useArchiveContext } from "./directoryReads";
 import { openArchivePair } from "./openTarget";
@@ -331,6 +332,7 @@ export function ArchiveTransferView({
   onBack: () => void;
 }) {
   const transfer = useTransfer();
+  const cleanup = useCleanup();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pathOpen, setPathOpen] = useState(false);
   const [toast, setToast] = useState("");
@@ -388,6 +390,7 @@ export function ArchiveTransferView({
     context.isError ||
     transfer.active ||
     transfer.unavailable ||
+    cleanup.blocked ||
     transfer.start.isPending;
   const taskItems = matchesTask ? currentTask.items : [];
   const sourceItems = (data?.source_items ?? [])
@@ -723,9 +726,11 @@ export function ArchiveTransferView({
           <Typography variant="caption" color="text.secondary">
             {transfer.active
               ? "当前归档任务进行中，可在下方查看进度。"
-              : transfer.unavailable
-                ? "任务状态暂不可确认，请等待恢复。"
-                : "完整复制并校验后，移除对应本地影片文件夹。"}
+              : cleanup.blocked
+                ? "清理进行中或状态待确认，暂不能开始传输。"
+                : transfer.unavailable
+                  ? "任务状态暂不可确认，请等待恢复。"
+                  : "完整复制并校验后，移除对应本地影片文件夹。"}
           </Typography>
         </Box>
         {selected.size > 0 && (

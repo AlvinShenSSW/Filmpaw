@@ -19,6 +19,13 @@ vi.mock("./client", () => ({
 vi.mock("./openTarget", () => ({ openArchivePair: vi.fn() }));
 vi.mock("./api", () => ({ serverBase: () => "http://127.0.0.1:8720" }));
 vi.mock("./pickDirectory", () => ({ pickDirectory: vi.fn() }));
+vi.mock("./cleanupApi", () => ({
+  getLatestCleanup: vi.fn().mockResolvedValue(null),
+  readCleanupContext: vi.fn(),
+  createCleanup: vi.fn(),
+  isCleanupActive: (task: { status: string } | null) =>
+    task?.status === "running" || task?.status === "queued",
+}));
 vi.mock("./archiveApi", () => ({
   getLatestTransfer: vi.fn().mockResolvedValue(null),
   createTransfer: vi.fn(),
@@ -27,6 +34,7 @@ vi.mock("./archiveApi", () => ({
 }));
 
 import { ArchivePage } from "./ArchivePage";
+import { CleanupProvider } from "./CleanupProvider";
 import {
   getSettingsApiSettingsGet,
   listPerformersApiPerformersGet,
@@ -66,9 +74,11 @@ function renderPage() {
   return render(
     <QueryClientProvider client={qc}>
       <ThemeProvider theme={theme}>
-        <TransferProvider>
-          <ArchivePage />
-        </TransferProvider>
+        <CleanupProvider>
+          <TransferProvider>
+            <ArchivePage />
+          </TransferProvider>
+        </CleanupProvider>
       </ThemeProvider>
     </QueryClientProvider>,
   );
@@ -90,6 +100,13 @@ beforeEach(() => {
 });
 
 describe("ArchivePage", () => {
+  it("offers explicit cleanup for the selected batch without a confirmation dialog", async () => {
+    renderPage();
+    const cleanup = await screen.findByRole("button", { name: "清理空演员目录" });
+    await waitFor(() => expect(cleanup).toBeEnabled());
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("restores last dir, lists subfolders; left click autofills search", async () => {
     renderPage();
     expect(await screen.findByText("D:\\Downloads\\新片")).toBeInTheDocument();

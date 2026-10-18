@@ -36,6 +36,10 @@ class TransferError(Exception):
         self.status_code = status_code
 
 
+class NamedStreamsError(TransferError):
+    """Content exists outside the unnamed stream; callers must preserve it."""
+
+
 class _Stopped(Exception):
     pass
 
@@ -224,7 +228,7 @@ def _check_named_streams(handle, path: Path) -> None:
             raise TransferError(f"额外数据流信息无效，保留本地源：{path}")
         name = buffer.raw[offset + 24:end].decode("utf-16-le", errors="surrogatepass")
         if name != "::$DATA":
-            raise TransferError(f"不支持额外数据流（ADS），保留本地源：{path} {name}")
+            raise NamedStreamsError(f"不支持额外数据流（ADS），保留本地源：{path} {name}")
         if not next_offset:
             return
         if next_offset < 24 + name_size or next_offset % 8:
@@ -381,6 +385,37 @@ class TransferService:
         self._fatal_task = None
         self._working_task = None
         self._context_read_lock = threading.Lock()
+        self._cleanup_id = None
+
+    def ensure_open(self) -> None:
+        with self._admission:
+            if self._closing:
+                raise TransferError("应用正在退出，不能开始新操作", 409)
+
+    def reserve_cleanup(self, operation_id: str, batch_path: str, batch_revision: str) -> None:
+        """Atomically bind a cleanup to the current settings and write slot."""
+        with self._admission, self.db_lock:
+            self.ensure_open()
+            if self._fatal_task:
+                raise TransferError("任务状态保存失败，请重启并核对上次传输", 409)
+            if self._cleanup_id or self._active() or (self._worker and self._worker.is_alive()):
+                raise TransferError("已有传输或清理任务正在进行", 409)
+            settings = dict(self.conn.execute(
+                "SELECT key,value FROM settings WHERE key IN ('last_local_dir','last_local_dir_revision')"
+            ).fetchall())
+            if (settings.get("last_local_dir") != batch_path
+                    or (settings.get("last_local_dir_revision") or "legacy") != batch_revision):
+                raise TransferError("batch 目录选择已变化，请刷新后重新清理", 409)
+            self._cleanup_id = operation_id
+
+    def release_cleanup(self, operation_id: str) -> None:
+        with self._admission:
+            if self._cleanup_id == operation_id:
+                self._cleanup_id = None
+
+    def begin_close(self) -> None:
+        with self._admission:
+            self._closing = True
 
     def _read_binding(self, local_dir: str, subdir: str, performer_id: str) -> dict:
         _name(subdir)
@@ -546,6 +581,8 @@ class TransferService:
                 return self._public(previous)
             if self._closing:
                 raise TransferError("应用正在退出，不能开始传输", 409)
+            if self._cleanup_id:
+                raise TransferError("正在清理空演员目录，请完成后再传输", 409)
             if self._active() or (self._worker and self._worker.is_alive()):
                 raise TransferError("已有传输任务正在进行", 409)
             context = self._contexts.get(context_id)
@@ -598,6 +635,8 @@ class TransferService:
 
     def prepare_exit(self) -> dict:
         with self._admission:
+            if self._cleanup_id:
+                return {"safe": False, "task_id": self._cleanup_id, "operation": "cleanup"}
             if self._fatal_task and not (self._worker and self._worker.is_alive()):
                 # The original durable journal is intentionally untouched.
                 # No worker is doing I/O now; restart reconciles that journal.

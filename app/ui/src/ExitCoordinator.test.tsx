@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   unlisten: vi.fn(),
   latest: vi.fn(),
   stop: vi.fn(),
+  cleanup: vi.fn(),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({ isTauri: () => mocks.tauri, invoke: mocks.invoke }));
@@ -17,10 +18,21 @@ vi.mock("./archiveApi", async (original) => ({
   getLatestTransfer: mocks.latest,
   stopTransfer: mocks.stop,
 }));
+vi.mock("./cleanupApi", () => ({
+  getCleanup: mocks.cleanup,
+  isCleanupActive: (task: { status: string } | null | undefined) =>
+    task?.status === "queued" || task?.status === "running",
+}));
 
 import { ExitCoordinator } from "./ExitCoordinator";
 
-let closeRequested: (event: { payload: { task_id: string | null; detail: string | null } }) => void;
+let closeRequested: (event: {
+  payload: {
+    task_id: string | null;
+    detail: string | null;
+    operation?: "cleanup" | "transfer" | null;
+  };
+}) => void;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -31,14 +43,23 @@ beforeEach(() => {
   });
   mocks.latest.mockResolvedValue({ id: "task-1", status: "running", current_name: "Movie A" });
   mocks.stop.mockResolvedValue({ id: "task-1", status: "running", stop_requested: true });
+  mocks.cleanup.mockResolvedValue({ id: "cleanup-1", status: "running", current_name: "Actor A" });
   mocks.invoke.mockResolvedValue({ safe: true, task_id: null });
 });
 
 afterEach(() => vi.useRealTimers());
 
-async function requestClose() {
+async function requestClose(operation?: "cleanup" | "transfer" | null) {
   await waitFor(() => expect(mocks.listen).toHaveBeenCalled());
-  act(() => closeRequested({ payload: { task_id: "task-1", detail: null } }));
+  act(() =>
+    closeRequested({
+      payload: {
+        task_id: operation === "cleanup" ? "cleanup-1" : "task-1",
+        detail: null,
+        operation,
+      },
+    }),
+  );
   await screen.findByRole("dialog");
 }
 
@@ -136,5 +157,68 @@ describe("desktop transfer exit coordination", () => {
     await act(async () => {});
     view.unmount();
     expect(mocks.unlisten).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("desktop cleanup exit coordination", () => {
+  it("waits for the exact cleanup task without offering or calling transfer stop", async () => {
+    render(<ExitCoordinator />);
+    await requestClose("cleanup");
+    await waitFor(() =>
+      expect(mocks.cleanup).toHaveBeenCalledWith("cleanup-1", expect.any(AbortSignal)),
+    );
+    expect(mocks.latest).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "停止队列后退出" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "完成后退出" }));
+    await screen.findByText(/正在等待清理完成/);
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    mocks.cleanup.mockResolvedValue({ id: "cleanup-1", status: "completed" });
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("close_if_idle"), {
+      timeout: 2500,
+    });
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+
+  it("keeps the window and cleanup identity when its status cannot be read", async () => {
+    mocks.cleanup.mockRejectedValue(new Error("cleanup status unavailable"));
+    render(<ExitCoordinator />);
+    await requestClose("cleanup");
+    await screen.findByText("cleanup status unavailable");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "停止队列后退出" })).not.toBeInTheDocument();
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.latest).not.toHaveBeenCalled();
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+
+  it("can cancel waiting for cleanup without exiting after a late response", async () => {
+    render(<ExitCoordinator />);
+    await requestClose("cleanup");
+    let resolveCleanup: (task: unknown) => void = () => {};
+    mocks.cleanup.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveCleanup = resolve;
+        }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "完成后退出" }));
+    await waitFor(() => expect(mocks.cleanup).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "取消等待" }));
+    await act(async () => resolveCleanup({ id: "cleanup-1", status: "completed" }));
+    expect(mocks.invoke).not.toHaveBeenCalled();
+    expect(mocks.stop).not.toHaveBeenCalled();
+  });
+
+  it("switches to cleanup if the atomic exit check finds a newly admitted cleanup", async () => {
+    mocks.latest.mockResolvedValue({ id: "task-1", status: "completed" });
+    mocks.invoke.mockResolvedValue({ safe: false, task_id: "cleanup-1", operation: "cleanup" });
+    render(<ExitCoordinator />);
+    await requestClose("transfer");
+    fireEvent.click(screen.getByRole("button", { name: "完成后退出" }));
+    await waitFor(() =>
+      expect(mocks.cleanup).toHaveBeenCalledWith("cleanup-1", expect.any(AbortSignal)),
+    );
+    await screen.findByText(/正在等待清理完成/);
+    expect(mocks.stop).not.toHaveBeenCalled();
   });
 });

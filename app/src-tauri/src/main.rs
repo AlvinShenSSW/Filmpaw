@@ -123,6 +123,7 @@ async fn close_if_idle(window: tauri::Window) -> Result<ExitStatus, ApiError> {
 #[derive(Clone, serde::Serialize)]
 struct ClosePrompt {
     task_id: Option<String>,
+    operation: Option<lifecycle::ExitOperation>,
     detail: Option<String>,
 }
 
@@ -327,10 +328,12 @@ fn main() {
                         Ok(status) if status.safe => return,
                         Ok(status) => ClosePrompt {
                             task_id: status.task_id,
+                            operation: status.operation,
                             detail: None,
                         },
                         Err(error) => ClosePrompt {
                             task_id: None,
+                            operation: None,
                             detail: Some(error.detail),
                         },
                     };

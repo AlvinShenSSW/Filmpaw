@@ -37,3 +37,13 @@ stream produces a retained source / cleanup-pending result. Unverifiable stream
 metadata fails closed. Stop external writes to selected movies during transfer:
 Windows sharing is per stream, so the final check and deletion are not atomic
 against another process adding a stream.
+
+Empty-actor cleanup uses a separate session-local worker under the same admission
+lock as transfers and exit. Its capability binds the explicitly selected batch,
+settings revision and native directory identity; the delete request contains no
+paths or actor names. Local and NAS temporary batches use the same boundary.
+Hidden contents, subdirectories, named streams, links and unverifiable metadata
+are never treated as empty. Windows deletes through the verified directory handle
+without recursive traversal. Cleanup results survive UI reloads in that sidecar
+session; restarting invalidates capabilities and never resumes deletion. No new
+database schema or persistent cleanup history is introduced.
