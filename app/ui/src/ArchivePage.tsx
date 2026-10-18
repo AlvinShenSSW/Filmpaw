@@ -19,6 +19,13 @@ import {
   localSubdirsApiLocalSubdirsGet,
   putSettingsApiSettingsPut,
 } from "./client";
+import {
+  DIRECTORY_RETRIES,
+  DirectoryReadError,
+  directoryRetryDelay,
+  retryDirectoryRead,
+  transientDirectoryError,
+} from "./directoryReads";
 import { openArchivePair } from "./openTarget";
 import { PosterAvatar } from "./PerformersPage";
 import { pickDirectory } from "./pickDirectory";
@@ -91,10 +98,21 @@ export function ArchivePage() {
   const subdirs = useQuery({
     queryKey: ["local-subdirs", localDir],
     enabled: localDir !== null,
-    retry: false,
-    queryFn: async () => {
-      const r = await localSubdirsApiLocalSubdirsGet({ query: { path: localDir ?? "" } });
-      if (r.error || !r.data) throw r.error ?? new Error("subdirs");
+    retry: retryDirectoryRead,
+    retryDelay: directoryRetryDelay,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    queryFn: async ({ signal }) => {
+      const r = await localSubdirsApiLocalSubdirsGet({
+        query: { path: localDir ?? "" },
+        signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]),
+      });
+      if (r.error || !r.data)
+        throw new DirectoryReadError(
+          detailOf(r.error, "server 未响应"),
+          transientDirectoryError(r.error) ||
+            transientDirectoryError({ status: r.response?.status }),
+        );
       return r.data;
     },
   });
@@ -255,10 +273,27 @@ export function ArchivePage() {
           </Tooltip>
         </Box>
 
-        {subdirs.isError && localDir && (
-          <Typography variant="caption" sx={{ color: tokens.bad }} role="alert">
-            读取失败: {detailOf(subdirs.error, "server 未响应")} — 请重新选择
+        {subdirs.isFetching && subdirs.failureCount > 0 && (
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            role="status"
+            aria-label="本地目录重试"
+          >
+            正在自动重试本地目录（{Math.min(subdirs.failureCount, DIRECTORY_RETRIES)} /{" "}
+            {DIRECTORY_RETRIES}）…
           </Typography>
+        )}
+        {subdirs.isError && !subdirs.isFetching && localDir && (
+          <Box>
+            <Typography variant="caption" sx={{ color: tokens.bad }} role="alert">
+              读取失败: {detailOf(subdirs.error, "server 未响应")} —{" "}
+              {transientDirectoryError(subdirs.error) ? "请稍后重试" : "请重新选择"}
+            </Typography>
+            <Button size="small" onClick={() => subdirs.refetch()}>
+              重试读取本地目录
+            </Button>
+          </Box>
         )}
         {dirLoaded && !localDir && (
           <Typography variant="caption" color="text.secondary">

@@ -1,8 +1,8 @@
 import { ThemeProvider } from "@mui/material/styles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { theme } from "./theme";
 
 vi.mock("./archiveApi", () => ({
@@ -93,10 +93,159 @@ function renderView() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(createArchiveContext).mockResolvedValue(context);
-  vi.mocked(getLatestTransfer).mockResolvedValue(null);
-  vi.mocked(createTransfer).mockResolvedValue(task as never);
+  vi.mocked(createArchiveContext).mockReset().mockResolvedValue(context);
+  vi.mocked(getLatestTransfer).mockReset().mockResolvedValue(null);
+  vi.mocked(createTransfer)
+    .mockReset()
+    .mockResolvedValue(task as never);
   vi.mocked(openArchivePair).mockResolvedValue(undefined);
+});
+
+describe("directory read retries", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+  const tick = async (ms: number) => {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  };
+
+  it("retries a transient NAS partial response and keeps the local list visible", async () => {
+    vi.mocked(createArchiveContext)
+      .mockResolvedValueOnce({
+        ...context,
+        target_items: [],
+        target_error: "NAS 正在唤醒",
+        target_retryable: true,
+      } as never)
+      .mockResolvedValueOnce({ ...context, id: "ready-after-retry" });
+    renderView();
+    await tick(1);
+    expect(screen.getByText(/正在自动重试/)).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^传输到 NAS/ })).toBeDisabled();
+    expect(createArchiveContext).toHaveBeenCalledTimes(1);
+    await tick(1000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText(/正在自动重试/)).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "NAS 片库" })).getByText("MOV-1"),
+    ).toBeInTheDocument();
+    expect(createTransfer).not.toHaveBeenCalled();
+  });
+
+  it("stops after three retries and leaves a manual retry without inventing an empty NAS", async () => {
+    vi.mocked(createArchiveContext).mockResolvedValue({
+      ...context,
+      target_items: [],
+      target_error: "NAS 忙",
+      target_retryable: true,
+    } as never);
+    renderView();
+    await tick(1);
+    await tick(1000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(2);
+    await tick(2000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(3);
+    await tick(4000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(4);
+    expect(screen.getByRole("button", { name: "重试读取目录" })).toBeEnabled();
+    expect(screen.queryByText("这个演员目录还没有影片文件夹")).not.toBeInTheDocument();
+    await tick(20_000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(4);
+    expect(createTransfer).not.toHaveBeenCalled();
+  });
+
+  it("cancels an old context retry when the actor changes", async () => {
+    vi.mocked(createArchiveContext).mockResolvedValueOnce({
+      ...context,
+      target_items: [],
+      target_error: "NAS 忙",
+      target_retryable: true,
+    } as never);
+    const view = renderView();
+    await tick(1);
+    const oldSignal = vi.mocked(createArchiveContext).mock.calls[0][1];
+    vi.mocked(createArchiveContext).mockResolvedValue({
+      ...context,
+      id: "other-context",
+      subdir: "演员乙",
+    });
+    view.rerender(view.content("演员乙"));
+    await tick(1);
+    expect(oldSignal?.aborted).toBe(true);
+    expect(createArchiveContext).toHaveBeenCalledTimes(2);
+    await tick(10_000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(createArchiveContext).mock.calls[1][0].subdir).toBe("演员乙");
+  });
+
+  it("ignores a delayed old response after switching actors", async () => {
+    let resolveOld!: (value: typeof context) => void;
+    vi.mocked(createArchiveContext).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveOld = resolve;
+      }),
+    );
+    const view = renderView();
+    await tick(1);
+    const oldSignal = vi.mocked(createArchiveContext).mock.calls[0][1];
+    vi.mocked(createArchiveContext).mockResolvedValue({
+      ...context,
+      id: "new-context",
+      subdir: "演员乙",
+      source_items: [{ name: "NEW-1", size_bytes: null, files: null, error: null }],
+    });
+    view.rerender(view.content("演员乙"));
+    await tick(1);
+    expect(oldSignal?.aborted).toBe(true);
+    expect(screen.getByRole("checkbox", { name: "选择 NEW-1" })).toBeInTheDocument();
+    resolveOld(context);
+    await tick(10_000);
+    expect(screen.queryByRole("checkbox", { name: "选择 MOV-3" })).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "选择 NEW-1" })).toBeInTheDocument();
+    expect(createArchiveContext).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains checked folders and previous lists through a transient refresh failure", async () => {
+    renderView();
+    await tick(1);
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 MOV-3" }));
+    vi.mocked(createArchiveContext)
+      .mockResolvedValueOnce({
+        ...context,
+        id: "partial",
+        source_items: [],
+        source_error: "本地忙",
+        source_retryable: true,
+      } as never)
+      .mockResolvedValueOnce({ ...context, id: "refreshed" });
+    fireEvent.click(screen.getByRole("button", { name: "刷新本地影片" }));
+    await tick(1);
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeDisabled();
+    await tick(1000);
+    expect(screen.getByRole("checkbox", { name: "选择 MOV-3" })).toBeChecked();
+    expect(screen.getByRole("button", { name: /^传输到 NAS/ })).toBeEnabled();
+    expect(createTransfer).not.toHaveBeenCalled();
+  });
+
+  it("does not retry security refusals or a failed transfer submission", async () => {
+    vi.mocked(createArchiveContext).mockRejectedValueOnce({
+      status: 403,
+      detail: "没有目录访问权限",
+    });
+    renderView();
+    await tick(10_000);
+    expect(createArchiveContext).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "重试读取目录" }));
+    await tick(1);
+    fireEvent.click(screen.getByRole("checkbox", { name: "选择 MOV-3" }));
+    vi.mocked(createTransfer).mockRejectedValue({ status: 503, detail: "传输服务暂不可用" });
+    fireEvent.click(screen.getByRole("button", { name: /^传输到 NAS/ }));
+    await tick(10_000);
+    expect(createTransfer).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("archive transfer", () => {

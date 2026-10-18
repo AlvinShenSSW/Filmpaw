@@ -102,6 +102,14 @@ export type ContextOut = {
      * Target Error
      */
     target_error?: string | null;
+    /**
+     * Source Retryable
+     */
+    source_retryable?: boolean;
+    /**
+     * Target Retryable
+     */
+    target_retryable?: boolean;
 };
 
 /**

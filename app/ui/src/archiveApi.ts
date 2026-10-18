@@ -21,6 +21,8 @@ export type ArchiveContext = {
   target_items: ArchiveFolder[];
   source_error: string | null;
   target_error: string | null;
+  source_retryable?: boolean;
+  target_retryable?: boolean;
 };
 
 export type ArchiveTask = {

@@ -168,3 +168,14 @@
   不把本机回环结果等同于所有远程 NAS 的断网/大文件验收。
 - 自查收紧：OS 单库会话锁、batch revision、原地 reparse 防护、journal 保存失败后的安全退出、
   实际 Python worker 句柄（不以 uv/onefile wrapper 死亡误判）。版本同步 0.5.0。
+- 初版实现 `27547a9` 已推送为 [PR #37](https://github.com/AlvinShenSSW/Filmpaw/pull/37)，
+  [Windows CI](https://github.com/AlvinShenSSW/Filmpaw/actions/runs/39100278871) 全绿，NSIS 已产出。
+- 用户追加 NAS 暂时不可读时目录自动重试：仅只读请求 1 / 2 / 4 秒退避、最多三次；
+  明确瞬错标志、后台读锁限制并发、切上下文取消、失败保留列表且禁止传输，不自动重放移动。
+  后端 151 passed / 1 skipped；UI 109 passed、类型/Biome 与构建通过；浏览器注入
+  HTTP 503 和局部 NAS 错误后真实恢复（1.031 / 2.032 秒），未提前提交传输。
+- 补充 2049 MiB 单影片 SMB 回环成功及独立摘要核对；冻结 sidecar 0.5.0 握手/鉴权、
+  启动器死亡但 worker 存活、真实 worker 回收与超时清理通过，打包后 Rust 21 passed。
+  初次超时探针有一个独立测试目录删除被工具 `rejected: blocked by policy` 拒绝；
+  保留测试解包文件及隔离 DB/锁文件，没有绕过。后续探针已验证正常/超时均无新增残留。
+- 当前等待追加需求提交的 CI，再完成 CTO 结论和 Kimi K3 单外门；尚未合并。

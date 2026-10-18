@@ -1,0 +1,45 @@
+{
+  "scenarios": [
+    {
+      "configured_token": true,
+      "bootloader_pid": 34080,
+      "worker_pid": 34904,
+      "worker_image_matches": true,
+      "first_line_contract": true,
+      "worker_pid_distinct": true,
+      "version": "0.5.0",
+      "temporary_database_verified": true,
+      "missing_and_wrong_credentials_rejected": true,
+      "authenticated_archive_read": true,
+      "foreign_origin_rejected": true,
+      "worker_survives_bootloader_exit": true,
+      "atomic_exit_check": {
+        "safe": true,
+        "task_id": null
+      },
+      "worker_reaped": true,
+      "bootloader_reaped": true
+    },
+    {
+      "configured_token": false,
+      "bootloader_pid": 35384,
+      "worker_pid": 25716,
+      "worker_image_matches": true,
+      "first_line_contract": true,
+      "worker_pid_distinct": true,
+      "version": "0.5.0",
+      "temporary_database_verified": true,
+      "missing_and_wrong_credentials_rejected": true,
+      "unconfigured_session_fails_closed": true,
+      "worker_reaped": true,
+      "bootloader_reaped": true
+    }
+  ],
+  "seconds": 2.55,
+  "artifact_bytes": 23916094,
+  "artifact_sha256": "90ac0212c38bad8d57272da73653d409c1bc07a7fa02188aa321bc6896bd42da",
+  "temporary_fixtures_removed": true,
+  "hard_timeout_seconds": 180,
+  "descendants_contained_in_windows_job": true,
+  "checked_at_utc": "2026-10-18T05:28:57+00:00"
+}

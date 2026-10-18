@@ -1,0 +1,8 @@
+{
+  "expected_nonzero": true,
+  "timeout_reported": true,
+  "cleanup_error": false,
+  "new_worker_pids_remaining": [],
+  "new_fixture_directories_remaining": 0,
+  "unexpected_report_created": false
+}

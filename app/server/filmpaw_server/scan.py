@@ -67,9 +67,11 @@ def _is_hidden(entry: os.DirEntry) -> bool:
 def list_subdirs(root: str) -> list[str]:
     """First-level visible directory names under root. Raises
     SourceUnreachable when root is not a listable directory."""
-    if not os.path.isdir(root):
-        raise SourceUnreachable(root)
     try:
+        # Keep the original OS failure available to read-only callers. isdir()
+        # swallows it and makes an offline SMB share look like a deleted path.
+        if not stat.S_ISDIR(os.stat(root).st_mode):
+            raise SourceUnreachable(root)
         with os.scandir(root) as it:
             return sorted(
                 e.name for e in it if e.is_dir(follow_symlinks=False) and not _is_hidden(e)

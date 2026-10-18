@@ -1194,6 +1194,16 @@
        }
       ],
       "title": "Target Error"
+     },
+     "source_retryable": {
+      "type": "boolean",
+      "title": "Source Retryable",
+      "default": false
+     },
+     "target_retryable": {
+      "type": "boolean",
+      "title": "Target Retryable",
+      "default": false
      }
     },
     "type": "object",

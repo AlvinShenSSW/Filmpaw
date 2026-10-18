@@ -39,6 +39,8 @@ class ContextOut(BindingOut):
     target_items: list[MovieOut]
     source_error: str | None = None
     target_error: str | None = None
+    source_retryable: bool = False
+    target_retryable: bool = False
 
 
 class TransferIn(BaseModel):

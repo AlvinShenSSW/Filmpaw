@@ -115,10 +115,23 @@
     }
   ],
   "checks": [
+    "directory reads automatically recover from HTTP and partial NAS errors without submitting transfers",
     "explicit performer selection; no automatic movie selection; target is read only",
     "initial conflict stops entire selection with zero moves",
     "actual two-film move preserves nested contents/digests/empty directories and actor portrait",
     "task survives route change and full browser reload"
   ],
-  "filesystem": "disposable local NTFS; not a remote SMB share"
+  "filesystem": "disposable local NTFS; not a remote SMB share",
+  "directory_retry": {
+    "injected": [
+      "HTTP 503",
+      "successful response with target_error and target_retryable"
+    ],
+    "attempts": 3,
+    "retry_intervals_seconds": [
+      1.031,
+      2.032
+    ],
+    "transfer_posts_before_explicit_selection": 0
+  }
 }

@@ -21,11 +21,12 @@ import IconButton from "@mui/material/IconButton";
 import Snackbar from "@mui/material/Snackbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { serverBase } from "./api";
-import { type ArchiveFolder, archiveError, createArchiveContext } from "./archiveApi";
+import { type ArchiveFolder, archiveError } from "./archiveApi";
 import type { PerformerOut } from "./client";
+import { DIRECTORY_RETRIES, useArchiveContext } from "./directoryReads";
 import { openArchivePair } from "./openTarget";
 import { formatBytes, useTransfer } from "./TransferProvider";
 import { tokens } from "./theme";
@@ -160,104 +161,106 @@ function FolderPane({
         </Button>
       </Box>
       <Box sx={{ flex: 1, minHeight: 0, overflowY: "auto", overscrollBehavior: "contain" }}>
-        {error ? (
+        {error && (
           <Alert severity="warning" sx={{ m: 1 }}>
             {error}
+            {items.length > 0 ? "；下方保留上次读取结果" : ""}
           </Alert>
-        ) : sorted.length === 0 ? (
-          <Box sx={{ px: 2, py: 5, textAlign: "center", color: "text.secondary" }}>
-            <FolderIcon sx={{ fontSize: 30, color: "text.disabled" }} />
-            <Typography variant="body2">
-              {source ? "没有待整理的影片文件夹" : "这个演员目录还没有影片文件夹"}
-            </Typography>
-          </Box>
-        ) : (
-          sorted.map((item) => (
-            <Box
-              key={item.name}
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                minHeight: 58,
-                px: 1.5,
-                py: 1,
-                borderBottom: `1px solid ${tokens.line}`,
-                cursor: source && !disabled ? "pointer" : "default",
-                bgcolor: source && selected.has(item.name) ? tokens.orangeSoft : "transparent",
-                "&:hover": {
-                  bgcolor: source && selected.has(item.name) ? tokens.orangeSoft : tokens.hoverBg,
-                },
-              }}
-            >
+        )}
+        {sorted.length === 0
+          ? !error && (
+              <Box sx={{ px: 2, py: 5, textAlign: "center", color: "text.secondary" }}>
+                <FolderIcon sx={{ fontSize: 30, color: "text.disabled" }} />
+                <Typography variant="body2">
+                  {source ? "没有待整理的影片文件夹" : "这个演员目录还没有影片文件夹"}
+                </Typography>
+              </Box>
+            )
+          : sorted.map((item) => (
               <Box
-                component={source ? "label" : "div"}
+                key={item.name}
                 sx={{
                   display: "flex",
                   alignItems: "center",
                   gap: 1,
-                  flex: 1,
-                  minWidth: 0,
+                  minHeight: 58,
+                  px: 1.5,
+                  py: 1,
+                  borderBottom: `1px solid ${tokens.line}`,
                   cursor: source && !disabled ? "pointer" : "default",
+                  bgcolor: source && selected.has(item.name) ? tokens.orangeSoft : "transparent",
+                  "&:hover": {
+                    bgcolor: source && selected.has(item.name) ? tokens.orangeSoft : tokens.hoverBg,
+                  },
                 }}
               >
-                {source && (
-                  <Checkbox
-                    size="small"
-                    checked={selected.has(item.name)}
-                    slotProps={{ input: { "aria-label": `选择 ${item.name}` } }}
-                    disabled={disabled || !!item.error}
-                    onChange={() => onToggle(item.name)}
-                    sx={{ p: 0.25 }}
-                  />
-                )}
-                <FolderIcon sx={{ fontSize: 20, flexShrink: 0, color: tokens.orangeDeep }} />
-                <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Box
+                  component={source ? "label" : "div"}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1,
+                    flex: 1,
+                    minWidth: 0,
+                    cursor: source && !disabled ? "pointer" : "default",
+                  }}
+                >
+                  {source && (
+                    <Checkbox
+                      size="small"
+                      checked={selected.has(item.name)}
+                      slotProps={{ input: { "aria-label": `选择 ${item.name}` } }}
+                      disabled={disabled || !!item.error}
+                      onChange={() => onToggle(item.name)}
+                      sx={{ p: 0.25 }}
+                    />
+                  )}
+                  <FolderIcon sx={{ fontSize: 20, flexShrink: 0, color: tokens.orangeDeep }} />
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography
+                      component="div"
+                      variant="body2"
+                      noWrap
+                      title={item.name}
+                      sx={{ fontSize: 12, fontWeight: 500 }}
+                    >
+                      {item.name}
+                    </Typography>
+                    <Typography
+                      component="div"
+                      variant="caption"
+                      color={item.error ? "error" : "text.secondary"}
+                      sx={{ fontSize: 10 }}
+                    >
+                      {item.error ??
+                        (item.files == null
+                          ? "整文件夹 · 内容数量未统计"
+                          : `${item.files} 个文件 · 整文件夹`)}
+                    </Typography>
+                  </Box>
                   <Typography
-                    component="div"
-                    variant="body2"
-                    noWrap
-                    title={item.name}
-                    sx={{ fontSize: 12, fontWeight: 500 }}
-                  >
-                    {item.name}
-                  </Typography>
-                  <Typography
-                    component="div"
                     variant="caption"
-                    color={item.error ? "error" : "text.secondary"}
-                    sx={{ fontSize: 10 }}
+                    color="text.secondary"
+                    sx={{ fontFamily: tokens.mono, fontSize: 10, flexShrink: 0 }}
                   >
-                    {item.error ??
-                      (item.files == null
-                        ? "整文件夹 · 内容数量未统计"
-                        : `${item.files} 个文件 · 整文件夹`)}
+                    {formatBytes(item.size_bytes)}
                   </Typography>
                 </Box>
-                <Typography
-                  variant="caption"
-                  color="text.secondary"
-                  sx={{ fontFamily: tokens.mono, fontSize: 10, flexShrink: 0 }}
-                >
-                  {formatBytes(item.size_bytes)}
-                </Typography>
+                <Tooltip title="查看完整名称">
+                  <IconButton
+                    size="small"
+                    aria-label={`查看完整名称：${item.name}`}
+                    onClick={() => {
+                      setCopyMessage("");
+                      setFullName(item.name);
+                    }}
+                    sx={{ flexShrink: 0, p: 0.25 }}
+                  >
+                    <InfoOutlinedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
               </Box>
-              <Tooltip title="查看完整名称">
-                <IconButton
-                  size="small"
-                  aria-label={`查看完整名称：${item.name}`}
-                  onClick={() => {
-                    setCopyMessage("");
-                    setFullName(item.name);
-                  }}
-                  sx={{ flexShrink: 0, p: 0.25 }}
-                >
-                  <InfoOutlinedIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          ))
-        )}
+            ))}
       </Box>
       <Dialog open={fullName !== null} onClose={() => setFullName(null)} maxWidth="sm" fullWidth>
         <DialogTitle>影片文件夹完整名称</DialogTitle>
@@ -306,8 +309,10 @@ function FolderPane({
       >
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
           {source
-            ? `已选 ${selectedCount} / ${items.length} 部`
-            : `${items.length} 部影片文件夹 · 仅查看`}
+            ? `已选 ${selectedCount} / ${items.length} 部${error ? " · 目录未刷新" : ""}`
+            : error
+              ? "读取未完成 · 等待恢复连接"
+              : `${items.length} 部影片文件夹 · 仅查看`}
         </Typography>
       </Box>
     </Box>
@@ -332,24 +337,25 @@ export function ArchiveTransferView({
   const [startError, setStartError] = useState("");
   const finished = useRef<string | null>(null);
   const contextKey = `${localDir}\0${subdir}\0${performer.id}`;
-  const context = useQuery({
-    queryKey: ["archive-context", localDir, subdir, performer.id],
-    queryFn: ({ signal }) =>
-      createArchiveContext({ local_dir: localDir, subdir, performer_id: performer.id }, signal),
-    retry: false,
-    refetchOnWindowFocus: false,
-    staleTime: 0,
-  });
+  const context = useArchiveContext(localDir, subdir, performer.id);
   const data = context.data;
-  const contextId = data?.id;
   useEffect(() => {
-    // A context snapshot is an authorization boundary, not just a display
-    // filter. Never carry a checked folder into a different snapshot.
+    // Clear only when the actor/batch/target changes. A transient retry of the
+    // same directory must preserve checked folders that still exist.
     void contextKey;
-    void contextId;
     setSelected(new Set());
     setStartError("");
-  }, [contextKey, contextId]);
+  }, [contextKey]);
+  useEffect(() => {
+    if (!data || data.source_error) return;
+    const eligible = new Set(
+      data.source_items.filter((item) => !item.error).map((item) => item.name),
+    );
+    setSelected((current) => {
+      const next = new Set([...current].filter((name) => eligible.has(name)));
+      return next.size === current.size ? current : next;
+    });
+  }, [data]);
 
   const currentTask = transfer.task;
   const matchesTask =
@@ -443,7 +449,6 @@ export function ArchiveTransferView({
   };
   const targetPath = data?.target_path ?? performer.unc_path;
   const refresh = () => {
-    setSelected(new Set());
     setStartError("");
     void context.refetch();
   };
@@ -603,17 +608,28 @@ export function ArchiveTransferView({
             本地 batch <ArrowForwardIcon sx={{ fontSize: 15, color: tokens.orangeDeep }} /> NAS 片库
           </Typography>
         </Box>
-        {context.isError && (
+        {context.retrying && (
+          <Alert severity="info" sx={{ mb: 1 }} role="status">
+            目录读取暂未完成，正在自动重试（{Math.min(context.failureCount, DIRECTORY_RETRIES)} /{" "}
+            {DIRECTORY_RETRIES}）…
+          </Alert>
+        )}
+        {context.isError && !context.isFetching && (
           <Alert
             severity="error"
             action={
               <Button color="inherit" onClick={refresh}>
-                刷新目录
+                重试读取目录
               </Button>
             }
             sx={{ mb: 1 }}
           >
-            {archiveError(context.error, "目录读取失败")}
+            {data?.source_error || data?.target_error
+              ? "目录读取未完成，请稍后重试。"
+              : archiveError(context.error, "目录读取失败")}
+            {context.failureCount > DIRECTORY_RETRIES
+              ? ` 已自动重试 ${DIRECTORY_RETRIES} 次。`
+              : ""}
           </Alert>
         )}
         {startError && (
@@ -637,7 +653,7 @@ export function ArchiveTransferView({
               {currentTask.message}
             </Alert>
           )}
-        {context.isPending ? (
+        {context.isPending && !data ? (
           <Box sx={{ flex: 1, display: "grid", placeItems: "center" }}>
             <CircularProgress aria-label="读取影片目录" />
           </Box>

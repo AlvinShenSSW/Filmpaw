@@ -21,6 +21,8 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+from filmpaw_server.directory_reads import directory_error_retryable
+
 
 CHUNK_SIZE = 1024 * 1024
 STAGING_PREFIX = ".filmpaw-transfer-"
@@ -323,6 +325,7 @@ class TransferService:
         self._auto_start = auto_start
         self._fatal_task = None
         self._working_task = None
+        self._context_read_lock = threading.Lock()
 
     def _read_binding(self, local_dir: str, subdir: str, performer_id: str) -> dict:
         _name(subdir)
@@ -367,25 +370,40 @@ class TransferService:
                         _plain_stat(Path(entry.path))
                         _name(entry.name)
                     except (OSError, TransferError) as exc:
+                        if directory_error_retryable(exc):
+                            raise
                         error = str(exc)
                     result.append({"name": entry.name, "size_bytes": None, "files": None, "error": error})
         return sorted(result, key=lambda row: row["name"].casefold())
 
     def create_context(self, local_dir: str, subdir: str, performer_id: str) -> dict:
         binding = self._read_binding(local_dir, subdir, performer_id)
+        # Aborting fetch does not cancel a blocking Windows SMB call. Refuse
+        # another filesystem read while that first request is still running;
+        # bounded client retries must not accumulate abandoned worker threads.
+        if not self._context_read_lock.acquire(blocking=False):
+            raise TransferError("目录仍在读取，请稍候重试", 503)
+        try:
+            return self._create_context(binding)
+        finally:
+            self._context_read_lock.release()
+
+    def _create_context(self, binding: dict) -> dict:
         context = {"id": str(uuid.uuid4()), **{k: v for k, v in binding.items() if not k.startswith("_")}}
         for side in ("source", "target"):
+            context[f"{side}_retryable"] = False
             path = Path(binding[f"{side}_path"])
             try:
                 identity = _directory(path)
                 if side == "source":
-                    binding["batch_identity"] = _directory(Path(local_dir))
+                    binding["batch_identity"] = _directory(Path(binding["local_dir"]))
                 binding[f"{side}_identity"] = identity
                 context[f"{side}_items"] = self._list(path)
                 context[f"{side}_error"] = None
             except (OSError, TransferError) as exc:
                 context[f"{side}_items"] = []
                 context[f"{side}_error"] = str(exc)
+                context[f"{side}_retryable"] = directory_error_retryable(exc)
         with self._admission:
             if self._closing:
                 raise TransferError("应用正在退出，无法建立新归档上下文", 409)
@@ -839,6 +857,7 @@ class TransferService:
         for task in tasks:
             self._working_task = task
             task["status"] = "running"
+            task["phase"] = "verifying"
             task["verified_bytes"] = sum(item["size_bytes"] for item in task["items"] if item["status"] == "completed")
             task["message"] = "正在核对上次中断的传输，不会自动移动或删除"
             self._save(task)

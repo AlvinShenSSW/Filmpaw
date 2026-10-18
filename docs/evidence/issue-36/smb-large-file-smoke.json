@@ -1,0 +1,746 @@
+{
+  "checked_at_utc": "2026-10-18T05:24:08+00:00",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.13.14",
+  "temporary_volume_free_bytes_before": 3314422374400,
+  "temporary_volume_required_bytes": 12884901888,
+  "long_paths_enabled": 0,
+  "smb": {
+    "transport": "UNC localhost/C$ SMB loopback",
+    "source_template": "TEMP/filmpaw-smb-evidence-*/batch/Actor/<movie>",
+    "target_template": "localhost/C$/.../TEMP/filmpaw-smb-evidence-*/nas/Actor/<movie>",
+    "status": "completed",
+    "message": "所选影片已全部移动完成",
+    "movie_name": "作品 001, 特别版",
+    "total_bytes": 2148532274,
+    "video_mib": 2049,
+    "generation_seconds": 0.992,
+    "seconds": 8.747,
+    "source_movie_removed": true,
+    "actor_portrait_retained": true,
+    "target_video_bytes": 2148532224,
+    "mtime_preserved": true,
+    "empty_directory_preserved": true,
+    "nfo_preserved": true,
+    "subtitle_preserved": true,
+    "sha256_verified_by_engine": true,
+    "independent_sha256": {
+      "source_generated_stream": "ec5f7fc41deb3d8f9556e7b0d2d54bb890f69857666e6d452049fafd5be038b8",
+      "destination_unc_reread": "ec5f7fc41deb3d8f9556e7b0d2d54bb890f69857666e6d452049fafd5be038b8",
+      "equal": true
+    },
+    "status_api": {
+      "method": "GET /api/archive/transfers/{task_id}",
+      "transport": "FastAPI TestClient in-process HTTP/ASGI; includes real session middleware",
+      "sample_count": 86,
+      "min_latency_ms": 1.475,
+      "max_latency_ms": 2.699,
+      "p95_latency_ms": 2.334,
+      "mean_latency_ms": 1.899,
+      "samples": [
+        {
+          "elapsed_ms": 61.154,
+          "latency_ms": 2.606,
+          "phase": "preflight",
+          "status": "running",
+          "progress_bytes": 0,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 163.067,
+          "latency_ms": 1.592,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 0,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 265.41,
+          "latency_ms": 2.097,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 0,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 367.508,
+          "latency_ms": 1.963,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 123732018,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 469.546,
+          "latency_ms": 1.735,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 123732018,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 571.527,
+          "latency_ms": 1.679,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 382730290,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 673.879,
+          "latency_ms": 1.957,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 382730290,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 776.481,
+          "latency_ms": 2.054,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 635437106,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 878.786,
+          "latency_ms": 2.047,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 635437106,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 981.137,
+          "latency_ms": 2.079,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 882901042,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1083.469,
+          "latency_ms": 2.054,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 882901042,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1185.407,
+          "latency_ms": 1.686,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1131413554,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1287.903,
+          "latency_ms": 2.06,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1131413554,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1389.824,
+          "latency_ms": 1.667,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1370488882,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1492.023,
+          "latency_ms": 1.722,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1370488882,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1594.511,
+          "latency_ms": 2.389,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1614807090,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1697.081,
+          "latency_ms": 2.05,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1614807090,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1799.497,
+          "latency_ms": 2.334,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1863319602,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 1901.524,
+          "latency_ms": 1.766,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 1863319602,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2003.072,
+          "latency_ms": 1.475,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2104.886,
+          "latency_ms": 1.708,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2206.975,
+          "latency_ms": 1.714,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2309.295,
+          "latency_ms": 1.963,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2411.493,
+          "latency_ms": 1.909,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2513.599,
+          "latency_ms": 1.987,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2616.005,
+          "latency_ms": 1.889,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2717.832,
+          "latency_ms": 1.691,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2819.625,
+          "latency_ms": 1.666,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 2921.277,
+          "latency_ms": 1.511,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 3023.052,
+          "latency_ms": 1.692,
+          "phase": "copying",
+          "status": "running",
+          "progress_bytes": 2113929266,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 3125.069,
+          "latency_ms": 1.682,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 3226.802,
+          "latency_ms": 1.535,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 3328.755,
+          "latency_ms": 1.679,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 0
+        },
+        {
+          "elapsed_ms": 3431.161,
+          "latency_ms": 1.973,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 289407026
+        },
+        {
+          "elapsed_ms": 3533.531,
+          "latency_ms": 1.956,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 289407026
+        },
+        {
+          "elapsed_ms": 3635.853,
+          "latency_ms": 1.885,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 644874290
+        },
+        {
+          "elapsed_ms": 3738.093,
+          "latency_ms": 2.058,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 644874290
+        },
+        {
+          "elapsed_ms": 3840.319,
+          "latency_ms": 2.0,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 987758642
+        },
+        {
+          "elapsed_ms": 3942.344,
+          "latency_ms": 1.532,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 987758642
+        },
+        {
+          "elapsed_ms": 4044.523,
+          "latency_ms": 1.771,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 1340080178
+        },
+        {
+          "elapsed_ms": 4146.522,
+          "latency_ms": 1.707,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 1340080178
+        },
+        {
+          "elapsed_ms": 4248.459,
+          "latency_ms": 1.757,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 1680867378
+        },
+        {
+          "elapsed_ms": 4350.621,
+          "latency_ms": 1.944,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 1680867378
+        },
+        {
+          "elapsed_ms": 4452.66,
+          "latency_ms": 1.849,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 4555.083,
+          "latency_ms": 1.915,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 4656.921,
+          "latency_ms": 1.692,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 4759.496,
+          "latency_ms": 2.108,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 4861.627,
+          "latency_ms": 1.991,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 4964.506,
+          "latency_ms": 2.381,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5066.607,
+          "latency_ms": 1.932,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5168.673,
+          "latency_ms": 1.916,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5270.892,
+          "latency_ms": 1.89,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5373.175,
+          "latency_ms": 1.838,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5475.43,
+          "latency_ms": 1.744,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5577.339,
+          "latency_ms": 1.746,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5679.218,
+          "latency_ms": 1.71,
+          "phase": "verifying",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2020606002
+        },
+        {
+          "elapsed_ms": 5781.194,
+          "latency_ms": 1.494,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 5883.711,
+          "latency_ms": 1.973,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 5986.089,
+          "latency_ms": 1.831,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6088.433,
+          "latency_ms": 2.082,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6190.672,
+          "latency_ms": 2.09,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6293.183,
+          "latency_ms": 1.942,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6395.046,
+          "latency_ms": 1.663,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6497.541,
+          "latency_ms": 1.974,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6599.516,
+          "latency_ms": 1.741,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6702.053,
+          "latency_ms": 2.017,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6804.294,
+          "latency_ms": 1.878,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 6906.639,
+          "latency_ms": 2.009,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7008.735,
+          "latency_ms": 1.772,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7110.522,
+          "latency_ms": 1.728,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7212.483,
+          "latency_ms": 1.807,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7315.015,
+          "latency_ms": 2.272,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7416.779,
+          "latency_ms": 1.637,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7519.298,
+          "latency_ms": 1.996,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7621.529,
+          "latency_ms": 1.902,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7723.697,
+          "latency_ms": 1.771,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7826.197,
+          "latency_ms": 2.285,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 7928.234,
+          "latency_ms": 1.545,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8030.71,
+          "latency_ms": 2.187,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8133.357,
+          "latency_ms": 2.111,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8235.6,
+          "latency_ms": 2.08,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8338.451,
+          "latency_ms": 2.699,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8440.693,
+          "latency_ms": 2.038,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8543.115,
+          "latency_ms": 2.304,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8645.214,
+          "latency_ms": 1.862,
+          "phase": "cleaning",
+          "status": "running",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        },
+        {
+          "elapsed_ms": 8747.374,
+          "latency_ms": 1.7,
+          "phase": "finished",
+          "status": "completed",
+          "progress_bytes": 2148532274,
+          "verified_bytes": 2148532274
+        }
+      ]
+    }
+  },
+  "long_path": {
+    "path_characters": 380,
+    "status": "failed",
+    "message": "路径过长或当前 Windows／共享不支持该路径长度；[WinError 3] 系统找不到指定的路径。: '<temporary fixture>\\\\batch\\\\Actor\\\\MOV-LONG\\\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'",
+    "source_bytes_preserved": true,
+    "target_movie_exists": false
+  },
+  "temporary_fixtures_removed": true,
+  "limitations": [
+    "Loopback SMB uses the existing localhost C$ share; this is not a physical NAS test.",
+    "The synthetic video is 2049 MiB; real network disconnect remains untested.",
+    "Status latency measures real ASGI endpoint handling in-process, not TCP or the Tauri WebView.",
+    "No system shares, permissions, network state, or long-path settings were changed."
+  ]
+}
