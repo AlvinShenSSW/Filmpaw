@@ -1470,10 +1470,117 @@
      }
     }
    }
+  },
+  "/api/workflow/v1/index": {
+   "get": {
+    "tags": [
+     "workflow-index"
+    ],
+    "summary": "Overview",
+    "operationId": "overview_api_workflow_v1_index_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/IndexOverview"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/workflow/v1/candidates/query": {
+   "post": {
+    "tags": [
+     "workflow-index"
+    ],
+    "summary": "Candidates",
+    "operationId": "candidates_api_workflow_v1_candidates_query_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CandidateQuery"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CandidatePage"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
   "schemas": {
+   "ActorMatch": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "actor_ref": {
+      "type": "string",
+      "title": "Actor Ref"
+     },
+     "match_state": {
+      "type": "string",
+      "enum": [
+       "matched",
+       "ambiguous",
+       "no_match"
+      ],
+      "title": "Match State"
+     },
+     "coverage_state": {
+      "type": "string",
+      "enum": [
+       "complete",
+       "incomplete"
+      ],
+      "title": "Coverage State"
+     },
+     "total": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Total"
+     },
+     "reasons": {
+      "items": {
+       "type": "string",
+       "maxLength": 2048,
+       "minLength": 1
+      },
+      "type": "array",
+      "title": "Reasons",
+      "default": []
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "actor_ref",
+     "match_state",
+     "coverage_state",
+     "total"
+    ],
+    "title": "ActorMatch"
+   },
    "AliasIn": {
     "properties": {
      "alias": {
@@ -1504,6 +1611,119 @@
      "alias"
     ],
     "title": "AliasOut"
+   },
+   "CandidatePage": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "library_id": {
+      "type": "string",
+      "title": "Library Id"
+     },
+     "component_id": {
+      "type": "string",
+      "title": "Component Id"
+     },
+     "index_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Index Revision"
+     },
+     "query_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Query Hash"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "roots": {
+      "items": {
+       "$ref": "#/components/schemas/RootCoverage"
+      },
+      "type": "array",
+      "title": "Roots"
+     },
+     "actor_results": {
+      "items": {
+       "$ref": "#/components/schemas/ActorMatch"
+      },
+      "type": "array",
+      "title": "Actor Results"
+     },
+     "candidates": {
+      "items": {
+       "$ref": "#/components/schemas/LocationCandidate"
+      },
+      "type": "array",
+      "title": "Candidates"
+     },
+     "total": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Total"
+     },
+     "coverage_state": {
+      "type": "string",
+      "enum": [
+       "complete",
+       "incomplete"
+      ],
+      "title": "Coverage State"
+     },
+     "match_state": {
+      "type": "string",
+      "enum": [
+       "matched",
+       "ambiguous",
+       "no_match"
+      ],
+      "title": "Match State"
+     },
+     "reasons": {
+      "items": {
+       "type": "string",
+       "maxLength": 2048,
+       "minLength": 1
+      },
+      "type": "array",
+      "title": "Reasons",
+      "default": []
+     },
+     "next_cursor": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Next Cursor"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "library_id",
+     "component_id",
+     "index_revision",
+     "query_hash",
+     "generated_at",
+     "roots",
+     "actor_results",
+     "candidates",
+     "total",
+     "coverage_state",
+     "match_state"
+    ],
+    "title": "CandidatePage"
    },
    "CleanupContextIn": {
     "properties": {
@@ -1882,6 +2102,46 @@
     ],
     "title": "ExitOut"
    },
+   "FilmConflict": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "relative_film_path": {
+      "type": "string",
+      "title": "Relative Film Path"
+     },
+     "reasons": {
+      "items": {
+       "type": "string",
+       "enum": [
+        "possible_same_code",
+        "same_name",
+        "version_hint_differs",
+        "version_unknown"
+       ]
+      },
+      "type": "array",
+      "title": "Reasons"
+     },
+     "observation_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Observation Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "relative_film_path",
+     "reasons",
+     "observation_digest"
+    ],
+    "title": "FilmConflict"
+   },
    "HTTPValidationError": {
     "properties": {
      "detail": {
@@ -1912,6 +2172,327 @@
      "version"
     ],
     "title": "HealthOut"
+   },
+   "IndexOverview": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "library_id": {
+      "type": "string",
+      "title": "Library Id"
+     },
+     "component_id": {
+      "type": "string",
+      "title": "Component Id"
+     },
+     "index_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Index Revision"
+     },
+     "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Generated At"
+     },
+     "roots": {
+      "items": {
+       "$ref": "#/components/schemas/RootCoverage"
+      },
+      "type": "array",
+      "title": "Roots"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "library_id",
+     "component_id",
+     "index_revision",
+     "generated_at",
+     "roots"
+    ],
+    "title": "IndexOverview"
+   },
+   "LocationCandidate": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "candidate_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Candidate Id"
+     },
+     "location_id": {
+      "type": "string",
+      "title": "Location Id"
+     },
+     "location_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Location Revision"
+     },
+     "root_id": {
+      "type": "string",
+      "title": "Root Id"
+     },
+     "root_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Root Revision"
+     },
+     "host_id": {
+      "type": "string",
+      "title": "Host Id"
+     },
+     "export_id": {
+      "type": "string",
+      "title": "Export Id"
+     },
+     "host_label": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Host Label"
+     },
+     "root_label": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Root Label"
+     },
+     "actor_display_name": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Actor Display Name"
+     },
+     "relative_actor_path": {
+      "type": "string",
+      "title": "Relative Actor Path"
+     },
+     "proposed_target_relative_path": {
+      "type": "string",
+      "title": "Proposed Target Relative Path"
+     },
+     "matched_actor_refs": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Matched Actor Refs"
+     },
+     "match_reasons": {
+      "items": {
+       "type": "string",
+       "maxLength": 2048,
+       "minLength": 1
+      },
+      "type": "array",
+      "title": "Match Reasons"
+     },
+     "external_id_evidence": {
+      "items": {
+       "$ref": "#/components/schemas/MetadataEvidence"
+      },
+      "type": "array",
+      "title": "External Id Evidence"
+     },
+     "film_conflicts": {
+      "items": {
+       "$ref": "#/components/schemas/FilmConflict"
+      },
+      "type": "array",
+      "title": "Film Conflicts"
+     },
+     "observation_id": {
+      "type": "string",
+      "title": "Observation Id"
+     },
+     "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Observed At"
+     },
+     "last_success_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Success At"
+     },
+     "identity_state": {
+      "type": "string",
+      "enum": [
+       "verified",
+       "unknown",
+       "changed"
+      ],
+      "title": "Identity State"
+     },
+     "native_identity": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/NativeIdentity"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "native_aliases": {
+      "items": {
+       "$ref": "#/components/schemas/NativeIdentity"
+      },
+      "type": "array",
+      "title": "Native Aliases",
+      "default": []
+     },
+     "coverage_state": {
+      "type": "string",
+      "enum": [
+       "complete",
+       "incomplete"
+      ],
+      "title": "Coverage State"
+     },
+     "candidate_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Candidate Digest"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "candidate_id",
+     "location_id",
+     "location_revision",
+     "root_id",
+     "root_revision",
+     "host_id",
+     "export_id",
+     "host_label",
+     "root_label",
+     "actor_display_name",
+     "relative_actor_path",
+     "proposed_target_relative_path",
+     "matched_actor_refs",
+     "match_reasons",
+     "external_id_evidence",
+     "film_conflicts",
+     "observation_id",
+     "observed_at",
+     "last_success_at",
+     "identity_state",
+     "native_identity",
+     "coverage_state",
+     "candidate_digest"
+    ],
+    "title": "LocationCandidate"
+   },
+   "MetadataEvidence": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "evidence_id": {
+      "type": "string",
+      "title": "Evidence Id"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "name",
+       "group_alias",
+       "explicit_external_id",
+       "film_metadata"
+      ],
+      "title": "Kind"
+     },
+     "value": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Value"
+     },
+     "namespace": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 2048,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Namespace"
+     },
+     "relative_metadata_path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Relative Metadata Path"
+     },
+     "content_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Content Digest"
+     },
+     "parser_version": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Parser Version",
+      "default": "f01-1"
+     },
+     "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "title": "Observed At"
+     },
+     "status": {
+      "type": "string",
+      "enum": [
+       "observed",
+       "metadata_unknown"
+      ],
+      "title": "Status",
+      "default": "observed"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "evidence_id",
+     "kind",
+     "value",
+     "content_digest",
+     "observed_at"
+    ],
+    "title": "MetadataEvidence"
    },
    "MovieOut": {
     "properties": {
@@ -1958,6 +2539,45 @@
      "name"
     ],
     "title": "MovieOut"
+   },
+   "NativeIdentity": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "namespace": {
+      "type": "string",
+      "enum": [
+       "native128",
+       "legacy64",
+       "posix"
+      ],
+      "title": "Namespace"
+     },
+     "volume": {
+      "type": "string",
+      "maxLength": 20,
+      "pattern": "^(0|[1-9][0-9]*)$",
+      "title": "Volume"
+     },
+     "object_id": {
+      "type": "string",
+      "maxLength": 40,
+      "minLength": 1,
+      "title": "Object Id"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "namespace",
+     "volume",
+     "object_id"
+    ],
+    "title": "NativeIdentity"
    },
    "OpenPairIn": {
     "properties": {
@@ -2269,6 +2889,153 @@
     ],
     "title": "ResolvedPerformer"
    },
+   "RootCoverage": {
+    "properties": {
+     "schema_version": {
+      "type": "integer",
+      "const": 1,
+      "title": "Schema Version",
+      "default": 1
+     },
+     "root_id": {
+      "type": "string",
+      "title": "Root Id"
+     },
+     "host_id": {
+      "type": "string",
+      "title": "Host Id"
+     },
+     "export_id": {
+      "type": "string",
+      "title": "Export Id"
+     },
+     "host_label": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Host Label"
+     },
+     "root_label": {
+      "type": "string",
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Root Label"
+     },
+     "root_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Root Revision"
+     },
+     "health": {
+      "type": "string",
+      "enum": [
+       "fresh",
+       "stale",
+       "never_scanned",
+       "offline",
+       "permission_denied",
+       "identity_changed",
+       "identity_unknown",
+       "partial",
+       "unknown_owner",
+       "tombstoned"
+      ],
+      "title": "Health"
+     },
+     "coverage": {
+      "type": "string",
+      "enum": [
+       "complete",
+       "incomplete"
+      ],
+      "title": "Coverage"
+     },
+     "last_attempt_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Attempt At"
+     },
+     "last_success_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Success At"
+     },
+     "probe_observed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Probe Observed At"
+     },
+     "probe_health": {
+      "type": "string",
+      "enum": [
+       "fresh",
+       "stale",
+       "never_scanned",
+       "offline",
+       "permission_denied",
+       "identity_changed",
+       "identity_unknown",
+       "partial",
+       "unknown_owner",
+       "tombstoned"
+      ],
+      "title": "Probe Health",
+      "default": "never_scanned"
+     },
+     "observed_at": {
+      "anyOf": [
+       {
+        "type": "string",
+        "format": "date-time"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Observed At"
+     },
+     "index_revision": {
+      "type": "integer",
+      "minimum": 1.0,
+      "title": "Index Revision"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "root_id",
+     "host_id",
+     "export_id",
+     "host_label",
+     "root_label",
+     "root_revision",
+     "health",
+     "coverage",
+     "index_revision"
+    ],
+    "title": "RootCoverage"
+   },
    "ScanAllItem": {
     "properties": {
      "source_id": {
@@ -2322,6 +3089,17 @@
        }
       ],
       "title": "Error"
+     },
+     "error_code": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error Code"
      }
     },
     "type": "object",
@@ -2423,12 +3201,15 @@
     "properties": {
      "unc_path": {
       "type": "string",
+      "maxLength": 32767,
+      "minLength": 1,
       "title": "Unc Path"
      },
      "label": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 2048
        },
        {
         "type": "null"
@@ -2482,6 +3263,45 @@
      "reachable": {
       "type": "boolean",
       "title": "Reachable"
+     },
+     "health_state": {
+      "type": "string",
+      "enum": [
+       "fresh",
+       "stale",
+       "never_scanned",
+       "offline",
+       "permission_denied",
+       "identity_changed",
+       "identity_unknown",
+       "partial",
+       "unknown_owner",
+       "tombstoned"
+      ],
+      "title": "Health State",
+      "default": "never_scanned"
+     },
+     "observed_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Observed At"
+     },
+     "last_success_at": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Success At"
      }
     },
     "type": "object",
@@ -2883,6 +3703,249 @@
      "type"
     ],
     "title": "ValidationError"
+   },
+   "ActorQuery": {
+    "additionalProperties": false,
+    "properties": {
+     "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+     },
+     "actor_ref": {
+      "title": "Actor Ref",
+      "type": "string"
+     },
+     "name": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+     },
+     "aliases": {
+      "default": [],
+      "items": {
+       "maxLength": 2048,
+       "minLength": 1,
+       "type": "string"
+      },
+      "maxItems": 32,
+      "title": "Aliases",
+      "type": "array"
+     },
+     "external_ids": {
+      "default": [],
+      "items": {
+       "$ref": "#/components/schemas/ExternalID"
+      },
+      "maxItems": 16,
+      "title": "External Ids",
+      "type": "array"
+     }
+    },
+    "required": [
+     "actor_ref",
+     "name"
+    ],
+    "title": "ActorQuery",
+    "type": "object"
+   },
+   "ExternalID": {
+    "additionalProperties": false,
+    "properties": {
+     "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+     },
+     "namespace": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Namespace",
+      "type": "string"
+     },
+     "value": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Value",
+      "type": "string"
+     },
+     "provenance_digest": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Provenance Digest",
+      "type": "string"
+     }
+    },
+    "required": [
+     "namespace",
+     "value",
+     "provenance_digest"
+    ],
+    "title": "ExternalID",
+    "type": "object"
+   },
+   "FilmQuery": {
+    "additionalProperties": false,
+    "properties": {
+     "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+     },
+     "code": {
+      "anyOf": [
+       {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Code"
+     },
+     "title": {
+      "anyOf": [
+       {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Title"
+     },
+     "edition_hints": {
+      "default": [],
+      "items": {
+       "maxLength": 2048,
+       "minLength": 1,
+       "type": "string"
+      },
+      "title": "Edition Hints",
+      "type": "array"
+     }
+    },
+    "title": "FilmQuery",
+    "type": "object"
+   },
+   "CandidateQuery": {
+    "additionalProperties": false,
+    "properties": {
+     "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+     },
+     "request_id": {
+      "title": "Request Id",
+      "type": "string"
+     },
+     "film_id": {
+      "title": "Film Id",
+      "type": "string"
+     },
+     "metadata_revision": {
+      "minimum": 1,
+      "title": "Metadata Revision",
+      "type": "integer"
+     },
+     "final_revision": {
+      "minimum": 1,
+      "title": "Final Revision",
+      "type": "integer"
+     },
+     "final_hash": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Final Hash",
+      "type": "string"
+     },
+     "actors": {
+      "items": {
+       "$ref": "#/components/schemas/ActorQuery"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Actors",
+      "type": "array"
+     },
+     "film": {
+      "$ref": "#/components/schemas/FilmQuery",
+      "default": {
+       "schema_version": 1,
+       "code": null,
+       "title": null,
+       "edition_hints": []
+      }
+     },
+     "root_ids": {
+      "items": {
+       "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Root Ids",
+      "type": "array"
+     },
+     "proposed_film_relative_path": {
+      "title": "Proposed Film Relative Path",
+      "type": "string"
+     },
+     "expected_index_revision": {
+      "anyOf": [
+       {
+        "minimum": 1,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Expected Index Revision"
+     },
+     "cursor": {
+      "anyOf": [
+       {
+        "maxLength": 1024,
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "default": null,
+      "title": "Cursor"
+     },
+     "limit": {
+      "default": 50,
+      "maximum": 200,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "request_id",
+     "film_id",
+     "metadata_revision",
+     "final_revision",
+     "final_hash",
+     "actors",
+     "root_ids",
+     "proposed_film_relative_path"
+    ],
+    "title": "CandidateQuery",
+    "type": "object"
    }
   }
  }

@@ -24,8 +24,33 @@ import { pickDirectory } from "./pickDirectory";
 import { tokens } from "./theme";
 
 interface ScanState {
-  kind: "idle" | "scanning" | "ok" | "unreachable";
+  kind: "idle" | "scanning" | "ok" | "failed";
   text?: string;
+}
+
+const HEALTH_LABELS: Record<string, string> = {
+  fresh: "最近验证可用",
+  stale: "索引已过期",
+  never_scanned: "尚未建立索引",
+  offline: "暂时不可达",
+  permission_denied: "无访问权限",
+  identity_changed: "目录身份已变化",
+  partial: "扫描未完成",
+  unknown_owner: "扫描退出待确认",
+  tombstoned: "来源已移除",
+};
+
+function cachedHealth(source: {
+  reachable: boolean;
+  health_state?: string;
+  observed_at?: string | null;
+}): string {
+  const label = HEALTH_LABELS[source.health_state ?? ""] ?? "状态待确认";
+  if (!source.observed_at) return `${label} · 尚无验证记录`;
+  const observed = new Date(source.observed_at);
+  return Number.isNaN(observed.getTime())
+    ? `${label} · 验证时间未知`
+    : `${label} · 最近验证 ${observed.toLocaleString("zh-CN")}`;
 }
 
 function detailOf(error: unknown, fallback: string): string {
@@ -92,11 +117,15 @@ export function SettingsPage() {
     // The mutation VARIABLES carry the source id — a transport-level
     // rejection has no body, and keying failure state off the error object
     // left the row stuck in "scanning" forever.
-    onError: (_e: unknown, sourceId: number) => {
+    onError: (error: unknown, sourceId: number) => {
       setScanStates((s) => ({
         ...s,
-        [sourceId]: { kind: "unreachable", text: "源不可达 — 已跳过, 记录未变动" },
+        [sourceId]: {
+          kind: "failed",
+          text: detailOf(error, "无法取得扫描结果，请重试查询"),
+        },
       }));
+      refetchSources();
     },
   });
 
@@ -186,13 +215,13 @@ export function SettingsPage() {
                 borderColor:
                   scan.kind === "ok"
                     ? tokens.okBorder
-                    : scan.kind === "unreachable"
+                    : scan.kind === "failed"
                       ? tokens.badBorder
                       : tokens.line,
                 bgcolor:
                   scan.kind === "ok"
                     ? tokens.okBg
-                    : scan.kind === "unreachable"
+                    : scan.kind === "failed"
                       ? tokens.badBg
                       : "background.default",
                 borderRadius: "11px",
@@ -217,7 +246,7 @@ export function SettingsPage() {
                     color:
                       scan.kind === "ok"
                         ? tokens.ok
-                        : scan.kind === "unreachable"
+                        : scan.kind === "failed"
                           ? tokens.bad
                           : "text.secondary",
                   }}
@@ -229,9 +258,7 @@ export function SettingsPage() {
                   ) : scan.text ? (
                     scan.text
                   ) : (
-                    `${s.performer_count} 人 · 上次扫描 ${s.last_scan_at ?? "从未"} · ${
-                      s.reachable ? "在线" : "离线"
-                    }`
+                    `${s.performer_count} 人 · 上次扫描 ${s.last_scan_at ?? "从未"} · ${cachedHealth(s)}`
                   )}
                 </Typography>
               </Box>

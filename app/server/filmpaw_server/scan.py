@@ -201,3 +201,51 @@ def scan_source(conn: sqlite3.Connection, source_id: int) -> ScanResult:
         conn.rollback()
         raise
     return result
+
+
+def apply_snapshot(conn, request, snapshot) -> ScanResult:
+    """Apply an already validated, completely collected snapshot; SQL only.
+
+    WorkflowIndex owns the lock, binding CAS and transaction/commit. The legacy
+    scan_source wrapper remains for existing controlled tests; production routes
+    use the managed worker, never that direct network-reading wrapper.
+    """
+    root = conn.execute("SELECT * FROM workflow_roots WHERE root_id=?", (request.root_id,)).fetchone()
+    source_id = root["legacy_source_id"]
+    rows = conn.execute("SELECT * FROM performers WHERE source_id=?", (source_id,)).fetchall()
+    by_folder = {row["folder_name"].casefold(): row for row in rows}
+    seen = set()
+    result = ScanResult()
+    now = snapshot.observed_until.isoformat()
+    for actor in snapshot.actors:
+        name = actor.relative_actor_path
+        key = name.casefold()
+        seen.add(key)
+        row = by_folder.get(key)
+        path = str(Path(root["private_path"]) / name)
+        if row is None:
+            pid = str(uuid.uuid4())
+            conn.execute("INSERT INTO performers(id,name,name_norm,source_id,folder_name,unc_path,first_seen_at,last_seen_at)"
+                         " VALUES(?,?,?,?,?,?,?,?)", (pid, actor.name, normalize(actor.name), source_id, name, path, now, now))
+            result.added += 1
+        else:
+            pid = row["id"]
+            conn.execute("UPDATE performers SET name=?,name_norm=?,folder_name=?,unc_path=?,last_seen_at=?,is_missing=0 WHERE id=?",
+                         (actor.name, normalize(actor.name), name, path, now, pid))
+            result.refreshed += 1
+        _apply_thumbnail(conn, pid, actor.thumbnail)
+    for key, row in by_folder.items():
+        if key not in seen and not row["is_missing"]:
+            conn.execute("UPDATE performers SET is_missing=1 WHERE id=?", (row["id"],))
+            result.missing += 1
+    conn.execute("UPDATE sources SET last_scan_at=? WHERE id=?", (now, source_id))
+    return result
+
+
+def _apply_thumbnail(conn, performer_id, observation) -> None:
+    if observation.state == "replace":
+        conn.execute("UPDATE performers SET thumb=?,thumb_mtime=?,thumb_side=? WHERE id=?",
+                     (observation.jpeg, observation.mtime, observation.side, performer_id))
+    elif observation.state == "absent":
+        conn.execute("UPDATE performers SET thumb=NULL,thumb_mtime=NULL,thumb_side=NULL WHERE id=?", (performer_id,))
+    # unchanged/unreadable preserve the old value, including its prior mtime.

@@ -60,6 +60,56 @@ beforeEach(() => {
 });
 
 describe("SettingsPage", () => {
+  it.each([
+    ["never_scanned", "尚未建立索引"],
+    ["stale", "索引已过期"],
+    ["permission_denied", "无访问权限"],
+    ["partial", "扫描未完成"],
+    ["unknown_owner", "扫描退出待确认"],
+    ["identity_changed", "目录身份已变化"],
+  ])("shows cached %s health without claiming the NAS is offline", async (health, label) => {
+    vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({
+      data: [
+        {
+          ...SRC,
+          reachable: false,
+          health_state: health,
+          observed_at: null,
+          last_success_at: null,
+        },
+      ],
+    } as never);
+    renderPage();
+    expect(await screen.findByText(new RegExp(label))).toBeInTheDocument();
+    expect(screen.queryByText(/ · 离线/)).not.toBeInTheDocument();
+  });
+
+  it("shows when cached evidence was collected", async () => {
+    vi.mocked(listSourcesApiSourcesGet).mockResolvedValue({
+      data: [
+        {
+          ...SRC,
+          health_state: "fresh",
+          observed_at: "2026-10-19T06:00:00Z",
+          last_success_at: "2026-10-19T05:00:00Z",
+        },
+      ],
+    } as never);
+    renderPage();
+    expect(await screen.findByText(/最近验证可用/)).toBeInTheDocument();
+    expect(screen.getByText(/最近验证/)).toHaveTextContent(/2026/);
+  });
+
+  it("keeps the server's scan failure reason instead of calling every failure unreachable", async () => {
+    vi.mocked(scanOneApiSourcesSourceIdScanPost).mockResolvedValue({
+      error: { code: "permission_denied", detail: "无访问权限 — 已保留原有索引" },
+    } as never);
+    renderPage();
+    await userEvent.click(await screen.findByRole("button", { name: /扫描/ }));
+    expect(await screen.findByText("无访问权限 — 已保留原有索引")).toBeInTheDocument();
+    expect(screen.queryByText(/源不可达/)).not.toBeInTheDocument();
+  });
+
   it("shows red error on invalid UNC and adds nothing", async () => {
     vi.mocked(addSourceApiSourcesPost).mockResolvedValue({
       error: { detail: "路径不可达或不是目录: Z:\\bad\\" },
@@ -118,7 +168,7 @@ describe("scan transport failure", () => {
     renderPage();
     const btn = await screen.findByRole("button", { name: /扫描/ });
     await userEvent.click(btn);
-    expect(await screen.findByText(/源不可达/)).toBeInTheDocument();
+    expect(await screen.findByText("无法取得扫描结果，请重试查询")).toBeInTheDocument();
     expect(btn).toBeEnabled(); // not stuck in scanning
   });
 });

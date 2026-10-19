@@ -57,6 +57,19 @@ jobs:
         working-directory: app/server
         run: uv run python build_sidecar.py
 
+      - name: Frozen NAS scanner lifecycle
+        working-directory: app/server
+        run: |
+          uv run --locked python - <<'EOF'
+          import os
+          from pathlib import Path
+          import pytest
+
+          binary = Path('../src-tauri/binaries/filmpaw-server-x86_64-pc-windows-msvc.exe').resolve(strict=True)
+          os.environ['FILMPAW_FROZEN_BINARY'] = str(binary)
+          raise SystemExit(pytest.main(['-q', 'tests/test_scan_frozen.py']))
+          EOF
+
       # The shell now owns opening folders (#31), and its failure edges —
       # dead sidecar, timeout, redirect, malformed reply, "never launch on
       # error" — are only enforceable by these tests. Without this step the

@@ -86,6 +86,23 @@ async function requestClose(operation?: "cleanup" | "transfer" | null) {
 }
 
 describe("desktop transfer exit coordination", () => {
+  it("keeps the scanner refusal visible and never treats it as an idle exit", async () => {
+    const detail = "扫描尚未安全结束，已保留窗口，请稍后重试";
+    mocks.transfers.mockResolvedValue(transferList([]));
+    mocks.invoke.mockRejectedValue({ status: 409, detail });
+    render(<ExitCoordinator />);
+    await waitFor(() => expect(mocks.listen).toHaveBeenCalled());
+    act(() => closeRequested({ payload: { task_id: null, detail } }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
+    fireEvent.click(screen.getByRole("button", { name: "完成后退出" }));
+    await waitFor(() => expect(mocks.invoke).toHaveBeenCalledWith("close_if_idle"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(detail);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(mocks.stopAll).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "继续运行" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("does not install a desktop listener in a standalone browser", () => {
     mocks.tauri = false;
     render(<ExitCoordinator />);

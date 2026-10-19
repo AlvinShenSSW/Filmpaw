@@ -5,6 +5,36 @@ export type ClientOptions = {
 };
 
 /**
+ * ActorMatch
+ */
+export type ActorMatch = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Actor Ref
+     */
+    actor_ref: string;
+    /**
+     * Match State
+     */
+    match_state: 'matched' | 'ambiguous' | 'no_match';
+    /**
+     * Coverage State
+     */
+    coverage_state: 'complete' | 'incomplete';
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Reasons
+     */
+    reasons?: Array<string>;
+};
+
+/**
  * AliasIn
  */
 export type AliasIn = {
@@ -26,6 +56,68 @@ export type AliasOut = {
      * Alias
      */
     alias: string;
+};
+
+/**
+ * CandidatePage
+ */
+export type CandidatePage = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Library Id
+     */
+    library_id: string;
+    /**
+     * Component Id
+     */
+    component_id: string;
+    /**
+     * Index Revision
+     */
+    index_revision: number;
+    /**
+     * Query Hash
+     */
+    query_hash: string;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Roots
+     */
+    roots: Array<RootCoverage>;
+    /**
+     * Actor Results
+     */
+    actor_results: Array<ActorMatch>;
+    /**
+     * Candidates
+     */
+    candidates: Array<LocationCandidate>;
+    /**
+     * Total
+     */
+    total: number;
+    /**
+     * Coverage State
+     */
+    coverage_state: 'complete' | 'incomplete';
+    /**
+     * Match State
+     */
+    match_state: 'matched' | 'ambiguous' | 'no_match';
+    /**
+     * Reasons
+     */
+    reasons?: Array<string>;
+    /**
+     * Next Cursor
+     */
+    next_cursor?: string | null;
 };
 
 /**
@@ -257,6 +349,28 @@ export type ExitOut = {
 };
 
 /**
+ * FilmConflict
+ */
+export type FilmConflict = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Relative Film Path
+     */
+    relative_film_path: string;
+    /**
+     * Reasons
+     */
+    reasons: Array<'possible_same_code' | 'same_name' | 'version_hint_differs' | 'version_unknown'>;
+    /**
+     * Observation Digest
+     */
+    observation_digest: string;
+};
+
+/**
  * HTTPValidationError
  */
 export type HttpValidationError = {
@@ -281,6 +395,185 @@ export type HealthOut = {
 };
 
 /**
+ * IndexOverview
+ */
+export type IndexOverview = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Library Id
+     */
+    library_id: string;
+    /**
+     * Component Id
+     */
+    component_id: string;
+    /**
+     * Index Revision
+     */
+    index_revision: number;
+    /**
+     * Generated At
+     */
+    generated_at: string;
+    /**
+     * Roots
+     */
+    roots: Array<RootCoverage>;
+};
+
+/**
+ * LocationCandidate
+ */
+export type LocationCandidate = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Candidate Id
+     */
+    candidate_id: string;
+    /**
+     * Location Id
+     */
+    location_id: string;
+    /**
+     * Location Revision
+     */
+    location_revision: number;
+    /**
+     * Root Id
+     */
+    root_id: string;
+    /**
+     * Root Revision
+     */
+    root_revision: number;
+    /**
+     * Host Id
+     */
+    host_id: string;
+    /**
+     * Export Id
+     */
+    export_id: string;
+    /**
+     * Host Label
+     */
+    host_label: string;
+    /**
+     * Root Label
+     */
+    root_label: string;
+    /**
+     * Actor Display Name
+     */
+    actor_display_name: string;
+    /**
+     * Relative Actor Path
+     */
+    relative_actor_path: string;
+    /**
+     * Proposed Target Relative Path
+     */
+    proposed_target_relative_path: string;
+    /**
+     * Matched Actor Refs
+     */
+    matched_actor_refs: Array<string>;
+    /**
+     * Match Reasons
+     */
+    match_reasons: Array<string>;
+    /**
+     * External Id Evidence
+     */
+    external_id_evidence: Array<MetadataEvidence>;
+    /**
+     * Film Conflicts
+     */
+    film_conflicts: Array<FilmConflict>;
+    /**
+     * Observation Id
+     */
+    observation_id: string;
+    /**
+     * Observed At
+     */
+    observed_at: string;
+    /**
+     * Last Success At
+     */
+    last_success_at: string | null;
+    /**
+     * Identity State
+     */
+    identity_state: 'verified' | 'unknown' | 'changed';
+    native_identity: NativeIdentity | null;
+    /**
+     * Native Aliases
+     */
+    native_aliases?: Array<NativeIdentity>;
+    /**
+     * Coverage State
+     */
+    coverage_state: 'complete' | 'incomplete';
+    /**
+     * Candidate Digest
+     */
+    candidate_digest: string;
+};
+
+/**
+ * MetadataEvidence
+ */
+export type MetadataEvidence = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Evidence Id
+     */
+    evidence_id: string;
+    /**
+     * Kind
+     */
+    kind: 'name' | 'group_alias' | 'explicit_external_id' | 'film_metadata';
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Namespace
+     */
+    namespace?: string | null;
+    /**
+     * Relative Metadata Path
+     */
+    relative_metadata_path?: string | null;
+    /**
+     * Content Digest
+     */
+    content_digest: string;
+    /**
+     * Parser Version
+     */
+    parser_version?: string;
+    /**
+     * Observed At
+     */
+    observed_at: string;
+    /**
+     * Status
+     */
+    status?: 'observed' | 'metadata_unknown';
+};
+
+/**
  * MovieOut
  */
 export type MovieOut = {
@@ -300,6 +593,28 @@ export type MovieOut = {
      * Error
      */
     error?: string | null;
+};
+
+/**
+ * NativeIdentity
+ */
+export type NativeIdentity = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Namespace
+     */
+    namespace: 'native128' | 'legacy64' | 'posix';
+    /**
+     * Volume
+     */
+    volume: string;
+    /**
+     * Object Id
+     */
+    object_id: string;
 };
 
 /**
@@ -491,6 +806,72 @@ export type ResolvedPerformer = {
 };
 
 /**
+ * RootCoverage
+ */
+export type RootCoverage = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Root Id
+     */
+    root_id: string;
+    /**
+     * Host Id
+     */
+    host_id: string;
+    /**
+     * Export Id
+     */
+    export_id: string;
+    /**
+     * Host Label
+     */
+    host_label: string;
+    /**
+     * Root Label
+     */
+    root_label: string;
+    /**
+     * Root Revision
+     */
+    root_revision: number;
+    /**
+     * Health
+     */
+    health: 'fresh' | 'stale' | 'never_scanned' | 'offline' | 'permission_denied' | 'identity_changed' | 'identity_unknown' | 'partial' | 'unknown_owner' | 'tombstoned';
+    /**
+     * Coverage
+     */
+    coverage: 'complete' | 'incomplete';
+    /**
+     * Last Attempt At
+     */
+    last_attempt_at?: string | null;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
+    /**
+     * Probe Observed At
+     */
+    probe_observed_at?: string | null;
+    /**
+     * Probe Health
+     */
+    probe_health?: 'fresh' | 'stale' | 'never_scanned' | 'offline' | 'permission_denied' | 'identity_changed' | 'identity_unknown' | 'partial' | 'unknown_owner' | 'tombstoned';
+    /**
+     * Observed At
+     */
+    observed_at?: string | null;
+    /**
+     * Index Revision
+     */
+    index_revision: number;
+};
+
+/**
  * ScanAllItem
  */
 export type ScanAllItem = {
@@ -518,6 +899,10 @@ export type ScanAllItem = {
      * Error
      */
     error?: string | null;
+    /**
+     * Error Code
+     */
+    error_code?: string | null;
 };
 
 /**
@@ -622,6 +1007,18 @@ export type SourceOut = {
      * Reachable
      */
     reachable: boolean;
+    /**
+     * Health State
+     */
+    health_state?: 'fresh' | 'stale' | 'never_scanned' | 'offline' | 'permission_denied' | 'identity_changed' | 'identity_unknown' | 'partial' | 'unknown_owner' | 'tombstoned';
+    /**
+     * Observed At
+     */
+    observed_at?: string | null;
+    /**
+     * Last Success At
+     */
+    last_success_at?: string | null;
 };
 
 /**
@@ -864,6 +1261,131 @@ export type ValidationError = {
     ctx?: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * ActorQuery
+ */
+export type ActorQuery = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Actor Ref
+     */
+    actor_ref: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Aliases
+     */
+    aliases?: Array<string>;
+    /**
+     * External Ids
+     */
+    external_ids?: Array<ExternalId>;
+};
+
+/**
+ * ExternalID
+ */
+export type ExternalId = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Namespace
+     */
+    namespace: string;
+    /**
+     * Value
+     */
+    value: string;
+    /**
+     * Provenance Digest
+     */
+    provenance_digest: string;
+};
+
+/**
+ * FilmQuery
+ */
+export type FilmQuery = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Code
+     */
+    code?: string | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Edition Hints
+     */
+    edition_hints?: Array<string>;
+};
+
+/**
+ * CandidateQuery
+ */
+export type CandidateQuery = {
+    /**
+     * Schema Version
+     */
+    schema_version?: 1;
+    /**
+     * Request Id
+     */
+    request_id: string;
+    /**
+     * Film Id
+     */
+    film_id: string;
+    /**
+     * Metadata Revision
+     */
+    metadata_revision: number;
+    /**
+     * Final Revision
+     */
+    final_revision: number;
+    /**
+     * Final Hash
+     */
+    final_hash: string;
+    /**
+     * Actors
+     */
+    actors: Array<ActorQuery>;
+    film?: FilmQuery;
+    /**
+     * Root Ids
+     */
+    root_ids: Array<string>;
+    /**
+     * Proposed Film Relative Path
+     */
+    proposed_film_relative_path: string;
+    /**
+     * Expected Index Revision
+     */
+    expected_index_revision?: number | null;
+    /**
+     * Cursor
+     */
+    cursor?: string | null;
+    /**
+     * Limit
+     */
+    limit?: number;
 };
 
 export type HealthApiHealthGetData = {
@@ -1808,3 +2330,35 @@ export type GetCleanupApiArchiveCleanupsTaskIdGetResponses = {
 };
 
 export type GetCleanupApiArchiveCleanupsTaskIdGetResponse = GetCleanupApiArchiveCleanupsTaskIdGetResponses[keyof GetCleanupApiArchiveCleanupsTaskIdGetResponses];
+
+export type OverviewApiWorkflowV1IndexGetData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/workflow/v1/index';
+};
+
+export type OverviewApiWorkflowV1IndexGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: IndexOverview;
+};
+
+export type OverviewApiWorkflowV1IndexGetResponse = OverviewApiWorkflowV1IndexGetResponses[keyof OverviewApiWorkflowV1IndexGetResponses];
+
+export type CandidatesApiWorkflowV1CandidatesQueryPostData = {
+    body: CandidateQuery;
+    path?: never;
+    query?: never;
+    url: '/api/workflow/v1/candidates/query';
+};
+
+export type CandidatesApiWorkflowV1CandidatesQueryPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: CandidatePage;
+};
+
+export type CandidatesApiWorkflowV1CandidatesQueryPostResponse = CandidatesApiWorkflowV1CandidatesQueryPostResponses[keyof CandidatesApiWorkflowV1CandidatesQueryPostResponses];

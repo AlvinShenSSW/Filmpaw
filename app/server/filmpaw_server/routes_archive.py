@@ -178,4 +178,4 @@ def stop_transfer(request: Request, task_id: str):
 
 @router.post("/prepare-exit", response_model=ExitOut, response_model_exclude_unset=True)
 def prepare_exit(request: Request):
-    return request.app.state.transfers.prepare_exit()
+    return request.app.state.scans.prepare_exit(request.app.state.transfers.prepare_exit)
