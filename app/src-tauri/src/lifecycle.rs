@@ -225,6 +225,43 @@ mod tests {
             .is_err());
     }
 
+    #[test]
+    fn scanner_exit_refusal_remains_an_error_with_its_public_detail() {
+        let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let detail = "扫描尚未安全结束，已保留窗口，请稍后重试";
+        let server = std::thread::spawn(move || {
+            let (mut socket, _) = listener.accept().unwrap();
+            socket
+                .set_read_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut reader = std::io::BufReader::new(socket.try_clone().unwrap());
+            loop {
+                let mut line = String::new();
+                assert!(reader.read_line(&mut line).unwrap() > 0);
+                if line == "\r\n" {
+                    break;
+                }
+            }
+            reader.read_exact(&mut [0u8; 2]).unwrap();
+            let body =
+                serde_json::json!({"code": "scan_exit_pending", "detail": detail}).to_string();
+            write!(
+                socket,
+                "HTTP/1.1 409 Conflict\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .unwrap();
+            socket.shutdown(std::net::Shutdown::Write).unwrap();
+            let _ = reader.read_to_end(&mut Vec::new());
+        });
+        let error = prepare_exit(port, &"a".repeat(64), Duration::from_secs(2)).unwrap_err();
+        assert_eq!(error.status, 409);
+        assert_eq!(error.detail, detail);
+        server.join().unwrap();
+    }
+
     #[cfg(windows)]
     #[test]
     fn dead_wrapper_does_not_make_a_living_worker_safe_to_exit() {

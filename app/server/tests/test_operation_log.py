@@ -6,7 +6,7 @@ import threading
 import pytest
 
 from filmpaw_server.audit import AuditError, OperationLog
-from filmpaw_server.db import connect
+from filmpaw_server.db import ARCHIVE_DDL, DDL, connect
 
 
 TASK = {"id": "task-a", "performer_name": "Actor", "source_path": "batch/Actor",
@@ -98,13 +98,19 @@ def test_cursor_and_filters_do_not_repeat_rows_when_new_events_arrive(db):
     assert len(log.list(action="delete_empty_actor")["items"]) == 1
 
 
+def _schema_three_library(path):
+    # Build the old schema directly. Relabeling a current library as v3 leaves
+    # newer workflow tables behind and does not represent an upgrade fixture.
+    conn = sqlite3.connect(path)
+    conn.executescript(DDL)
+    conn.execute(ARCHIVE_DDL)
+    conn.execute("INSERT INTO schema_version(version) VALUES (3)")
+    return conn
+
+
 def test_schema_three_migration_preserves_existing_library_and_tasks(tmp_path):
     path = tmp_path / "old.db"
-    conn = connect(path)
-    conn.execute("DROP TABLE operation_events")
-    conn.execute("DROP INDEX archive_tasks_active_status")
-    conn.execute("ALTER TABLE archive_tasks DROP COLUMN public_payload")
-    conn.execute("UPDATE schema_version SET version=3")
+    conn = _schema_three_library(path)
     conn.execute("INSERT INTO settings(key,value) VALUES ('last_local_dir','approved-batch')")
     conn.execute("INSERT INTO archive_tasks(id,request_id,payload) VALUES ('old-task','old-request','{\"status\":\"completed\"}')")
     conn.commit()
@@ -122,11 +128,7 @@ def test_schema_three_migration_preserves_existing_library_and_tasks(tmp_path):
 def test_failed_schema_four_migration_rolls_back_event_table(tmp_path, monkeypatch):
     import filmpaw_server.db as module
     path = tmp_path / "old.db"
-    conn = connect(path)
-    conn.execute("DROP TABLE operation_events")
-    conn.execute("DROP INDEX archive_tasks_active_status")
-    conn.execute("ALTER TABLE archive_tasks DROP COLUMN public_payload")
-    conn.execute("UPDATE schema_version SET version=3")
+    conn = _schema_three_library(path)
     conn.commit()
     conn.close()
     original = module._MIGRATIONS[3]

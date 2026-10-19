@@ -28,7 +28,7 @@ def main() -> int:
 
     entry = HERE / "sidecar_entry.py"
     entry.write_text(
-        "from filmpaw_server.main import main\n\nif __name__ == '__main__':\n    main()\n",
+        "from filmpaw_server.main import main\n\nif __name__ == '__main__':\n    raise SystemExit(main())\n",
         encoding="utf-8",
     )
 

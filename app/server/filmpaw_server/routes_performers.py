@@ -285,7 +285,7 @@ def add_alias(request: Request, performer_id: str, body: AliasIn) -> dict:
     if not alias:
         raise HTTPException(status_code=422, detail="别名不能为空")
     conn = _conn(request)
-    with _lock(request):
+    with _lock(request), conn:
         row = conn.execute(
             "SELECT name_norm FROM performers WHERE id=?", (performer_id,)
         ).fetchone()
@@ -303,19 +303,22 @@ def add_alias(request: Request, performer_id: str, body: AliasIn) -> dict:
         except sqlite3.IntegrityError:
             conn.rollback()
             raise HTTPException(status_code=409, detail="同名组内该别名已存在") from None
-        conn.commit()
+        request.app.state.workflow_index.aliases_changed_tx(group)
         return {"id": cur.lastrowid, "alias": alias}
 
 
 @router.delete("/aliases/{alias_id}", status_code=204)
 def delete_alias(request: Request, alias_id: int) -> None:
     conn = _conn(request)
-    with _lock(request):
+    with _lock(request), conn:
+        alias = conn.execute("SELECT name_norm FROM aliases WHERE id=?", (alias_id,)).fetchone()
+        if alias is None:
+            raise HTTPException(status_code=404, detail="别名不存在")
         cur = conn.execute("DELETE FROM aliases WHERE id=?", (alias_id,))
         if cur.rowcount == 0:
             conn.rollback()  # 0-row DML still opened an implicit transaction
             raise HTTPException(status_code=404, detail="别名不存在")
-        conn.commit()
+        request.app.state.workflow_index.aliases_changed_tx(alias["name_norm"])
 
 
 # ------------------------------------------------------- delete/purge/settings
@@ -326,20 +329,23 @@ def delete_performer(request: Request, performer_id: str) -> None:
     """Single-record delete (UI offers it on missing rows only). D5: group
     aliases are intentionally untouched."""
     conn = _conn(request)
-    with _lock(request):
+    with _lock(request), conn:
+        if conn.execute("SELECT id FROM performers WHERE id=?", (performer_id,)).fetchone() is None:
+            raise HTTPException(status_code=404, detail="表演者不存在")
+        request.app.state.workflow_index.purge_performers_tx((performer_id,))
         cur = conn.execute("DELETE FROM performers WHERE id=?", (performer_id,))
         if cur.rowcount == 0:
             conn.rollback()  # 0-row DML still opened an implicit transaction
             raise HTTPException(status_code=404, detail="表演者不存在")
-        conn.commit()
 
 
 @router.post("/performers/purge-missing", response_model=PurgeOut)
 def purge_missing(request: Request) -> dict:
     conn = _conn(request)
-    with _lock(request):
+    with _lock(request), conn:
+        ids = tuple(row[0] for row in conn.execute("SELECT id FROM performers WHERE is_missing=1"))
+        request.app.state.workflow_index.purge_performers_tx(ids)
         cur = conn.execute("DELETE FROM performers WHERE is_missing=1")
-        conn.commit()
         return {"deleted": cur.rowcount}
 
 

@@ -20,3 +20,14 @@ def test_startup_keeps_port_first_and_announces_real_worker_pid(monkeypatch, cap
     assert lines[0].startswith("FILMPAW_PORT=")
     assert 0 < int(lines[0].split("=", 1)[1]) < 65536
     assert lines[1] == f"FILMPAW_PID={os.getpid()}"
+
+
+def test_fixed_worker_branch_never_constructs_app_or_socket(monkeypatch):
+    from filmpaw_server import scan_worker
+    monkeypatch.setattr("sys.argv", ["filmpaw-server", "--workflow-nas-worker"])
+    def forbidden(*args, **kwargs):
+        raise AssertionError("worker must not construct service resources")
+    monkeypatch.setattr(entry, "create_app", forbidden)
+    monkeypatch.setattr(entry.socket, "socket", forbidden)
+    monkeypatch.setattr(scan_worker, "worker_main", lambda: 7)
+    assert entry.main() == 7

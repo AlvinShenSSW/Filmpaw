@@ -12,12 +12,18 @@ import sys
 
 import uvicorn
 
-from filmpaw_server.app import create_app
-
 HOST = "127.0.0.1"
 
 
-def main() -> None:
+def create_app():
+    from filmpaw_server.app import create_app as factory
+    return factory()
+
+
+def main() -> int:
+    if sys.argv[1:] == ["--workflow-nas-worker"]:
+        from filmpaw_server.scan_worker import worker_main
+        return worker_main()
     parser = argparse.ArgumentParser(prog="filmpaw-server")
     parser.add_argument("--port", type=int, default=0, help="port to bind (0 = OS-assigned)")
     args = parser.parse_args()
@@ -41,7 +47,8 @@ def main() -> None:
     config = uvicorn.Config(create_app(), host=HOST, port=port, log_level="info")
     server = uvicorn.Server(config)
     server.run(sockets=[sock])
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

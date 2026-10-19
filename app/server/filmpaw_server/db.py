@@ -8,8 +8,11 @@ import json
 import os
 import sqlite3
 from pathlib import Path
+from uuid import uuid4
 
-SCHEMA_VERSION = 4
+from filmpaw_server.workflow_schema import migrate_4_to_5, migrate_5_to_6
+
+SCHEMA_VERSION = 6
 
 ARCHIVE_DDL = """
 CREATE TABLE archive_tasks (
@@ -108,6 +111,13 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
             f"unsupported DB schema version {existing} (expected {SCHEMA_VERSION})"
         )
 
+    if existing is not None and existing < SCHEMA_VERSION:
+        try:
+            _backup_before_v5(conn, path, target_version=5 if existing < 5 else 6)
+        except Exception:
+            conn.close()
+            raise
+
     conn.executescript(DDL)
     if existing is None:
         if _read_version(conn) is None:
@@ -117,6 +127,8 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
             with conn:
                 conn.execute(ARCHIVE_DDL)
                 _migrate_3_to_4(conn)
+                migrate_4_to_5(conn)
+                migrate_5_to_6(conn)
                 conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
     elif existing != SCHEMA_VERSION:
         _migrate(conn, existing)
@@ -200,4 +212,19 @@ def _migrate_3_to_4(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX idx_operation_events_operation ON operation_events(operation_id,outcome)")
 
 
-_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3, 3: _migrate_3_to_4}
+def _backup_before_v5(conn: sqlite3.Connection, path: Path, *, target_version: int = 5) -> None:
+    """Keep a verified committed snapshot before touching an older library."""
+    backup_path = path.with_name(path.name + f".pre-v{target_version}-" + str(uuid4()) + ".sqlite3")
+    # Exclusive reservation avoids overwriting an earlier recovery artifact.
+    with backup_path.open("xb"):
+        pass
+    backup = sqlite3.connect(backup_path)
+    try:
+        conn.backup(backup)
+        if backup.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise RuntimeError("database migration backup verification failed")
+    finally:
+        backup.close()
+
+
+_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3, 3: _migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6}
