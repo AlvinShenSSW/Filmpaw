@@ -248,6 +248,13 @@ class ProcessBirth(Model):
     role: Literal["launcher", "worker", "member"]
 
 
+class RuntimeIdentity(Model):
+    pid: Annotated[int, Field(strict=True, ge=1, le=0xFFFFFFFF)]
+    created_filetime_100ns: Annotated[int, Field(strict=True, ge=1, lt=1 << 64)]
+    session_id: Annotated[int, Field(strict=True, ge=0, le=0xFFFFFFFF)]
+    machine_digest: Digest
+
+
 class ProcessOwner(Model):
     runner_instance_id: ID
     job_name: Text = Field(repr=False)
@@ -257,6 +264,7 @@ class ProcessOwner(Model):
     observed_at: UTC
     identity_uncertain: bool = False
     unresolved_member_pids: tuple[Revision, ...] = ()
+    runtime: RuntimeIdentity | None = None
 
 
 class ProcessExit(Model):
@@ -289,6 +297,56 @@ class ExitProof(Model):
                     and not self.identity_uncertain and not self.failure_codes)
 
 
+class RecoveredBirth(Model):
+    pid: Annotated[int, Field(strict=True, ge=1, le=0xFFFFFFFF)]
+    expected_created_filetime_100ns: Annotated[int, Field(strict=True, ge=1, lt=1 << 64)]
+    role: Literal["runtime", "launcher", "worker", "member"]
+    disposition: Literal["handle_signaled", "pid_absent", "birth_reused"]
+    observed_created_filetime_100ns: Annotated[int, Field(strict=True, ge=1, lt=1 << 64)] | None = None
+
+    @model_validator(mode="after")
+    def coherent(self):
+        observed = self.observed_created_filetime_100ns
+        if ((self.disposition == "pid_absent" and observed is not None)
+                or (self.disposition == "handle_signaled" and observed != self.expected_created_filetime_100ns)
+                or (self.disposition == "birth_reused" and (observed is None or observed == self.expected_created_filetime_100ns))):
+            raise ValueError("invalid recovered birth evidence")
+        return self
+
+
+class RecoveredOwnerProof(Model):
+    scan_id: ID
+    attempt_id: ID
+    owner_generation: Revision
+    request_digest: Digest
+    owner_digest: Digest
+    inspector_runtime: RuntimeIdentity
+    original_runtime: RuntimeIdentity
+    runtime: RecoveredBirth
+    processes: tuple[RecoveredBirth, ...]
+    job_name: Text = Field(repr=False)
+    job_state: Literal["empty", "absent"]
+    handles_closed: bool
+    checked_at: UTC
+
+    @model_validator(mode="after")
+    def coherent(self):
+        old, current, proof = self.original_runtime, self.inspector_runtime, self.runtime
+        if ((old.machine_digest, old.session_id) != (current.machine_digest, current.session_id)
+                or proof.role != "runtime" or (proof.pid, proof.expected_created_filetime_100ns)
+                != (old.pid, old.created_filetime_100ns)
+                or (old.pid, old.created_filetime_100ns) == (current.pid, current.created_filetime_100ns)
+                or not self.processes or len(self.processes) > 34
+                or any(p.role == "runtime" for p in self.processes)
+                or len({(p.pid, p.expected_created_filetime_100ns, p.role) for p in self.processes}) != len(self.processes)):
+            raise ValueError("invalid recovered owner evidence")
+        return self
+
+    @property
+    def released(self) -> bool:
+        return self.handles_closed
+
+
 class ScanTicket(Model):
     scan_id: ID
     attempt_id: ID
@@ -302,6 +360,7 @@ class ScanOutcome(Model):
     owner_state: Literal["released", "unknown_owner"]
     snapshot: ScanSnapshot | None = None
     exit_proof: ExitProof | None = None
+    recovery_proof: RecoveredOwnerProof | None = None
     error_code: ErrorCode | None = None
 
 

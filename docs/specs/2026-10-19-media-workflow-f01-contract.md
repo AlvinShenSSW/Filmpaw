@@ -20,7 +20,7 @@ Windows 为唯一主控；Filmpaw backend 是自身 SQLite 的唯一 writer，Ta
 
 | 源码 | 现状与本次最小影响 |
 | --- | --- |
-| [db.py](../../app/server/filmpaw_server/db.py)，`SCHEMA_VERSION`、`DDL`、`_migrate` | 版本 4；sources/performers 以路径及一处演员目录为记录，aliases 属于 name_norm 分组。追加 v5 工作流索引，不更换库、不改变既有演员 ID。 |
+| [db.py](../../app/server/filmpaw_server/db.py)，`SCHEMA_VERSION`、`DDL`、`_migrate` | 基线版本 4；sources/performers 以路径及一处演员目录为记录，aliases 属于 name_norm 分组。追加 v5 工作流索引及 v6 根级重试状态，不更换库、不改变既有演员 ID。 |
 | [session.py](../../app/server/filmpaw_server/session.py)，`library_session`；[app.py](../../app/server/filmpaw_server/app.py)，`lifespan` | OS 文件锁贯穿 sidecar 生命周期，另有共享 SQLite 的 RLock。复用它们；扫描子进程不打开数据库。 |
 | [routes_performers.py](../../app/server/filmpaw_server/routes_performers.py)，`_MATCH_SQL`、`list_performers` | 既有查询使用归一化名字/组级别名、双向子串，并返回 UNC。保留旧本地 UI 契约；新 workflow 投影禁止直接复用其含路径响应。 |
 | [routes_sources.py](../../app/server/filmpaw_server/routes_sources.py)，`list_sources`、`add_source`、`scan_one`、`scan_all` | 列表/添加直接调用 isdir；扫描在 db_lock 内执行目录和图片 I/O。这些入口必须切到下述受管探测/快照流程。 |
@@ -47,18 +47,18 @@ Windows 为唯一主控；Filmpaw backend 是自身 SQLite 的唯一 writer，Ta
 - `actor_ref`：调用方当前影片元数据内的稳定演员引用 UUID；不是凭名字生成的全球人物 ID。候选用 `matched_actor_refs` 关联全部输入演员。位置和人物不得混用；外部 `namespace/value` 只作为有来源的身份证据。
 - `scan_id` / `attempt_id` / `owner_generation`：一次只读扫描及其进程归属。重试新 attempt，旧事实不覆盖；不能把 PID 本身当原生进程身份。
 
-### 3.2 SQLite v5 最小新增表
+### 3.2 SQLite v5 索引及 v6 根级重试状态
 
 仍由现有 connection/db_lock/session 管理；所有跨表变更在一次事务内完成。不可变观察详情可存规范 JSON，身份、版本、唯一性、状态及所有权条件必须有可查询列。
 
 | 表 | 关键列与约束 |
 | --- | --- |
 | `workflow_index_meta` | singleton、library_id、index_revision、schema_version。revision 单调增加，不用时间排序替代。 |
-| `workflow_roots` | root_id PK、legacy_source_id nullable、host_id/export_id、private mapping、mapping/root revision、active/tombstoned、当前 identity observation、last_success/last_attempt、health。legacy link 不级联删除工作流记录。 |
+| `workflow_roots` | root_id PK、legacy_source_id nullable、host_id/export_id、private mapping、mapping/root revision、active/tombstoned、当前 identity observation、last_success/last_attempt、health；v6 增加 nullable configuration_reason，独立于健康观察及 host 退避。legacy link 不级联删除工作流记录。 |
 | `workflow_locations` | location_id PK、root_id RESTRICT FK、legacy_performer_id nullable、relative_actor_path、name/norm、identity、first/last_seen、present/not_observed/unknown、revision。保留历史位置，不以新扫描覆盖不同对象。 |
 | `workflow_location_evidence` | evidence_id PK、location_id、kind、normalized value、provenance、observation revision/time/status、payload digest。涵盖 name、group_alias、explicit_external_id；名字匹配不是 verified external identity。 |
 | `workflow_film_observations` | root/location、相对影片目录、目录身份、可用番号/标题/版本提示及来源、观察 revision/status。只读小型元数据，不遍历 hash 全库视频。 |
-| `workflow_scan_operations` | scan_id PK、attempt_id unique、root/mapping revision、host_id、generation、state、起止时间、private process birth/handle-recovery references、result digest、error class。持久保留 unknown。 |
+| `workflow_scan_operations` | scan_id PK、attempt_id unique、root/mapping revision、host_id、generation、state、起止时间、private process birth/handle-recovery references、result digest、error class；v6 增加 manual_intent，默认 false，绑定单次预约。持久保留 unknown。 |
 | `workflow_host_state` | host_id PK、circuit state、失败次数、next_probe_at、owner generation；条件唯一索引保证每 host 最多一个未核销 scan owner。 |
 
 `workflow_scan_operations` 上的未核销 owner 唯一约束包含 starting、running、stopping、unknown；不能仅在状态为 running 时唯一。配置上限之外的重复请求返回已有 operation 或 busy，不排无限队列。
@@ -69,7 +69,7 @@ alias 增删仍遵守原 name_norm 组级行为；同一事务递增 workflow in
 
 ### 3.3 迁移与当前数据库归属
 
-v4→v5 在取得 library_session 后、API 可用前执行。先用 SQLite backup API 取得包含已提交内容的一致备份，再事务创建新表、迁移稳定关联、最后写版本；DDL/commit 任一步失败回滚，原 ID、thumb、settings、archive_tasks 和 operation_events 不丢失。备份校验和迁移失败不得自动创建“新空库”代替原库。新库直接得到同一 v5 schema，未知未来版本拒绝。
+v4→v5→v6 在取得 library_session 后、API 可用前执行，并兼容已有候选 v5 库升级。先用 SQLite backup API 取得包含已提交内容的一致备份，每个版本步骤在同一事务内执行 DDL/数据迁移/版本写入；DDL/commit 任一步失败回滚该步骤，原 ID、thumb、settings、archive_tasks 和 operation_events 不丢失。v5→v6 只依据已有 root 错误事实迁移根级暂停，不把 shared host flag 扩散给健康 roots；旧操作默认没有人工重试意图，受影响根的旧 queued 请求取消，原 owner 和传输退避仍保留。备份校验和迁移失败不得自动创建“新空库”代替原库。新库得到同一 v6 schema，未知未来版本拒绝。
 
 迁移不访问 NAS，不给旧行补造 native identity 或外部演员 ID；这些行初始为 `unverified`。T05 负责已有库选择/接管及组件安装；F01 不静默接管另一桌面实例，不打开 TaskPaw 的 workflow.db，不让 child 写 library.db。session 冲突明确失败。开发和所有 E2E/打包 smoke 显式使用临时 `FILMPAW_DB`，绝不使用默认生产路径。
 
@@ -110,6 +110,14 @@ worker 执行根 identity 前后复核、演员一级目录枚举、必要的影
 
 关闭 sidecar 先停新扫描，逐个收束 child/I/O，再关闭 DB/session；未收束时不能报告“干净停止”或启动第二 writer。崩溃恢复读取持久 owner，使用 birth identity/Job 可用证据核对旧进程，不按 PID 重用或“没有回复”推断退出。父进程死亡触发 Job 终止是遏制措施，不是新实例已取得核销证明。启动窗口身份丢失或原生查询拒绝时保留阻断状态，由后续 T08/T05 恢复流程处理，不自动丢掉 unknown。
 
+R2 收窄恢复边界：新 owner 在创建 child 前取得真实 `RuntimeIdentity`（原 supervisor PID、creation FILETIME、Windows session ID、规范 MachineGuid 的域分离摘要），并与 launcher、hello worker、全部已知 Job member births 一起持久保存。取得 runtime 身份失败则在 spawn 前拒绝；不能写入猜测值。旧候选库的 owner JSON 缺 runtime 时仍能读取，但保持 unknown，不通过迁移补造历史身份。已有 sticky identity uncertainty、未解析成员、跨机器或跨 session、当前 runtime 仍等于原 runtime，以及原生查询拒绝均不满足跨进程恢复条件。
+
+`scan_recovery.py` 仅对旧 owner 作有界本机只读检查。先核实原 runtime 已结束，再核实 launcher、worker 及所有已知 members。每项证据明确区分：同 birth 的已打开 HANDLE signal；完整 Toolhelp process snapshot 中无该严格有效 PID；已打开 PID 的 birth 不同，证明旧 birth 已消失。后两种绝不伪造 `signaled=true`。`OpenProcess` 错误 87 本身不证明消失：必须成功完成 `TH32CS_SNAPPROCESS` 枚举，以 `ERROR_NO_MORE_FILES` 结束、没有超出 65536 项上限、成功关闭 snapshot HANDLE，且列表无该 PID；其他拒绝保留 unknown。PID 重用仅记录旧 birth 已消失，禁止等待或终止新 birth。命名 Job 只能以查询权限 `OpenJobObjectW` 打开，不能创建同名替代 Job；存在时须 active=0 且 member list 空，只有同机同 session 且上述所有 births 已核实时，明确不存在的 Job 才可作为 absent 证据。所有新取得的 process/Job/snapshot HANDLE 均关闭成功后才能产出证明；关闭失败保留这些具体 HANDLE 以供下一次有界核对。[Toolhelp snapshot](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-createtoolhelp32snapshot)、[Process32NextW](https://learn.microsoft.com/en-us/windows/win32/api/tlhelp32/nf-tlhelp32-process32nextw)、[OpenJobObjectW](https://learn.microsoft.com/en-us/windows/win32/api/jobapi2/nf-jobapi2-openjobobjectw)。
+
+跨进程恢复使用单独 `RecoveredOwnerProof`，不修改正常 `ExitProof`，不声称 join 了旧进程的 I/O 线程。证明绑定完整 request/owner 规范摘要、scan/attempt/generation、原始及检查者 runtime、每个已知 birth、Job 名称和 empty/absent 观察。`WorkflowIndex.recover_owner` 在短事务内重新严格校验这些字段与当前 unknown owner；只把该旧操作置 cancelled/released、关闭 publication，并将 typed recovery proof 留在 outcome journal。失败整笔回滚，重复核销幂等；旧完整快照或迟到 finish 不能发布。核销进程不代表目录恢复：last_success 不更新，已有 configuration_reason 不清除；若旧 outcome 的权限/身份错误曾被 unknown_owner 健康状态遮住，恢复相应根级暂停。
+
+恢复消费链包括 dispatcher 启动时、显式 host reconcile、现有 prepare-exit 及 lifespan close；原生查询在共同 cleanup deadline 下进行，不能在 SQLite 事务或 ASGI event loop 内等待。启动恢复先于新扫描准入。只在 exact-bound 核销事务成功后才释放 host/全局名额；核对或保存失败继续保留 owner，退出仍拒绝。该机制只解决具有完整证据的普通崩溃，不扩大到任意进程管理、NAS I/O 或人工强制清理。
+
 正常桌面关闭必须走既有 `POST /api/archive/prepare-exit` 的联合检查。先取得 scanner 的临时 admission fence，使新请求、已排队请求的启动与本次退出判定互斥；仍有运行、停止中或未证明退出的 owner 时不得返回 safe。只对同一 owner 作有界收束/核对，并在返回前持久保存已证明的归属状态；未知或保存失败保留 owner，不以退出请求删除其记录。只有 scanner 全部退出/I/O/句柄证明已完成且持久化成功，才在该 fence 内调用现有 `transfers.prepare_exit()`；transfer/cleanup 仍使用既有 admission 锁和返回语义。全部安全后才把 scanner fence 转为持续关闭状态，随后无额外可能失败的持久化步骤；safe 返回后不得再启动 scanner。这个协调过程不得持 db_lock 等待进程或网络。
 
 扫描未收束或核对失败返回固定、脱敏的 HTTP 409 `detail="扫描尚未安全结束，已保留窗口，请稍后重试"`，沿用 Rust `ApiError` 与现有退出 UI 的保留窗口路径。不得伪造 transfer task_id、扩展 `ExitOperation`、增加 stop 端点或 force-close 入口。整体检查未成功时释放本次临时 fence，不把 scanner 或无关 transfer admission 永久锁成 closing：扫描检查失败不能先调用会锁定 transfer closing 的方法；transfer/cleanup 忙返回原 unsafe 结果时 scanner 恢复准入，其原有 unknown host 限制仍保留。用户取消退出后可继续正常工作，重试退出核对同一 retained owner；只有成功 safe 决定才保留关闭锁。此路径在原生销毁窗口前完成，不能把 Job kill-on-close 或未执行的 Python lifespan 当成退出证明。
@@ -129,6 +137,8 @@ worker 执行根 identity 前后复核、演员一级目录枚举、必要的影
 | 自动刷新/新鲜度 | 6 h 周期、24 h 最大索引年龄；启动和明确重扫可提前刷新。陈旧候选仍显示证据年龄，但不得用作“完整无匹配”或独立归档授权。 |
 | 暂态失败退避 | 30 s、120 s、600 s，连续 3 次失败开路 15 min；半开仅一个 probe，先核对旧 owner。成功后清退避。 |
 | 权限/认证/身份变化 | 不做定时快速重试；状态明确等待配置/身份核对。未知所有权不受开路计时到期豁免。 |
+
+R1 根级恢复契约：`permission_denied`、`identity_changed`、`identity_unknown` 和 `not_directory` 只暂停出错 root，不能设置共享 host 配置锁或增加它的暂态失败次数。普通已认证的添加、单源扫描、全部重扫入口可提交一次持久人工重试意图；自动刷新没有此权限，配置失败前已有 queued 请求不能转成新的重试授权。暂停不能在点击、取消、失败、重启或另一 root 成功时清除，只有同根完整验证成功或显式映射替换才清除。人工重试仍受原 host/global owner、unknown、退避及 native identity 条件约束；不能把“再次扫描”当成接受不同目录对象。实际身份替换使用现有明确删除/重新添加流程，旧 workflow root/history 继续 tombstone 保留，不增设日常按钮或技术确认框。
 
 所有边界都以结构化原因呈现；不为通过测试任意加大 timeout。真实冷启动、根规模和 SMB 取消行为由 T09 合成/现场只读验收验证，不能把模拟成功称为已经覆盖实际 NAS 驱动。
 
@@ -222,9 +232,10 @@ F01 不写 T01 context。主控 operator 在接纳新候选/根身份事实后�
 | --- | --- |
 | `app/server/filmpaw_server/workflow_index.py`（新） | 严格 DTO、候选查询、只读投影、短事务 apply、索引 revision 与身份关系；只做本功能，不抽任意工作流框架。 |
 | `app/server/filmpaw_server/scan_process.py`（新） | 固定进程启动、Job/HANDLE/I/O owner、协议边界及 ScanSupervisor/host 熔断。 |
+| `app/server/filmpaw_server/scan_recovery.py`（新）、`scan_native.py`、`workflow_models.py` | R2 的持久 runtime/native birth 核验、独立 recovery proof 及新取得 HANDLE 归属；不扩展正常 ExitProof 或任意进程控制。 |
 | `app/server/filmpaw_server/scan_worker.py`（新） | 固定只读请求、bounded collect、hello/go；无 DB、HTTP、归档或删除。 |
 | `app/server/filmpaw_server/routes_workflow_index.py`（新） | 两个认证读路由和明确错误投影。 |
-| `db.py`、`app.py`、`main.py` | v5 迁移、共享 owner 生命周期/配置/guard、worker 早分流；主服务默认握手保留。 |
+| `db.py`、`app.py`、`main.py` | v4→v5→v6 迁移、共享 owner 生命周期/配置/guard、worker 早分流；主服务默认握手保留。 |
 | `scan.py`、`routes_sources.py`、`routes_performers.py` | collect/apply 切换及上述 legacy 消费者闭环。 |
 | `routes_archive.py` | 仅将 scanner 纳入现有 prepare-exit；复用 `transfer.py` 已有锁内安全检查，不改变归档/清理的退出协议。Rust/UI 产品契约文件无需新增枚举或流程。 |
 | `directory_reads.py`、`path_resources.py`、`windows_identity.py` | 优先原样复用；只有必要的 typed observation/错误投影可最小调整，不放宽原生身份安全条件。 |
@@ -245,7 +256,7 @@ F01 不写 T01 context。主控 operator 在接纳新候选/根身份事实后�
 
 | ID | 必须证明的结果 |
 | --- | --- |
-| F01-A01 | v4→v5、全新库、重复启动；注入 DDL/commit 失败后原数据与版本可核对。保留 source/performer IDs、alias、thumb、archive journal/event；未知未来 schema 拒绝。 |
+| F01-A01 | v4→v5→v6、已有候选 v5→v6、全新库、重复启动；注入 DDL/commit 失败后原数据与版本可核对。保留 source/performer IDs、alias、thumb、archive journal/event；未知未来 schema 拒绝。 |
 | F01-A02 | 同名、繁简、别名、同 actor 外部 ID 多位置、同名 ID 冲突、多演员、不认识的 NFO：候选和理由完整，不自动选第一项、不合并人物、不凭名字造 actor ID。 |
 | F01-A03 | 同番号不同版/多卷/目录同名仅返回可解释冲突与版本不确定；没有视频 hash 时不声称已证明重复。 |
 | F01-A04 | 离线、拒绝权限、过期、从未扫描、截断、根身份变化均不等同 no_match。失败扫描不更新 last_success、不标记旧位置消失；恢复完整扫描才更新观察。 |
@@ -256,7 +267,7 @@ F01 不写 T01 context。主控 operator 在接纳新候选/根身份事实后�
 | F01-A09 | receiver 协议缺 hello/go、错误 PID/birth/Job、错误 revision、重复块、越界/短 EOF、无 complete/hash：不准 NAS I/O 或不提交快照；保留能够核对的 owner。 |
 | F01-A10 | **Windows 原生**受控 worker 在本地命名管道 `ReadFile` 真正阻塞，另有 owned 临时文件；deadline 后用原生 HANDLE signal、Job 空、I/O join 证明退出再释放槽。它证明真实阻塞进程生命周期，不声称模拟了全部 SMB 驱动行为。 |
 | F01-A11 | 确定性注入 TerminateJob/Wait/Query/OpenProcess/CloseHandle/reader join 失败及“active=0 但已知 HANDLE 未 signal”；保持 unknown，不无限重试或创建替代进程。采样身份丢失不能在后次空列表中自动清除。 |
-| F01-A12 | 冷启动/暂态 WinError、权限 WinError、恢复、熔断半开使用注入时钟；正确分类且退避有上限。额外用 owned 临时访问控制/原生错误场景验证错误投影；不能通过修改真实 NAS ACL 制造测试。 |
+| F01-A12 | 冷启动/暂态 WinError、权限 WinError、恢复、熔断半开使用注入时钟；正确分类且退避有上限。R1 覆盖同 unknown-host 两根隔离、失败 add、人工单次恢复、后台无权、取消/重启仍暂停、旧排队失效、实际身份替换拒绝及删除重加历史保留；未知 owner 和真实 host 退避不被人工按钮绕过。额外用 owned 临时访问控制/原生错误场景验证错误投影；不能通过修改真实 NAS ACL 制造测试。 |
 | F01-A13 | 同路径目录替换、reparse/祖先切换、native128/legacy64/alias、零/无效身份：候选 identity_unknown/changed，不变成可提交目标。复用现有 Windows identity 回归，不扩大 fallback。 |
 | F01-A14 | frozen 同EXE worker 和源码运行各自证明 hello 对应实际受管 worker；worker 模式不打开 socket/DB；主服务端口/PID握手保留；实际 prepare-exit 消费链按下列 D01 场景验证，关闭/崩溃窗口不误报干净退出。干净打包不能靠本机 build 遗留物通过。 |
 | F01-A15 | 稳定分页与并发 index revision；新候选事实形成不同 digest。跨仓 JSON fixture 可映射 T01 metadata/candidate/target 字段，变更目标不能沿用旧 context；在 T01 前置通过前标记为契约测试而非真实联调。 |
@@ -269,6 +280,7 @@ F01-A14 的 D01 退出回归须覆盖：
 - 用确定性 barrier 让新请求或已排队 scan 与退出判定竞争；safe 之后均不能创建 worker 或发 GO。
 - scanner 已空闲但 transfer/cleanup 忙：保留原 unsafe 响应；取消退出后新扫描仍可准入。scanner 失败时空闲 transfer 也不能被误锁 closing；取消/重试不清掉 unknown 限制。
 - 全部 idle 且状态已落库：保持原 `safe=true, task_id=null` 响应形状并关闭所有新准入；源码及 frozen 产物通过实际退出握手验证，不能只测 lifespan。强制父进程死亡仍按未知恢复测试，不混作正常退出成功。
+- R2：真实 owned source/frozen worker 在 hello 和持久 GO 授权之后、GO 送达之前，其父进程强制退出；不保留诊断 process/Job HANDLE，重启仍可依据真实 births、完整 process snapshot 与 Job absence 核销，旧快照绝不发布。另覆盖精确绑定、PID 重用、旧身份缺失、sticky 成员、跨 session、权限拒绝、枚举非终止错误、close 失败、事务回滚、幂等、迟到 finish、启动准入顺序及根级权限暂停保留。
 
 人工/现场部分属于 T09：使用被授权的合成目录确认多 NAS 根映射和 alias 分组、真实冷启动/权限/身份能力。不得以实际正式影片做破坏性测试，不把 mocked error、管道阻塞或单机临时目录结果替代四 NAS 验收。
 

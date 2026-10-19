@@ -29,9 +29,10 @@ def v4(path):
 def test_v4_migration_is_offline_atomic_and_preserves_ids(tmp_path, monkeypatch):
     path = tmp_path / "library.db"
     pid = v4(path)
-    monkeypatch.setattr("os.scandir", lambda *_: pytest.fail("migration must not enumerate NAS"))
-    conn = dbmod.connect(path)
-    assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == 5
+    with monkeypatch.context() as migration_guard:
+        migration_guard.setattr("os.scandir", lambda *_: pytest.fail("migration must not enumerate NAS"))
+        conn = dbmod.connect(path)
+    assert conn.execute("SELECT version FROM schema_version").fetchone()[0] == dbmod.SCHEMA_VERSION
     root = conn.execute("SELECT * FROM workflow_roots").fetchone()
     location = conn.execute("SELECT * FROM workflow_locations").fetchone()
     assert root["legacy_source_id"] == 1 and root["identity_json"] is None
@@ -44,7 +45,9 @@ def test_v4_migration_is_offline_atomic_and_preserves_ids(tmp_path, monkeypatch)
     backup = sqlite3.connect(backups[0])
     assert backup.execute("SELECT version FROM schema_version").fetchone()[0] == 4
     backup.close()
-    conn = dbmod.connect(path)
+    with monkeypatch.context() as migration_guard:
+        migration_guard.setattr("os.scandir", lambda *_: pytest.fail("reopen must not enumerate NAS"))
+        conn = dbmod.connect(path)
     assert conn.execute("SELECT library_id FROM workflow_index_meta").fetchone()[0] == library
     conn.close()
 

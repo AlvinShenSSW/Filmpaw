@@ -11,10 +11,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from filmpaw_server.scan_native import NativeOwner
+from filmpaw_server.scan_native import NativeOwner, WindowsAPI
+from filmpaw_server.scan_recovery import RecoveryInspection
 from filmpaw_server.scan_protocol import PayloadReader, ProtocolError, canonical, decode, encode_frame, payload_frames
 from filmpaw_server.workflow_models import (
-    ExitProof, ProcessBirth, ProcessExit, ProcessOwner, ScanOutcome, ScanSnapshot,
+    ExitProof, ProcessBirth, ProcessExit, ProcessOwner, RuntimeIdentity, ScanOutcome, ScanSnapshot,
     ScanTicket, WorkflowIndexError,
 )
 
@@ -42,6 +43,7 @@ class _Attempt:
     def __init__(self, index, request, runner_id):
         self.index, self.request, self.runner_id = index, request, runner_id
         self.native = NativeOwner()
+        self.runtime = None
         self.cancel = threading.Event()
         self.stopping = threading.Event()
         self.go = threading.Event()
@@ -120,7 +122,8 @@ class _Attempt:
                             launcher=_birth(launcher), worker=_birth(worker) if worker else None,
                             members=tuple(_birth(m) for m in members if m.role == "member" and m.created),
                             observed_at=_now(), identity_uncertain=self.native.identity_uncertain,
-                            unresolved_member_pids=tuple(sorted(self.native.unresolved_member_pids)))
+                            unresolved_member_pids=tuple(sorted(self.native.unresolved_member_pids)),
+                            runtime=self.runtime)
 
     def _sample(self):
         self.native.capture_members()
@@ -150,6 +153,9 @@ class _Attempt:
         duration = self.request.profile.probe_seconds if self.request.kind == "probe_root" else self.request.profile.scan_seconds
         deadline = time.monotonic() + duration
         try:
+            # Capture namespace/parent birth before creating any scanner. Failed
+            # identity acquisition is a clean no-process-created refusal.
+            self.runtime = RuntimeIdentity.model_validate(WindowsAPI().runtime_identity())
             self.native.start(*_launch())
             owner = self._observation()
             if owner:
@@ -250,6 +256,7 @@ class ScanSupervisor:
         self._wake = threading.Event()
         self._thread = None
         self._attempts = {}
+        self._recovery = {}
         self._auto_refresh = False
 
     def start(self, auto_refresh=False):
@@ -264,21 +271,28 @@ class ScanSupervisor:
         if self._closing:
             raise WorkflowIndexError("scan_exit_pending", 409)
 
-    def request(self, root_id, *, kind="scan_index", request_id):
+    def request(self, root_id, *, kind="scan_index", request_id, manual=False):
         with self._gate:
             self._admit()
-            ticket = self.index.reserve_scan(root_id, request_id=request_id, kind=kind)
+            ticket = self.index.reserve_scan(root_id, request_id=request_id, kind=kind, manual=manual)
             self._wake.set()
             return ticket
 
-    def request_probe(self, draft, *, request_id):
+    def request_probe(self, draft, *, request_id, manual=False):
         with self._gate:
             self._admit()
-            ticket = self.index.reserve_probe(draft, request_id=request_id)
+            ticket = self.index.reserve_probe(draft, request_id=request_id, manual=manual)
             self._wake.set()
             return ticket
 
     def _dispatch(self):
+        # Startup recovery precedes any new launch. Native queries run in this
+        # dispatcher, never in an SQLite transaction or the ASGI event loop.
+        with self._gate:
+            try:
+                self._recover_persisted(time.monotonic() + self.index.profile.cleanup_seconds)
+            except Exception:
+                pass  # Persistent unknown owners still fence admission.
         while not self._stop.is_set():
             with self._gate:
                 if not self._closing:
@@ -291,7 +305,7 @@ class ScanSupervisor:
                             for kind, roots in (("probe_root", self.index.probe_roots()), ("scan_index", self.index.refresh_roots())):
                                 for root in roots:
                                     try:
-                                        self.index.reserve_scan(root, request_id=str(uuid4()), kind=kind)
+                                        self.index.reserve_scan(root, request_id=str(uuid4()), kind=kind, manual=False)
                                     except WorkflowIndexError:
                                         break
                         for ticket in self.index.queued_tickets():
@@ -325,7 +339,25 @@ class ScanSupervisor:
             for attempt in self._attempts.values():
                 if attempt.request.host_id == host_id and not attempt.thread.is_alive():
                     attempt.reconcile(deadline)
+            self._recover_persisted(deadline, host_id=host_id)
             return ShutdownOutcome(not any(p.request.host_id == host_id for p in self.index.pending_owners()))
+
+    def _recover_persisted(self, deadline, host_id=None):
+        for pending in self.index.pending_owners():
+            request = pending.request
+            if (request.scan_id in self._attempts or (host_id is not None and request.host_id != host_id)
+                    or time.monotonic() >= deadline):
+                continue
+            inspection = self._recovery.get(request.scan_id)
+            if inspection is None:
+                inspection = RecoveryInspection(pending)
+                self._recovery[request.scan_id] = inspection
+            proof = inspection.check(deadline)
+            if proof is not None:
+                # This separate command can only end ownership, never publish
+                # an interrupted scan's snapshot. On storage failure keep it.
+                self.index.recover_owner(request, proof)
+                del self._recovery[request.scan_id]
 
     def prepare_exit(self, callback):
         with self._gate:
@@ -341,6 +373,7 @@ class ScanSupervisor:
                 for attempt in self._attempts.values():
                     if not attempt.result or attempt.result.owner_state != "released":
                         attempt.reconcile(deadline)
+                self._recover_persisted(deadline)
                 if self.index.pending_owners():
                     raise WorkflowIndexError("scan_exit_pending", 409)
                 result = callback()
@@ -375,6 +408,7 @@ class ScanSupervisor:
                 for attempt in attempts:
                     if not attempt.result or attempt.result.owner_state != "released":
                         attempt.reconcile(deadline)
+                self._recover_persisted(deadline)
                 return ShutdownOutcome(not self.index.pending_owners() and not (self._thread and self._thread.is_alive()))
             except Exception:
                 return ShutdownOutcome(False)

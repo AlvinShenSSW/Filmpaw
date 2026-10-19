@@ -110,7 +110,7 @@ async def add_source(request: Request, body: SourceIn) -> dict:
         if _conn(request).execute("SELECT id FROM sources WHERE unc_path=?", (unc,)).fetchone():
             raise HTTPException(status_code=409, detail="该源已存在")
     ticket = request.app.state.scans.request_probe(
-        ProbeDraft(private_root_path=unc, label=label), request_id=str(uuid4()))
+        ProbeDraft(private_root_path=unc, label=label), request_id=str(uuid4()), manual=True)
     profile = request.app.state.workflow_index.profile
     result = await _wait(request, ticket, time.monotonic() + profile.probe_seconds + profile.cleanup_seconds)
     if not result.published or result.source_id is None:
@@ -154,7 +154,7 @@ def _raise_scan_failure(result, *, adding=False):
 async def scan_one(request: Request, source_id: int) -> dict:
     index = request.app.state.workflow_index
     root_id = index.root_for_source(source_id)
-    ticket = request.app.state.scans.request(root_id, request_id=str(uuid4()))
+    ticket = request.app.state.scans.request(root_id, request_id=str(uuid4()), manual=True)
     result = await _wait(request, ticket, time.monotonic() + index.profile.scan_seconds + index.profile.cleanup_seconds)
     if not result.published:
         _raise_scan_failure(result)
@@ -171,7 +171,7 @@ async def scan_all(request: Request) -> list[dict]:
 
     async def one(sid):
         try:
-            ticket = request.app.state.scans.request(index.root_for_source(sid), request_id=str(uuid4()))
+            ticket = request.app.state.scans.request(index.root_for_source(sid), request_id=str(uuid4()), manual=True)
             result = await _wait(request, ticket, deadline)
             if not result.published:
                 _raise_scan_failure(result)

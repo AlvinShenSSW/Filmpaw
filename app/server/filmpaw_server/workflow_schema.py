@@ -1,10 +1,12 @@
-"""F01 v5 DDL and offline legacy association. Called inside the owning transaction."""
+"""F01 v5/v6 DDL and offline associations. Called inside the owning transaction."""
 
+import json
 import sqlite3
 from datetime import datetime, timezone
 from uuid import UUID, uuid4, uuid5, NAMESPACE_URL
 
 UNKNOWN_HOST_ID = str(uuid5(NAMESPACE_URL, "filmpaw:unverified-host-group"))
+CONFIGURATION_ERRORS = frozenset({"permission_denied", "identity_changed", "identity_unknown", "not_directory"})
 
 STATEMENTS = (
     """CREATE TABLE workflow_index_meta (
@@ -82,3 +84,39 @@ def migrate_4_to_5(conn: sqlite3.Connection) -> None:
         conn.execute(statement)
     conn.execute("INSERT INTO workflow_index_meta VALUES(1,?,1,1)", (str(uuid4()),))
     ensure_legacy_roots(conn)
+
+
+def migrate_5_to_6(conn: sqlite3.Connection) -> None:
+    """Move only evidenced root failures out of the shared host admission latch.
+
+    Historical operations never acquire manual authority during migration. Queued
+    work for a paused root must receive a new explicit request after this change.
+    Native owners, host quotas and existing transport backoff are retained.
+    """
+    from filmpaw_server.workflow_models import ScanFinish, canonical_json
+
+    conn.execute("ALTER TABLE workflow_roots ADD COLUMN configuration_reason TEXT "
+                 "CHECK(configuration_reason IS NULL OR configuration_reason IN "
+                 "('permission_denied','identity_changed','identity_unknown','not_directory'))")
+    conn.execute("ALTER TABLE workflow_scan_operations ADD COLUMN manual_intent INTEGER NOT NULL DEFAULT 0 "
+                 "CHECK(manual_intent IN (0,1))")
+    for root in conn.execute("SELECT root_id,health FROM workflow_roots").fetchall():
+        reason = root["health"] if root["health"] in CONFIGURATION_ERRORS else None
+        if reason is None and root["health"] == "partial":
+            last = conn.execute("SELECT outcome_json FROM workflow_scan_operations WHERE root_id=? "
+                                "AND outcome_json IS NOT NULL ORDER BY rowid DESC LIMIT 1", (root["root_id"],)).fetchone()
+            if last:
+                # Do not guess a configuration failure from the host flag alone.
+                code = json.loads(last[0]).get("error_code")
+                if code in CONFIGURATION_ERRORS:
+                    reason = code
+        if reason is None:
+            continue
+        conn.execute("UPDATE workflow_roots SET configuration_reason=? WHERE root_id=?", (reason, root["root_id"]))
+        for row in conn.execute("SELECT scan_id,attempt_id FROM workflow_scan_operations WHERE root_id=? AND state='queued'",
+                                (root["root_id"],)).fetchall():
+            result = ScanFinish(scan_id=row["scan_id"], attempt_id=row["attempt_id"], status="cancelled",
+                                owner_state="none", error_code=reason)
+            conn.execute("UPDATE workflow_scan_operations SET state='cancelled',publication_allowed=0,finish_json=? WHERE scan_id=?",
+                         (canonical_json(result), row["scan_id"]))
+    conn.execute("UPDATE workflow_host_state SET configuration_required=0")

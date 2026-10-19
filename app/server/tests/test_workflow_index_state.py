@@ -400,7 +400,18 @@ def test_recovery_probe_failure_keeps_full_and_respects_host_state(h, failure, c
     outcome = outcome.model_copy(update={"status": "failed", "snapshot": None,
                                          "error_code": "offline" if failure == "unknown" else failure})
     result = h.index.finish(probe, outcome)
-    assert not result.published and h.index.queued_tickets() == (full,)
+    assert not result.published
+    if failure == "permission_denied":
+        # R1: a configuration failure invalidates older queued intent. Recovery
+        # needs a new authenticated request, not replay of this background full.
+        assert h.index.get_scan(full.scan_id).status == "cancelled"
+        assert not h.index.queued_tickets()
+        with pytest.raises(WorkflowIndexError, match="attempt_already_started"):
+            h.index.start_recovery_probe(full)
+        with pytest.raises(WorkflowIndexError, match=code):
+            h.index.reserve_scan(root, request_id=str(uuid4()))
+        return
+    assert h.index.queued_tickets() == (full,)
     with pytest.raises(WorkflowIndexError, match=code):
         h.index.start_recovery_probe(full)
     if failure == "unknown":

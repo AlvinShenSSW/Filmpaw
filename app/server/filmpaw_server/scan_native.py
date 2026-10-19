@@ -1,6 +1,7 @@
 """Windows ownership for the fixed scanner. No application or database imports."""
 
 import ctypes
+import hashlib
 import math
 import os
 import subprocess
@@ -21,6 +22,7 @@ class WindowsAPI:
             raise OSError("scanner_platform_unsupported")
         self.k = ctypes.WinDLL("kernel32", use_last_error=True)
         self.w = w
+        self.snapshot_handles = set()
 
         class Security(ctypes.Structure):
             _fields_ = [("length", w.DWORD), ("descriptor", w.LPVOID), ("inherit", w.BOOL)]
@@ -55,10 +57,18 @@ class WindowsAPI:
         class Members(ctypes.Structure):
             _fields_ = [("assigned", w.DWORD), ("count", w.DWORD), ("pids", ctypes.c_size_t * 32)]
 
+        class ProcessEntry(ctypes.Structure):
+            _fields_ = [("size", w.DWORD), ("usage", w.DWORD), ("pid", w.DWORD),
+                        ("heap", ctypes.c_size_t), ("module", w.DWORD), ("threads", w.DWORD),
+                        ("parent", w.DWORD), ("priority", w.LONG), ("flags", w.DWORD),
+                        ("exe", w.WCHAR * 260)]
+
         self.Security, self.StartupEx, self.ProcessInfo = Security, StartupEx, ProcessInfo
         self.Extended, self.Accounting, self.Members = Extended, Accounting, Members
+        self.ProcessEntry = ProcessEntry
         signatures = (
             ("CreateJobObjectW", [w.LPVOID, w.LPCWSTR], w.HANDLE),
+            ("OpenJobObjectW", [w.DWORD, w.BOOL, w.LPCWSTR], w.HANDLE),
             ("SetInformationJobObject", [w.HANDLE, ctypes.c_int, w.LPVOID, w.DWORD], w.BOOL),
             ("QueryInformationJobObject", [w.HANDLE, ctypes.c_int, w.LPVOID, w.DWORD, w.LPVOID], w.BOOL),
             ("TerminateJobObject", [w.HANDLE, w.UINT], w.BOOL),
@@ -70,7 +80,12 @@ class WindowsAPI:
             ("CreateProcessW", [w.LPCWSTR, w.LPWSTR, w.LPVOID, w.LPVOID, w.BOOL, w.DWORD,
                                 w.LPVOID, w.LPCWSTR, w.LPVOID, ctypes.POINTER(ProcessInfo)], w.BOOL),
             ("OpenProcess", [w.DWORD, w.BOOL, w.DWORD], w.HANDLE),
+            ("ProcessIdToSessionId", [w.DWORD, ctypes.POINTER(w.DWORD)], w.BOOL),
+            ("CreateToolhelp32Snapshot", [w.DWORD, w.DWORD], w.HANDLE),
+            ("Process32FirstW", [w.HANDLE, ctypes.POINTER(ProcessEntry)], w.BOOL),
+            ("Process32NextW", [w.HANDLE, ctypes.POINTER(ProcessEntry)], w.BOOL),
             ("GetProcessId", [w.HANDLE], w.DWORD),
+            ("GetCurrentProcess", [], w.HANDLE),
             ("GetProcessTimes", [w.HANDLE] + [ctypes.POINTER(w.FILETIME)] * 4, w.BOOL),
             ("IsProcessInJob", [w.HANDLE, w.HANDLE, ctypes.POINTER(w.BOOL)], w.BOOL),
             ("WaitForSingleObject", [w.HANDLE, w.DWORD], w.DWORD),
@@ -135,15 +150,63 @@ class WindowsAPI:
     def open_process(self, pid):
         return int(self.check(self.k.OpenProcess(0x101000, False, pid)))
 
-    def identity(self, handle, job):
+    def process_birth(self, handle):
         pid = self.check(self.k.GetProcessId(handle))
         times = [self.w.FILETIME() for _ in range(4)]
         self.check(self.k.GetProcessTimes(handle, *(ctypes.byref(t) for t in times)))
+        return int(pid), (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+
+    def runtime_identity(self):
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography",
+                            0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY) as key:
+            machine, kind = winreg.QueryValueEx(key, "MachineGuid")
+        if kind != winreg.REG_SZ or not isinstance(machine, str):
+            raise OSError("scanner_machine_identity_unknown")
+        try:
+            machine = str(uuid.UUID(machine))
+        except ValueError:
+            raise OSError("scanner_machine_identity_unknown") from None
+        # A pseudo HANDLE has no acquired-resource lifetime to close/recover.
+        pid, created = self.process_birth(self.k.GetCurrentProcess())
+        session = self.w.DWORD()
+        self.check(self.k.ProcessIdToSessionId(pid, ctypes.byref(session)))
+        return {"pid": pid, "created_filetime_100ns": created, "session_id": session.value,
+                "machine_digest": hashlib.sha256(b"Filmpaw/runtime-machine/v1\0" + machine.encode("ascii")).hexdigest()}
+
+    def open_job(self, name):
+        return int(self.check(self.k.OpenJobObjectW(4, False, name)))
+
+    def process_ids(self):
+        """Complete bounded Toolhelp observation; no partial list proves absence."""
+        handle = self.k.CreateToolhelp32Snapshot(2, 0)
+        if handle == ctypes.c_void_p(-1).value:
+            raise ctypes.WinError(ctypes.get_last_error())
+        self.snapshot_handles.add(handle)
+        try:
+            entry = self.ProcessEntry()
+            entry.size = ctypes.sizeof(entry)
+            ids = []
+            ok = self.k.Process32FirstW(handle, ctypes.byref(entry))
+            while ok:
+                if len(ids) >= 65536:
+                    raise OSError("scanner_process_snapshot_bound")
+                ids.append(int(entry.pid))
+                ok = self.k.Process32NextW(handle, ctypes.byref(entry))
+            if ctypes.get_last_error() != 18:
+                raise ctypes.WinError(ctypes.get_last_error())
+            return tuple(ids)
+        finally:
+            self.close(handle)
+            self.snapshot_handles.remove(handle)
+
+    def identity(self, handle, job):
+        pid, created = self.process_birth(handle)
         member = self.w.BOOL()
         self.check(self.k.IsProcessInJob(handle, job, ctypes.byref(member)))
         if not member.value:
             raise OSError("scanner_wrong_job")
-        return int(pid), (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+        return pid, created
 
     def members(self, job):
         result = self.Members()

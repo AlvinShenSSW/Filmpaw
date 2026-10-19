@@ -16,10 +16,10 @@ from filmpaw_server.scan import apply_snapshot
 from filmpaw_server.workflow_models import (
     ActorMatch, CandidatePage, CandidateQuery, CachedThumbnail, FilmConflict, FilmObservation,
     IdentityObservation, IndexOverview, LocationCandidate, MetadataEvidence, PendingOwner,
-    ProbeDraft, ProcessOwner, RootCoverage, ScanFinish, ScanOutcome, ScanProfile, ScanRequest,
+    ProbeDraft, ProcessOwner, RecoveredOwnerProof, RootCoverage, ScanFinish, ScanOutcome, ScanProfile, ScanRequest,
     ScanTicket, WorkflowIndexConfig, WorkflowIndexError, canonical_json, digest,
 )
-from filmpaw_server.workflow_schema import UNKNOWN_HOST_ID, ensure_legacy_roots
+from filmpaw_server.workflow_schema import CONFIGURATION_ERRORS, UNKNOWN_HOST_ID, ensure_legacy_roots
 
 
 def _now():
@@ -102,12 +102,11 @@ class WorkflowIndex:
                 raise WorkflowIndexError("source_exists")
             host = draft.host_id or UNKNOWN_HOST_ID
             self.conn.execute("INSERT OR IGNORE INTO workflow_host_state(host_id,host_label) VALUES(?,?)", (host, draft.host_label))
-            self.conn.execute("UPDATE workflow_roots SET host_id=?,export_id=?,private_path=?,label=?,root_revision=root_revision+1,mapping_revision=mapping_revision+1,identity_json=NULL,health='never_scanned',last_success_at=NULL,observed_at=NULL,probe_observed_at=NULL,probe_health='never_scanned' WHERE root_id=?",
+            self.conn.execute("UPDATE workflow_roots SET host_id=?,export_id=?,private_path=?,label=?,root_revision=root_revision+1,mapping_revision=mapping_revision+1,identity_json=NULL,health='never_scanned',last_success_at=NULL,observed_at=NULL,probe_observed_at=NULL,probe_health='never_scanned',configuration_reason=NULL WHERE root_id=?",
                               (host, draft.export_id or root["export_id"], draft.private_root_path, draft.label, root_id))
             if root["legacy_source_id"] is not None:
                 self.conn.execute("UPDATE sources SET unc_path=?,label=?,last_scan_at=NULL WHERE id=?", (draft.private_root_path, draft.label, root["legacy_source_id"]))
             self.conn.execute("UPDATE workflow_locations SET state='unknown',revision=revision+1 WHERE root_id=? AND retired=0", (root_id,))
-            self.conn.execute("UPDATE workflow_host_state SET configuration_required=0 WHERE host_id=?", (host,))
             self._bump()
             return expected_revision + 1
 
@@ -115,12 +114,16 @@ class WorkflowIndex:
         return ScanTicket(scan_id=row["scan_id"], attempt_id=row["attempt_id"], root_id=row["root_id"],
                           host_id=row["host_id"], kind=row["kind"])
 
-    def _reserve(self, root, request_id, kind):
+    def _reserve(self, root, request_id, kind, manual=False):
+        if type(manual) is not bool:
+            raise WorkflowIndexError("invalid_manual_intent", 422)
         existing = self.conn.execute("SELECT * FROM workflow_scan_operations WHERE request_id=?", (request_id,)).fetchone()
         if existing:
-            if existing["root_id"] != root["root_id"] or existing["kind"] != kind:
+            if existing["root_id"] != root["root_id"] or existing["kind"] != kind or bool(existing["manual_intent"]) != manual:
                 raise WorkflowIndexError("request_conflict")
             return self._ticket(existing)
+        if root["configuration_reason"] and not manual:
+            raise WorkflowIndexError("configuration_required")
         existing = self.conn.execute("SELECT * FROM workflow_scan_operations WHERE root_id=? AND kind=? AND "
                                      "(state='queued' OR owner_state IN ('owned','unknown_owner'))", (root["root_id"], kind)).fetchone()
         if existing:
@@ -133,24 +136,26 @@ class WorkflowIndex:
         ticket = ScanTicket(scan_id=str(uuid4()), attempt_id=str(uuid4()), root_id=root["root_id"],
                             host_id=root["host_id"], kind=kind)
         self.conn.execute("INSERT INTO workflow_scan_operations(scan_id,request_id,attempt_id,root_id,host_id,"
-                          "root_revision,mapping_revision,kind,state,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                          "root_revision,mapping_revision,kind,state,created_at,manual_intent) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                           (ticket.scan_id, request_id, ticket.attempt_id, root["root_id"], root["host_id"],
-                           root["root_revision"], root["mapping_revision"], kind, "queued", self.clock().isoformat()))
+                           root["root_revision"], root["mapping_revision"], kind, "queued", self.clock().isoformat(), int(manual)))
         return ticket
 
-    def reserve_scan(self, root_id, *, request_id, kind="scan_index"):
+    def reserve_scan(self, root_id, *, request_id, kind="scan_index", manual=False):
         if kind not in {"scan_index", "probe_root"}:
             raise WorkflowIndexError("invalid_kind", 422)
         with self._tx():
             root = self._one("SELECT * FROM workflow_roots WHERE root_id=? AND active=1 AND tombstoned=0", (root_id,))
-            return self._reserve(root, request_id, kind)
+            return self._reserve(root, request_id, kind, manual)
 
-    def reserve_probe(self, draft: ProbeDraft, *, request_id):
+    def reserve_probe(self, draft: ProbeDraft, *, request_id, manual=False):
+        if type(manual) is not bool:
+            raise WorkflowIndexError("invalid_manual_intent", 422)
         with self._tx():
             existing = self.conn.execute("SELECT * FROM workflow_scan_operations WHERE request_id=?", (request_id,)).fetchone()
             if existing:
                 root = self._one("SELECT * FROM workflow_roots WHERE root_id=?", (existing["root_id"],))
-                if root["private_path"] != draft.private_root_path or existing["kind"] != "probe_root":
+                if root["private_path"] != draft.private_root_path or existing["kind"] != "probe_root" or bool(existing["manual_intent"]) != manual:
                     raise WorkflowIndexError("request_conflict")
                 return self._ticket(existing)
             root = self.conn.execute("SELECT * FROM workflow_roots WHERE private_path=? AND tombstoned=0", (draft.private_root_path,)).fetchone()
@@ -163,7 +168,7 @@ class WorkflowIndex:
                 self.conn.execute("INSERT INTO workflow_roots(root_id,host_id,export_id,private_path,label) VALUES(?,?,?,?,?)",
                                   (rid, host, draft.export_id or str(uuid4()), draft.private_root_path, draft.label))
                 root = self._one("SELECT * FROM workflow_roots WHERE root_id=?", (rid,))
-            return self._reserve(root, request_id, "probe_root")
+            return self._reserve(root, request_id, "probe_root", manual)
 
     def begin_attempt(self, ticket: ScanTicket):
         with self._tx():
@@ -185,9 +190,9 @@ class WorkflowIndex:
                 raise WorkflowIndexError("probe_not_required")
             scan_id, attempt_id = str(uuid4()), str(uuid4())
             self.conn.execute("INSERT INTO workflow_scan_operations(scan_id,request_id,attempt_id,root_id,host_id,"
-                              "root_revision,mapping_revision,kind,state,owner_state,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                              "root_revision,mapping_revision,kind,state,owner_state,created_at,manual_intent) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                               (scan_id, str(uuid4()), attempt_id, root["root_id"], root["host_id"],
-                               root["root_revision"], root["mapping_revision"], "probe_root", "starting", "owned", self.clock().isoformat()))
+                                root["root_revision"], root["mapping_revision"], "probe_root", "starting", "owned", self.clock().isoformat(), row["manual_intent"]))
             probe = self._one("SELECT * FROM workflow_scan_operations WHERE scan_id=?", (scan_id,))
             return self._start_attempt(probe, root, host)
 
@@ -204,7 +209,7 @@ class WorkflowIndex:
         if count >= self.profile.max_owners or host_busy:
             raise WorkflowIndexError("busy")
         host = self._one("SELECT * FROM workflow_host_state WHERE host_id=?", (root["host_id"],))
-        if host["configuration_required"]:
+        if root["configuration_reason"] and not row["manual_intent"]:
             raise WorkflowIndexError("configuration_required")
         if host["next_probe_at"] and self.clock() < _time(host["next_probe_at"]):
             raise WorkflowIndexError("backoff")
@@ -295,14 +300,61 @@ class WorkflowIndex:
         with self.lock:
             return tuple(self._ticket(r) for r in self.conn.execute("SELECT * FROM workflow_scan_operations WHERE state='queued' ORDER BY created_at,scan_id"))
 
+    def recover_owner(self, request: ScanRequest, proof: RecoveredOwnerProof):
+        """Retire a verified old native owner without publishing its snapshot.
+
+        Inspection occurs outside this transaction. Its exact request and owner
+        must still match here; ordinary finish/ExitProof is never broadened.
+        """
+        proof = RecoveredOwnerProof.model_validate_json(canonical_json(proof))
+        with self._tx():
+            row = self._bound(request)
+            if row["owner_state"] == "released":
+                return ScanFinish.model_validate_json(row["finish_json"])
+            if row["owner_state"] != "unknown_owner" or not row["owner_json"]:
+                raise WorkflowIndexError("unknown_owner")
+            owner = ProcessOwner.model_validate_json(row["owner_json"])
+            expected = {(b.pid, b.created_filetime_100ns, b.role)
+                        for b in (owner.launcher, owner.worker, *owner.members) if b is not None}
+            observed = {(b.pid, b.expected_created_filetime_100ns, b.role) for b in proof.processes}
+            if (owner.runtime is None or owner.identity_uncertain or owner.unresolved_member_pids
+                    or not proof.released or proof.scan_id != request.scan_id
+                    or proof.attempt_id != request.attempt_id or proof.owner_generation != request.owner_generation
+                    or proof.request_digest != digest(request) or proof.owner_digest != digest(owner)
+                    or proof.original_runtime != owner.runtime or proof.job_name != owner.job_name
+                    or observed != expected):
+                raise WorkflowIndexError("unknown_owner")
+            root = self._one("SELECT * FROM workflow_roots WHERE root_id=?", (request.root_id,))
+            valid = (not root["tombstoned"] and root["root_revision"] == request.root_revision
+                     and root["mapping_revision"] == request.mapping_revision)
+            old_error = ScanOutcome.model_validate_json(row["outcome_json"]).error_code if row["outcome_json"] else None
+            if valid and old_error in CONFIGURATION_ERRORS:
+                # Recovering process ownership is not evidence that a denied or
+                # replaced directory became usable. Retain the manual-retry gate.
+                self._failure(request, old_error, True)
+            elif valid and root["health"] == "unknown_owner":
+                health = root["configuration_reason"] if root["configuration_reason"] in {
+                    "permission_denied", "identity_changed", "identity_unknown"} else "partial"
+                self.conn.execute("UPDATE workflow_roots SET health=?,probe_health=? WHERE root_id=?",
+                                  (health, health, request.root_id))
+                self._bump()
+            outcome = ScanOutcome(status="cancelled", owner_state="released", recovery_proof=proof,
+                                  error_code="cancelled")
+            result = ScanFinish(scan_id=request.scan_id, attempt_id=request.attempt_id, status="cancelled",
+                                owner_state="released", source_id=root["legacy_source_id"], error_code="cancelled")
+            self.conn.execute("UPDATE workflow_scan_operations SET publication_allowed=0,state='cancelled',"
+                              "owner_state='released',outcome_json=?,finish_json=?,completed_at=? WHERE scan_id=?",
+                              (canonical_json(outcome), canonical_json(result), self.clock().isoformat(), request.scan_id))
+            return result
+
     def refresh_roots(self):
         with self.lock:
-            rows = self.conn.execute("SELECT r.* FROM workflow_roots r JOIN workflow_host_state h USING(host_id) WHERE r.active=1 AND r.tombstoned=0 AND h.circuit='closed' AND h.configuration_required=0").fetchall()
+            rows = self.conn.execute("SELECT r.* FROM workflow_roots r JOIN workflow_host_state h USING(host_id) WHERE r.active=1 AND r.tombstoned=0 AND h.circuit='closed' AND r.configuration_reason IS NULL").fetchall()
             return tuple(r["root_id"] for r in rows if not r["last_success_at"] or (self.clock() - _time(r["last_success_at"])).total_seconds() >= self.profile.refresh_seconds)
 
     def probe_roots(self):
         with self.lock:
-            rows = self.conn.execute("SELECT r.root_id,h.host_id,h.next_probe_at FROM workflow_roots r JOIN workflow_host_state h USING(host_id) WHERE r.active=1 AND r.tombstoned=0 AND h.circuit='open' AND h.configuration_required=0 AND NOT EXISTS(SELECT 1 FROM workflow_scan_operations o WHERE o.host_id=h.host_id AND o.owner_state IN ('owned','unknown_owner')) ORDER BY r.root_id").fetchall()
+            rows = self.conn.execute("SELECT r.root_id,h.host_id,h.next_probe_at FROM workflow_roots r JOIN workflow_host_state h USING(host_id) WHERE r.active=1 AND r.tombstoned=0 AND h.circuit='open' AND r.configuration_reason IS NULL AND NOT EXISTS(SELECT 1 FROM workflow_scan_operations o WHERE o.host_id=h.host_id AND o.owner_state IN ('owned','unknown_owner')) ORDER BY r.root_id").fetchall()
             result, hosts = [], set()
             for row in rows:
                 if row["host_id"] not in hosts and (not row["next_probe_at"] or self.clock() >= _time(row["next_probe_at"])):
@@ -374,6 +426,7 @@ class WorkflowIndex:
                         self.conn.execute("UPDATE workflow_roots SET identity_json=?,last_success_at=?,observed_at=?,health='fresh',probe_observed_at=?,probe_health='fresh' WHERE root_id=?",
                                           (canonical_json(snapshot.root_identity_after), now, now, now, request.root_id))
                     published = True
+                    self.conn.execute("UPDATE workflow_roots SET configuration_reason=NULL WHERE root_id=?", (request.root_id,))
                     self._bump()
                     self.conn.execute("UPDATE workflow_host_state SET failures=0,circuit='closed',next_probe_at=NULL,configuration_required=0 WHERE host_id=?", (request.host_id,))
             else:
@@ -395,8 +448,20 @@ class WorkflowIndex:
         self._bump()
         if not released:
             return
-        if error in {"permission_denied", "identity_changed", "identity_unknown"}:
-            self.conn.execute("UPDATE workflow_host_state SET configuration_required=1 WHERE host_id=?", (request.host_id,))
+        if error in CONFIGURATION_ERRORS:
+            self.conn.execute("UPDATE workflow_roots SET configuration_reason=? WHERE root_id=?", (error, request.root_id))
+            # A previous request (including an older manual click) is not consent
+            # to retry a subsequently observed configuration failure.
+            for row in self.conn.execute("SELECT * FROM workflow_scan_operations WHERE root_id=? AND state='queued'",
+                                         (request.root_id,)).fetchall():
+                result = ScanFinish(scan_id=row["scan_id"], attempt_id=row["attempt_id"], status="cancelled",
+                                    owner_state="none", error_code=error)
+                self.conn.execute("UPDATE workflow_scan_operations SET state='cancelled',publication_allowed=0,finish_json=? WHERE scan_id=?",
+                                  (canonical_json(result), row["scan_id"]))
+            # A failed half-open probe relinquishes its gate without claiming
+            # transport recovery. Other eligible roots may provide the next probe.
+            self.conn.execute("UPDATE workflow_host_state SET circuit='open' WHERE host_id=? AND circuit='half_open'",
+                              (request.host_id,))
         elif error not in {"cancelled", "stale_binding"}:
             host = self._one("SELECT failures FROM workflow_host_state WHERE host_id=?", (request.host_id,))
             failures = host[0] + 1

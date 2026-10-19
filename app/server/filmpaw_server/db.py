@@ -10,9 +10,9 @@ import sqlite3
 from pathlib import Path
 from uuid import uuid4
 
-from filmpaw_server.workflow_schema import migrate_4_to_5
+from filmpaw_server.workflow_schema import migrate_4_to_5, migrate_5_to_6
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 ARCHIVE_DDL = """
 CREATE TABLE archive_tasks (
@@ -111,9 +111,9 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
             f"unsupported DB schema version {existing} (expected {SCHEMA_VERSION})"
         )
 
-    if existing is not None and existing < 5:
+    if existing is not None and existing < SCHEMA_VERSION:
         try:
-            _backup_before_v5(conn, path)
+            _backup_before_v5(conn, path, target_version=5 if existing < 5 else 6)
         except Exception:
             conn.close()
             raise
@@ -128,6 +128,7 @@ def connect(db_path: Path | None = None) -> sqlite3.Connection:
                 conn.execute(ARCHIVE_DDL)
                 _migrate_3_to_4(conn)
                 migrate_4_to_5(conn)
+                migrate_5_to_6(conn)
                 conn.execute("INSERT INTO schema_version(version) VALUES (?)", (SCHEMA_VERSION,))
     elif existing != SCHEMA_VERSION:
         _migrate(conn, existing)
@@ -211,9 +212,9 @@ def _migrate_3_to_4(conn: sqlite3.Connection) -> None:
     conn.execute("CREATE INDEX idx_operation_events_operation ON operation_events(operation_id,outcome)")
 
 
-def _backup_before_v5(conn: sqlite3.Connection, path: Path) -> None:
+def _backup_before_v5(conn: sqlite3.Connection, path: Path, *, target_version: int = 5) -> None:
     """Keep a verified committed snapshot before touching an older library."""
-    backup_path = path.with_name(path.name + ".pre-v5-" + str(uuid4()) + ".sqlite3")
+    backup_path = path.with_name(path.name + f".pre-v{target_version}-" + str(uuid4()) + ".sqlite3")
     # Exclusive reservation avoids overwriting an earlier recovery artifact.
     with backup_path.open("xb"):
         pass
@@ -226,4 +227,4 @@ def _backup_before_v5(conn: sqlite3.Connection, path: Path) -> None:
         backup.close()
 
 
-_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3, 3: _migrate_3_to_4, 4: migrate_4_to_5}
+_MIGRATIONS = {1: _migrate_1_to_2, 2: _migrate_2_to_3, 3: _migrate_3_to_4, 4: migrate_4_to_5, 5: migrate_5_to_6}
