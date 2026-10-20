@@ -38,7 +38,7 @@ def main() -> None:
     print(f"FILMPAW_PID={os.getpid()}", flush=True)
     sys.stdout.flush()
 
-    config = uvicorn.Config(create_app(), host=HOST, port=port, log_level="info")
+    config = uvicorn.Config(create_app(port=port), host=HOST, port=port, log_level="info")
     server = uvicorn.Server(config)
     server.run(sockets=[sock])
 

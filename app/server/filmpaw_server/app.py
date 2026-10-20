@@ -1,7 +1,9 @@
 """FastAPI application factory."""
 
 import hmac
+import json
 import os
+import tempfile
 import re
 import threading
 from contextlib import asynccontextmanager
@@ -19,11 +21,38 @@ from filmpaw_server.routes_archive import router as archive_router
 from filmpaw_server.routes_cleanup import router as cleanup_router
 from filmpaw_server.routes_performers import router as performers_router
 from filmpaw_server.routes_sources import router as sources_router
+from filmpaw_server.routes_workflow import router as workflow_router
 from filmpaw_server.session import library_session
 from filmpaw_server.transfer import TransferError, TransferService
 
 
-def create_app(db_path: Path | None = None) -> FastAPI:
+ENDPOINT_FILE = "workflow-endpoint.json"
+
+
+def _write_endpoint(db_path: Path, port: int, token: str) -> Path:
+    """Tell a local Taskpaw where this library's server listens (F02-P1; home single-user)."""
+    path = db_path.parent / ENDPOINT_FILE
+    data = {"port": port, "pid": os.getpid(), "token": token, "db_path": str(db_path)}
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{ENDPOINT_FILE}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+    return path
+
+
+def _remove_endpoint(path: Path) -> None:
+    try:
+        if json.loads(path.read_text(encoding="utf-8")).get("pid") == os.getpid():
+            path.unlink()
+    except (OSError, ValueError):
+        pass
+
+
+def create_app(db_path: Path | None = None, port: int | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         with library_session(db_path or default_db_path()):
@@ -34,10 +63,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
             app.state.db_lock = threading.RLock()
             app.state.transfers = TransferService(app.state.db, app.state.db_lock)
             app.state.cleanups = CleanupService(app.state.transfers)
+            endpoint = None
             try:
                 app.state.transfers.recover()
+                if port and configured:
+                    endpoint = _write_endpoint(Path(app.state.db_path), port, token)
                 yield
             finally:
+                if endpoint is not None:
+                    _remove_endpoint(endpoint)
                 app.state.cleanups.close()
                 app.state.transfers.close()
                 app.state.db.close()
@@ -57,7 +91,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     @app.middleware("http")
     async def session_guard(request: Request, call_next):
         protected = request.method in {"POST", "PUT", "PATCH", "DELETE"} or (
-            request.url.path.startswith("/api/archive") and request.method != "OPTIONS"
+            request.url.path.startswith(("/api/archive", "/api/workflow/archive")) and request.method != "OPTIONS"
         )
         if protected:
             supplied = request.headers.get("X-Filmpaw-Session", "")
@@ -95,4 +129,5 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.include_router(performers_router)
     app.include_router(archive_router)
     app.include_router(cleanup_router)
+    app.include_router(workflow_router)
     return app
