@@ -33,6 +33,9 @@ STAGING_PREFIX = ".filmpaw-transfer-"
 ACTIVE = {"queued", "running"}
 CONCURRENCY = 3
 QUEUE_LIMIT = 100
+# Workflow archive: the approval's target/package proof no longer holds, so waiting cannot help and
+# Taskpaw records the archive as failed (409/503 remain "busy, try again later").
+STALE = 412
 
 
 class TransferError(Exception):
@@ -533,11 +536,16 @@ class TransferService:
             previous = self._load(request_id=operation_id)
         if previous:
             if previous["_binding"].get("_workflow") != workflow:
-                raise TransferError("操作键已用于另一个归档请求", 409)
+                raise TransferError("操作键已用于另一个归档请求", STALE)
             return self.get_by_request(operation_id)
-        binding = self._performer_binding(str(package.parent.parent), package.parent.name, performer_id)
+        try:
+            binding = self._performer_binding(str(package.parent.parent), package.parent.name, performer_id)
+        except TransferError as exc:
+            if exc.status_code == 409:  # performer folder gone / nested: will not clear by waiting
+                raise TransferError(str(exc), STALE) from None
+            raise
         if binding["target_path"] != target_path:
-            raise TransferError("NAS 演员目录已变化，请重新确认入库", 409)
+            raise TransferError("NAS 演员目录已变化，请重新确认入库", STALE)
         binding["_workflow"] = workflow
         binding["_batch_revision"] = ""
         if not self._context_read_lock.acquire(blocking=False):
@@ -547,7 +555,11 @@ class TransferService:
         finally:
             self._context_read_lock.release()
         if context["target_error"] is None and binding.get("target_identity") != workflow["expected_target"]["directory_identity"]:
-            raise TransferError("NAS 演员目录身份已变化，请重新确认入库", 409)
+            raise TransferError("NAS 演员目录身份已变化，请重新确认入库", STALE)
+        if context["source_error"] or film not in {i["name"] for i in context["source_items"] if i["error"] is None}:
+            raise TransferError(f"影片包不可读：{context['source_error'] or film}", STALE)
+        if context["target_error"]:  # NAS offline / slow: try later
+            raise TransferError(f"NAS 演员目录暂不可用：{context['target_error']}", 503)
         return self.submit(context["id"], [film], operation_id)
 
     def get_workflow_task(self, operation_id: str) -> dict | None:

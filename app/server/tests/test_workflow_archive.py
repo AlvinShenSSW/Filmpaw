@@ -159,7 +159,7 @@ def test_target_changed_since_approval_is_refused(flow):
     target.mkdir()
     with pytest.raises(TransferError) as e:
         create(flow, root, expected=stale)
-    assert e.value.status_code == 409
+    assert e.value.status_code == 412  # the approval's proof no longer holds: Taskpaw fails it
     other = dict(stale, target_path=str(target.with_name("Elsewhere")))
     with pytest.raises(TransferError):
         create(flow, root, expected=other)
@@ -172,7 +172,7 @@ def test_same_operation_is_idempotent_and_differing_reuse_is_refused(flow):
     assert create(flow, root)["id"] == first["id"]
     with pytest.raises(TransferError) as e:
         create(flow, root, files=files_of(root)[1:])
-    assert e.value.status_code == 409
+    assert e.value.status_code == 412  # the approval's proof no longer holds: Taskpaw fails it
     assert service.get_workflow_task("unknown-op") is None
     assert service.get_workflow_task("op-1")["id"] == first["id"]
 
@@ -272,3 +272,21 @@ def test_routes_archive_end_to_end(client, tmp_path):
     assert task["status"] == "completed", task["message"]
     assert task["receipt"]["target_path"] == str(target / FILM)
     assert client.post("/api/workflow/archive", json=body).json()["id"] == task["id"]
+
+
+def test_missing_performer_folder_and_missing_package_are_not_busy(flow, db):
+    """412: confirm again; 409/503 stay 'try later' (IR01)."""
+    service, out, target, _ = flow
+    root = package(out)
+    expected = expected_target(service, target)
+    db.execute("UPDATE performers SET is_missing=1 WHERE id='actor'")
+    db.commit()
+    with pytest.raises(TransferError) as e:
+        create(flow, root, expected=expected)
+    assert e.value.status_code == 412
+    db.execute("UPDATE performers SET is_missing=0 WHERE id='actor'")
+    db.commit()
+    gone = out / "OTHER-1"
+    with pytest.raises(TransferError) as e:
+        create(flow, gone, files=files_of(root), operation_id="op-gone", expected=expected)
+    assert e.value.status_code == 412
