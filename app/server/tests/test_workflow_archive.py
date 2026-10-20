@@ -290,3 +290,17 @@ def test_missing_performer_folder_and_missing_package_are_not_busy(flow, db):
     with pytest.raises(TransferError) as e:
         create(flow, gone, files=files_of(root), operation_id="op-gone", expected=expected)
     assert e.value.status_code == 412
+
+
+def test_a_deleted_performer_folder_is_stale_not_an_outage(flow):
+    """Codex F02 r1: a gone target must end the archive (412), never 'try later' forever."""
+    service, out, target, _ = flow
+    root = package(out)
+    expected = expected_target(service, target)
+    target.rmdir()
+    with pytest.raises(TransferError) as proof:
+        service.workflow_target("actor", FILM)
+    assert proof.value.status_code == 412
+    with pytest.raises(TransferError) as submit:
+        create(flow, root, expected=expected)
+    assert submit.value.status_code == 412

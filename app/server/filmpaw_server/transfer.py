@@ -483,12 +483,13 @@ class TransferService:
         """Target proof: the performer folder identity and whether <film_dir> is still free."""
         film = _name(film_dir)
         target = Path(self._performer(performer_id)["unc_path"]).absolute()
-        identity = _directory(target)
         try:
+            identity = _directory(target)
             with os.scandir(target) as entries:
                 present = {e.name.casefold() for e in entries if not e.name.startswith(STAGING_PREFIX)}
-        except OSError as exc:
-            raise TransferError(f"无法读取 NAS 演员目录：{exc}", 503) from exc
+        except OSError as exc:  # NAS asleep / offline: try later; folder gone: stale
+            status = 503 if directory_error_retryable(exc) else STALE
+            raise TransferError(f"无法读取 NAS 演员目录：{exc}", status) from exc
         return {
             "performer_id": performer_id,
             "absent": film.casefold() not in present,
@@ -558,8 +559,9 @@ class TransferService:
             raise TransferError("NAS 演员目录身份已变化，请重新确认入库", STALE)
         if context["source_error"] or film not in {i["name"] for i in context["source_items"] if i["error"] is None}:
             raise TransferError(f"影片包不可读：{context['source_error'] or film}", STALE)
-        if context["target_error"]:  # NAS offline / slow: try later
-            raise TransferError(f"NAS 演员目录暂不可用：{context['target_error']}", 503)
+        if context["target_error"]:  # NAS offline / slow: try later; folder gone / replaced: stale
+            status = 503 if context["target_retryable"] else STALE
+            raise TransferError(f"NAS 演员目录不可用：{context['target_error']}", status)
         return self.submit(context["id"], [film], operation_id)
 
     def get_workflow_task(self, operation_id: str) -> dict | None:
