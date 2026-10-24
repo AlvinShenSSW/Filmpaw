@@ -10,6 +10,7 @@ import ctypes
 import hashlib
 import json
 import os
+import re
 import shutil
 import sqlite3
 import stat
@@ -32,6 +33,9 @@ STAGING_PREFIX = ".filmpaw-transfer-"
 ACTIVE = {"queued", "running"}
 CONCURRENCY = 3
 QUEUE_LIMIT = 100
+# Workflow archive: the approval's target/package proof no longer holds, so waiting cannot help and
+# Taskpaw records the archive as failed (409/503 remain "busy, try again later").
+STALE = 412
 
 
 class TransferError(Exception):
@@ -434,16 +438,27 @@ class TransferService:
             revision = self.conn.execute(
                 "SELECT value FROM settings WHERE key='last_local_dir_revision'"
             ).fetchone()
+        if setting is None or not setting["value"] or setting["value"] != local_dir:
+            raise TransferError("本地 batch 目录已变化，请重新选择目录", 409)
+        binding = self._performer_binding(local_dir, subdir, performer_id)
+        binding["_batch_revision"] = revision["value"] if revision else ""
+        return binding
+
+    def _performer(self, performer_id: str):
+        with self.db_lock:
             performer = self.conn.execute(
                 "SELECT p.unc_path,p.name,p.is_missing,p.thumb IS NOT NULL AS has_thumb,s.label AS source_label"
                 " FROM performers p JOIN sources s ON s.id=p.source_id WHERE p.id=?", (performer_id,)
             ).fetchone()
-        if setting is None or not setting["value"] or setting["value"] != local_dir:
-            raise TransferError("本地 batch 目录已变化，请重新选择目录", 409)
         if performer is None:
             raise TransferError("所选演员记录已不存在", 404)
         if performer["is_missing"]:
             raise TransferError("所选演员目录已失效，请刷新片库", 409)
+        return performer
+
+    def _performer_binding(self, local_dir: str, subdir: str, performer_id: str) -> dict:
+        _name(subdir)
+        performer = self._performer(performer_id)
         batch = Path(local_dir).absolute()
         source = batch / subdir
         target = Path(performer["unc_path"]).absolute()
@@ -454,7 +469,129 @@ class TransferService:
             "source_path": str(source), "target_path": str(target),
             "performer_name": performer["name"], "source_label": performer["source_label"],
             "has_thumb": bool(performer["has_thumb"]),
-            "_batch_revision": revision["value"] if revision else "",
+        }
+
+    def _current_binding(self, binding: dict) -> dict:
+        if binding.get("_workflow"):
+            current = self._performer_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
+            current["_batch_revision"] = binding["_batch_revision"]
+            return current
+        return self._read_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
+
+    # ── workflow archive (Taskpaw F02-P1): copy one approved package, keep the source ──────────
+    def workflow_target(self, performer_id: str, film_dir: str) -> dict:
+        """Target proof: the performer folder identity and whether <film_dir> is still free."""
+        film = _name(film_dir)
+        target = Path(self._performer(performer_id)["unc_path"]).absolute()
+        try:
+            identity = _directory(target)
+            with os.scandir(target) as entries:
+                present = {e.name.casefold() for e in entries if not e.name.startswith(STAGING_PREFIX)}
+        except OSError as exc:  # NAS asleep / offline: try later; folder gone: stale
+            status = 503 if directory_error_retryable(exc) else STALE
+            raise TransferError(f"无法读取 NAS 演员目录：{exc}", status) from exc
+        return {
+            "performer_id": performer_id,
+            "absent": film.casefold() not in present,
+            "expected_target": {"target_path": str(target), "directory_identity": identity},
+        }
+
+    @staticmethod
+    def _workflow_files(files: list[dict]) -> dict:
+        expected = {}
+        for entry in files:
+            relative, size, sha = entry.get("path"), entry.get("size"), entry.get("sha256")
+            parts = relative.split("/") if isinstance(relative, str) else []
+            if not parts or "\\" in relative or any(part in ("", ".", "..") for part in parts):
+                raise TransferError(f"清单路径无效：{relative!r}")
+            for part in parts:
+                _name(part)
+            if relative in expected:
+                raise TransferError(f"清单路径重复：{relative}")
+            if type(size) is not int or size < 0 or not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha):
+                raise TransferError(f"清单条目无效：{relative}")
+            expected[relative] = [size, sha]
+        if not expected:
+            raise TransferError("清单为空")
+        return expected
+
+    def create_workflow_task(
+        self, operation_id: str, package_dir: str, performer_id: str, expected_target: dict, files: list[dict]
+    ) -> dict:
+        if not operation_id or len(operation_id) > 128:
+            raise TransferError("无效的操作键")
+        package = Path(package_dir)
+        if not package.is_absolute():
+            raise TransferError("影片包路径必须是绝对路径")
+        film = _name(package.name)
+        target_path = expected_target.get("target_path")
+        identity = expected_target.get("directory_identity")
+        if not isinstance(target_path, str) or not isinstance(identity, list):
+            raise TransferError("缺少审批时的目标证明")
+        workflow = {
+            "keep_source": True, "expected": self._workflow_files(files), "package_dir": str(package),
+            "performer_id": performer_id,
+            "expected_target": {"target_path": target_path, "directory_identity": list(identity)},
+        }
+        with self._admission:
+            previous = self._load(request_id=operation_id)
+        if previous:
+            if previous["_binding"].get("_workflow") != workflow:
+                raise TransferError("操作键已用于另一个归档请求", STALE)
+            return self.get_by_request(operation_id)
+        try:
+            binding = self._performer_binding(str(package.parent.parent), package.parent.name, performer_id)
+        except TransferError as exc:
+            if exc.status_code == 409:  # performer folder gone / nested: will not clear by waiting
+                raise TransferError(str(exc), STALE) from None
+            raise
+        if binding["target_path"] != target_path:
+            raise TransferError("NAS 演员目录已变化，请重新确认入库", STALE)
+        binding["_workflow"] = workflow
+        binding["_batch_revision"] = ""
+        if not self._context_read_lock.acquire(blocking=False):
+            raise TransferError("目录仍在读取，请稍候重试", 503)
+        try:
+            context = self._create_context(binding)
+        finally:
+            self._context_read_lock.release()
+        if context["target_error"] is None and binding.get("target_identity") != workflow["expected_target"]["directory_identity"]:
+            raise TransferError("NAS 演员目录身份已变化，请重新确认入库", STALE)
+        if context["source_error"] or film not in {i["name"] for i in context["source_items"] if i["error"] is None}:
+            raise TransferError(f"影片包不可读：{context['source_error'] or film}", STALE)
+        if context["target_error"]:  # NAS offline / slow: try later; folder gone / replaced: stale
+            status = 503 if context["target_retryable"] else STALE
+            raise TransferError(f"NAS 演员目录不可用：{context['target_error']}", status)
+        return self.submit(context["id"], [film], operation_id)
+
+    def get_workflow_task(self, operation_id: str) -> dict | None:
+        return self.get_by_request(operation_id)
+
+    @staticmethod
+    def _check_workflow_files(item: dict, workflow: dict, *, hashes: bool) -> None:
+        files = {rel: entry for rel, entry in item["manifest"].items() if entry["kind"] == "file"}
+        expected = workflow["expected"]
+        if files.keys() != expected.keys():
+            extra = sorted(files.keys() - expected.keys())[:5]
+            missing = sorted(expected.keys() - files.keys())[:5]
+            raise TransferError(f"影片包内容与已批准清单不一致：多出 {extra}，缺少 {missing}")
+        for relative, entry in files.items():
+            size, sha = expected[relative]
+            if entry["size"] != size or (hashes and entry.get("sha256") != sha):
+                raise TransferError(f"影片包文件与已批准清单不一致：{relative}")
+
+    @staticmethod
+    def _workflow_receipt(task: dict, item: dict) -> dict:
+        workflow = task["_binding"]["_workflow"]
+        files = [
+            {"path": rel, "size": entry["size"], "sha256": entry["sha256"]}
+            for rel, entry in item["manifest"].items() if entry["kind"] == "file"
+        ]
+        return {
+            "task_id": task["id"],
+            "target_path": str(Path(workflow["expected_target"]["target_path"]) / item["name"]),
+            "directory_identity": item["staging_identity"],
+            "files": sorted(files, key=lambda f: f["path"]),
         }
 
     def _list(self, path: Path) -> list[dict]:
@@ -684,7 +821,7 @@ class TransferService:
             public, binding = context["public"], context["binding"]
             if public["source_error"] or public["target_error"]:
                 raise TransferError("源或目标目录不可用，请刷新后重试", 409)
-            current = self._read_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
+            current = self._current_binding(binding)
             if current["_batch_revision"] != binding["_batch_revision"]:
                 raise TransferError("batch 目录选择已变化，原归档上下文失效，请刷新列表", 409)
             if current["target_path"] != binding.get("_original_target_path", binding["target_path"]):
@@ -891,6 +1028,8 @@ class TransferService:
             item["manifest"] = _manifest(source)
             item["size_bytes"] = sum(value["size"] for value in item["manifest"].values())
             self._check_source_metadata(task, item)
+            if task["_binding"].get("_workflow"):
+                self._check_workflow_files(item, task["_binding"]["_workflow"], hashes=False)
         task["total_bytes"] = sum(item["size_bytes"] for item in task["items"])
         if shutil.disk_usage(target).free < task["total_bytes"]:
             raise TransferError("NAS 可用空间不足，整批未开始")
@@ -1047,6 +1186,9 @@ class TransferService:
             self._verify(task, item, Path(task["source_path"]) / item["name"], source=True)
         self._perform(task, "verify_movie", verify_movie, item_name=item["name"],
                            source_path=str(Path(task["source_path"]) / item["name"]), target_path=str(staging))
+        workflow = task["_binding"].get("_workflow")
+        if workflow:
+            self._check_workflow_files(item, workflow, hashes=True)
         self._checkpoint("after_verify", task, item)
         self._check_stop(task)
         self._check_binding(task["_binding"])
@@ -1072,6 +1214,13 @@ class TransferService:
         # A process crash here is reconciled using the staged directory ID.
         item["committed"] = True
         self._checkpoint("after_commit", task, item)
+        if workflow:
+            item["status"] = "completed"
+            item["message"] = "已归档；来源由 Taskpaw 精确清理"
+            task["completed_count"] += 1
+            task["receipt"] = self._workflow_receipt(task, item)
+            self._save(task)
+            return
         item["status"] = task["phase"] = "cleaning"
         item["message"] = task["message"] = "目标已完整提交，正在核对并清理本地源"
         self._save(task)
@@ -1144,7 +1293,7 @@ class TransferService:
             for current in task["items"]:
                 self._move_item(task, current)
             task["status"] = "completed"
-            task["message"] = "所选影片已全部移动完成"
+            task["message"] = "影片包已归档到 NAS" if task["_binding"].get("_workflow") else "所选影片已全部移动完成"
         except _Stopped:
             task["status"] = "stopped"
             task["message"] = "已停止传输，未提交的源影片保留"
@@ -1231,6 +1380,11 @@ class TransferService:
                     destination = Path(task["target_path"]) / item["name"]
                     _directory(destination, item["staging_identity"])
                     self._verify(task, item, destination)
+                    if task["_binding"].get("_workflow"):
+                        item["status"] = "completed"
+                        item["message"] = "已核对：影片包已完整归档"
+                        task["receipt"] = self._workflow_receipt(task, item)
+                        continue
                     original = Path(task["source_path"]) / item["name"]
                     try:
                         original.lstat()

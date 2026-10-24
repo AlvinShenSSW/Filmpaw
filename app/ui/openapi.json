@@ -2,7 +2,7 @@
  "openapi": "3.1.0",
  "info": {
   "title": "filmpaw-server",
-  "version": "0.5.5"
+  "version": "0.6.0"
  },
  "paths": {
   "/api/health": {
@@ -1470,6 +1470,150 @@
      }
     }
    }
+  },
+  "/api/workflow/archive/target": {
+   "get": {
+    "tags": [
+     "workflow"
+    ],
+    "summary": "Target",
+    "operationId": "target_api_workflow_archive_target_get",
+    "parameters": [
+     {
+      "name": "performer_id",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 128,
+       "title": "Performer Id"
+      }
+     },
+     {
+      "name": "film_dir",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 255,
+       "title": "Film Dir"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Target Api Workflow Archive Target Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/workflow/archive": {
+   "post": {
+    "tags": [
+     "workflow"
+    ],
+    "summary": "Archive",
+    "operationId": "archive_api_workflow_archive_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/ArchiveIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Archive Api Workflow Archive Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/api/workflow/archive/{operation_id}": {
+   "get": {
+    "tags": [
+     "workflow"
+    ],
+    "summary": "Lookup",
+    "operationId": "lookup_api_workflow_archive__operation_id__get",
+    "parameters": [
+     {
+      "name": "operation_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Operation Id"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Lookup Api Workflow Archive  Operation Id  Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
   }
  },
  "components": {
@@ -1504,6 +1648,50 @@
      "alias"
     ],
     "title": "AliasOut"
+   },
+   "ArchiveIn": {
+    "properties": {
+     "operation_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Operation Id"
+     },
+     "package_dir": {
+      "type": "string",
+      "maxLength": 32767,
+      "minLength": 1,
+      "title": "Package Dir"
+     },
+     "performer_id": {
+      "type": "string",
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Performer Id"
+     },
+     "expected_target": {
+      "$ref": "#/components/schemas/TargetIn"
+     },
+     "files": {
+      "items": {
+       "$ref": "#/components/schemas/FileIn"
+      },
+      "type": "array",
+      "maxItems": 4096,
+      "minItems": 1,
+      "title": "Files"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "operation_id",
+     "package_dir",
+     "performer_id",
+     "expected_target",
+     "files"
+    ],
+    "title": "ArchiveIn"
    },
    "CleanupContextIn": {
     "properties": {
@@ -1881,6 +2069,34 @@
      "safe"
     ],
     "title": "ExitOut"
+   },
+   "FileIn": {
+    "properties": {
+     "path": {
+      "type": "string",
+      "maxLength": 1024,
+      "minLength": 1,
+      "title": "Path"
+     },
+     "size": {
+      "type": "integer",
+      "minimum": 0.0,
+      "title": "Size"
+     },
+     "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Sha256"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "path",
+     "size",
+     "sha256"
+    ],
+    "title": "FileIn"
    },
    "HTTPValidationError": {
     "properties": {
@@ -2549,6 +2765,39 @@
      "subdirs"
     ],
     "title": "SubdirsOut"
+   },
+   "TargetIn": {
+    "properties": {
+     "target_path": {
+      "type": "string",
+      "maxLength": 32767,
+      "minLength": 1,
+      "title": "Target Path"
+     },
+     "directory_identity": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "string"
+        }
+       ]
+      },
+      "type": "array",
+      "maxItems": 4,
+      "minItems": 1,
+      "title": "Directory Identity"
+     }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+     "target_path",
+     "directory_identity"
+    ],
+    "title": "TargetIn"
    },
    "TaskOut": {
     "properties": {

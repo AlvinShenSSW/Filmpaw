@@ -1,6 +1,6 @@
 [package]
 name = "filmpaw"
-version = "0.5.5"
+version = "0.6.0"
 description = "Filmpaw — NAS performer index + archive compare"
 edition = "2021"
 
