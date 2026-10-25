@@ -473,25 +473,53 @@ class TransferService:
 
     def _current_binding(self, binding: dict) -> dict:
         if binding.get("_workflow"):
-            current = self._performer_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
+            target_dir = binding["_workflow"].get("target_dir")
+            if target_dir is not None:
+                current = self._manual_binding(binding["local_dir"], binding["subdir"], target_dir)
+            else:
+                current = self._performer_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
             current["_batch_revision"] = binding["_batch_revision"]
             return current
         return self._read_binding(binding["local_dir"], binding["subdir"], binding["performer_id"])
 
     # ── workflow archive (Taskpaw F02-P1): copy one approved package, keep the source ──────────
-    def workflow_target(self, performer_id: str, film_dir: str) -> dict:
-        """Target proof: the performer folder identity and whether <film_dir> is still free."""
+    @staticmethod
+    def _validate_workflow_target(performer_id: str | None, target_dir: str | None) -> None:
+        if (performer_id is None) == (target_dir is None):
+            raise TransferError("performer_id 与 target_dir 必须且只能提供一个", 422)
+        if target_dir is not None and not Path(target_dir).is_absolute():
+            raise TransferError("入库目录必须是绝对路径", 422)
+
+    @staticmethod
+    def _manual_binding(local_dir: str, subdir: str, target_dir: str) -> dict:
+        _name(subdir)
+        source = Path(local_dir).absolute() / subdir
+        target = Path(target_dir).absolute()
+        if _nested(source, target):
+            raise TransferError("本地源与入库目标不能相同或互相嵌套", 409)
+        return {
+            "local_dir": local_dir, "subdir": subdir, "performer_id": "",
+            "source_path": str(source), "target_path": str(target),
+            "performer_name": target.name or str(target), "source_label": None, "has_thumb": False,
+        }
+
+    def workflow_target(self, performer_id: str | None, film_dir: str, *, target_dir: str | None = None) -> dict:
+        """Target proof: the destination folder identity and whether <film_dir> is still free."""
+        self._validate_workflow_target(performer_id, target_dir)
         film = _name(film_dir)
-        target = Path(self._performer(performer_id)["unc_path"]).absolute()
+        target = Path(target_dir if target_dir is not None else self._performer(performer_id)["unc_path"]).absolute()
         try:
             identity = _directory(target)
             with os.scandir(target) as entries:
                 present = {e.name.casefold() for e in entries if not e.name.startswith(STAGING_PREFIX)}
-        except OSError as exc:  # NAS asleep / offline: try later; folder gone: stale
+        except (OSError, TransferError) as exc:  # NAS asleep / offline: try later; folder gone: stale
+            if target_dir is None and isinstance(exc, TransferError):
+                raise
             status = 503 if directory_error_retryable(exc) else STALE
-            raise TransferError(f"无法读取 NAS 演员目录：{exc}", status) from exc
+            message = "无法读取入库目录" if target_dir is not None else "无法读取 NAS 演员目录"
+            raise TransferError(f"{message}：{exc}", status) from exc
         return {
-            "performer_id": performer_id,
+            "performer_id": performer_id, "target_dir": target_dir,
             "absent": film.casefold() not in present,
             "expected_target": {"target_path": str(target), "directory_identity": identity},
         }
@@ -516,8 +544,10 @@ class TransferService:
         return expected
 
     def create_workflow_task(
-        self, operation_id: str, package_dir: str, performer_id: str, expected_target: dict, files: list[dict]
+        self, operation_id: str, package_dir: str, performer_id: str | None, expected_target: dict, files: list[dict],
+        *, target_dir: str | None = None,
     ) -> dict:
+        self._validate_workflow_target(performer_id, target_dir)
         if not operation_id or len(operation_id) > 128:
             raise TransferError("无效的操作键")
         package = Path(package_dir)
@@ -533,6 +563,8 @@ class TransferService:
             "performer_id": performer_id,
             "expected_target": {"target_path": target_path, "directory_identity": list(identity)},
         }
+        if target_dir is not None:
+            workflow["target_dir"] = target_dir
         with self._admission:
             previous = self._load(request_id=operation_id)
         if previous:
@@ -540,13 +572,17 @@ class TransferService:
                 raise TransferError("操作键已用于另一个归档请求", STALE)
             return self.get_by_request(operation_id)
         try:
-            binding = self._performer_binding(str(package.parent.parent), package.parent.name, performer_id)
+            if target_dir is not None:
+                binding = self._manual_binding(str(package.parent.parent), package.parent.name, target_dir)
+            else:
+                binding = self._performer_binding(str(package.parent.parent), package.parent.name, performer_id)
         except TransferError as exc:
             if exc.status_code == 409:  # performer folder gone / nested: will not clear by waiting
                 raise TransferError(str(exc), STALE) from None
             raise
+        label = "入库目录" if target_dir is not None else "NAS 演员目录"
         if binding["target_path"] != target_path:
-            raise TransferError("NAS 演员目录已变化，请重新确认入库", STALE)
+            raise TransferError(f"{label}已变化，请重新确认入库", STALE)
         binding["_workflow"] = workflow
         binding["_batch_revision"] = ""
         if not self._context_read_lock.acquire(blocking=False):
@@ -556,12 +592,12 @@ class TransferService:
         finally:
             self._context_read_lock.release()
         if context["target_error"] is None and binding.get("target_identity") != workflow["expected_target"]["directory_identity"]:
-            raise TransferError("NAS 演员目录身份已变化，请重新确认入库", STALE)
+            raise TransferError(f"{label}身份已变化，请重新确认入库", STALE)
         if context["source_error"] or film not in {i["name"] for i in context["source_items"] if i["error"] is None}:
             raise TransferError(f"影片包不可读：{context['source_error'] or film}", STALE)
         if context["target_error"]:  # NAS offline / slow: try later; folder gone / replaced: stale
             status = 503 if context["target_retryable"] else STALE
-            raise TransferError(f"NAS 演员目录不可用：{context['target_error']}", status)
+            raise TransferError(f"{label}不可用：{context['target_error']}", status)
         return self.submit(context["id"], [film], operation_id)
 
     def get_workflow_task(self, operation_id: str) -> dict | None:
@@ -825,13 +861,15 @@ class TransferService:
             if current["_batch_revision"] != binding["_batch_revision"]:
                 raise TransferError("batch 目录选择已变化，原归档上下文失效，请刷新列表", 409)
             if current["target_path"] != binding.get("_original_target_path", binding["target_path"]):
-                raise TransferError("NAS 演员目录已变化，请重新选择目标", 409)
+                label = "入库目录" if binding.get("_workflow", {}).get("target_dir") is not None else "NAS 演员目录"
+                raise TransferError(f"{label}已变化，请重新选择目标", 409)
             resources = binding["_resources"]
             if path_resources.overlaps(*resources):
                 raise TransferError("本地源与 NAS 目标不能相同或互相嵌套", 409)
             if any(path_resources.overlaps(a, b) for runtime in self._runtimes.values()
                    for a in resources for b in runtime["resources"]):
-                raise TransferError("演员源或目标目录已被其他任务占用，请等待该任务结束", 409)
+                label = "源或目标目录" if binding.get("_workflow", {}).get("target_dir") is not None else "演员源或目标目录"
+                raise TransferError(f"{label}已被其他任务占用，请等待该任务结束", 409)
             available = {item["name"] for item in public["source_items"] if item["error"] is None}
             if not set(names).issubset(available):
                 raise TransferError("影片不属于当前列表，请刷新后重新选择", 409)

@@ -1482,11 +1482,18 @@
      {
       "name": "performer_id",
       "in": "query",
-      "required": true,
+      "required": false,
       "schema": {
-       "type": "string",
-       "minLength": 1,
-       "maxLength": 128,
+       "anyOf": [
+        {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 128
+        },
+        {
+         "type": "null"
+        }
+       ],
        "title": "Performer Id"
       }
      },
@@ -1499,6 +1506,24 @@
        "minLength": 1,
        "maxLength": 255,
        "title": "Film Dir"
+      }
+     },
+     {
+      "name": "target_dir",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string",
+         "minLength": 1,
+         "maxLength": 32767
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Target Dir"
       }
      }
     ],
@@ -1664,10 +1689,30 @@
       "title": "Package Dir"
      },
      "performer_id": {
-      "type": "string",
-      "maxLength": 128,
-      "minLength": 1,
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Performer Id"
+     },
+     "target_dir": {
+      "anyOf": [
+       {
+        "type": "string",
+        "maxLength": 32767,
+        "minLength": 1
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Target Dir"
      },
      "expected_target": {
       "$ref": "#/components/schemas/TargetIn"
@@ -1687,7 +1732,6 @@
     "required": [
      "operation_id",
      "package_dir",
-     "performer_id",
      "expected_target",
      "files"
     ],

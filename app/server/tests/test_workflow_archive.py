@@ -239,7 +239,8 @@ def test_endpoint_file_is_written_while_serving_and_removed_after(tmp_path, monk
     assert not endpoint.exists()
 
 
-def test_routes_archive_end_to_end(client, tmp_path):
+@pytest.mark.parametrize("manual", [False, True])
+def test_routes_archive_end_to_end(client, tmp_path, manual):
     import time
 
     db = client.app.state.db
@@ -247,22 +248,27 @@ def test_routes_archive_end_to_end(client, tmp_path):
     target = tmp_path / "nas" / "Actor"
     out.mkdir(parents=True)
     target.mkdir(parents=True)
-    db.execute("INSERT INTO sources(id,unc_path,label) VALUES (1,?,'NAS')", (str(target.parent),))
-    db.execute(
-        "INSERT INTO performers(id,name,name_norm,source_id,folder_name,unc_path,first_seen_at,last_seen_at)"
-        " VALUES ('actor','Actor','actor',1,'Actor',?,'now','now')",
-        (str(target),),
-    )
-    db.commit()
+    if not manual:
+        db.execute("INSERT INTO sources(id,unc_path,label) VALUES (1,?,'NAS')", (str(target.parent),))
+        db.execute(
+            "INSERT INTO performers(id,name,name_norm,source_id,folder_name,unc_path,first_seen_at,last_seen_at)"
+            " VALUES ('actor','Actor','actor',1,'Actor',?,'now','now')",
+            (str(target),),
+        )
+        db.commit()
+    selection = {"target_dir": str(target)} if manual else {"performer_id": "actor"}
     root = package(out)
-    proof = client.get("/api/workflow/archive/target", params={"performer_id": "actor", "film_dir": FILM}).json()
+    files = files_of(root)
+    proof = client.get("/api/workflow/archive/target", params={**selection, "film_dir": FILM}).json()
     assert proof["absent"] is True
+    assert proof["performer_id"] == (None if manual else "actor")
+    assert proof["target_dir"] == (str(target) if manual else None)
     body = {
         "operation_id": "op-route",
         "package_dir": str(root),
-        "performer_id": "actor",
+        **selection,
         "expected_target": proof["expected_target"],
-        "files": files_of(root),
+        "files": files,
     }
     assert client.post("/api/workflow/archive", json=body).status_code == 202
     deadline = time.monotonic() + 30
@@ -271,7 +277,105 @@ def test_routes_archive_end_to_end(client, tmp_path):
         time.sleep(0.05)
     assert task["status"] == "completed", task["message"]
     assert task["receipt"]["target_path"] == str(target / FILM)
+    assert task["receipt"]["directory_identity"] == _directory(target / FILM)
+    assert sorted(task["receipt"]["files"], key=lambda f: f["path"]) == files
+    assert files_of(target / FILM) == files_of(root) == files
     assert client.post("/api/workflow/archive", json=body).json()["id"] == task["id"]
+    assert client.get(f"/api/archive/transfers/{task['id']}").status_code == 200
+    if manual:
+        other = tmp_path / "other-target"
+        other.mkdir()
+        response = client.post("/api/workflow/archive", json={**body, "target_dir": str(other)})
+        assert response.status_code == 412
+        assert response.json()["detail"] == "操作键已用于另一个归档请求"
+
+
+def test_manual_target_proof_reports_identity_and_absence(client, tmp_path):
+    target = tmp_path / "manual"
+    target.mkdir()
+    (target / ".filmpaw-transfer-old-abc").mkdir()
+    target_dir = str(target) + os.sep
+    params = {"target_dir": target_dir, "film_dir": FILM}
+    response = client.get("/api/workflow/archive/target", params=params)
+    assert response.status_code == 200
+    assert response.json() == {
+        "performer_id": None, "target_dir": target_dir, "absent": True,
+        "expected_target": {"target_path": str(target), "directory_identity": _directory(target)},
+    }
+    (target / FILM.lower()).mkdir()
+    assert client.get("/api/workflow/archive/target", params=params).json()["absent"] is False
+
+
+@pytest.mark.parametrize("selection", ["neither", "null", "both", "relative"])
+def test_workflow_requires_exactly_one_target_and_an_absolute_manual_path(client, tmp_path, selection):
+    selection = {
+        "neither": {}, "null": {"performer_id": None, "target_dir": None},
+        "both": {"performer_id": "actor", "target_dir": str(tmp_path)},
+        "relative": {"target_dir": "relative/path"},
+    }[selection]
+    root = package(tmp_path)
+    params = {key: value for key, value in selection.items() if value is not None}
+    assert client.get("/api/workflow/archive/target", params={**params, "film_dir": FILM}).status_code == 422
+    response = client.post("/api/workflow/archive", json={
+        "operation_id": "op-invalid", "package_dir": str(root), **selection,
+        "expected_target": {"target_path": str(tmp_path), "directory_identity": _directory(tmp_path)},
+        "files": files_of(root),
+    })
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("change", ["replaced", "missing", "file", "path"])
+def test_manual_target_changed_since_approval_is_stale(client, tmp_path, change):
+    out = tmp_path / "out"
+    target = tmp_path / "manual"
+    out.mkdir()
+    target.mkdir()
+    root = package(out)
+    params = {"target_dir": str(target), "film_dir": FILM}
+    expected = client.get("/api/workflow/archive/target", params=params).json()["expected_target"]
+    if change == "path":
+        expected["target_path"] = str(tmp_path / "elsewhere")
+    else:
+        target.rename(tmp_path / "old-target")
+        if change == "replaced":
+            target.mkdir()
+        elif change == "file":
+            target.write_text("not a directory", encoding="utf-8")
+    if change in {"missing", "file"}:
+        assert client.get("/api/workflow/archive/target", params=params).status_code == 412
+    response = client.post("/api/workflow/archive", json={
+        "operation_id": "op-stale", "package_dir": str(root), "target_dir": str(target),
+        "expected_target": expected, "files": files_of(root),
+    })
+    assert response.status_code == 412
+    assert "演员" not in response.json()["detail"]
+    assert root.is_dir()
+
+
+def test_manual_target_unreachable_is_retryable(client, tmp_path, monkeypatch):
+    import filmpaw_server.transfer as transfer
+
+    out = tmp_path / "out"
+    target = tmp_path / "manual"
+    out.mkdir()
+    target.mkdir()
+    root = package(out)
+    params = {"target_dir": str(target), "film_dir": FILM}
+    expected = client.get("/api/workflow/archive/target", params=params).json()["expected_target"]
+
+    def offline(path, expected=None):
+        if path == target:
+            raise TimeoutError("share unavailable")
+        return _directory(path, expected)
+
+    monkeypatch.setattr(transfer, "_directory", offline)
+    assert client.get("/api/workflow/archive/target", params=params).status_code == 503
+    response = client.post("/api/workflow/archive", json={
+        "operation_id": "op-offline", "package_dir": str(root), "target_dir": str(target),
+        "expected_target": expected, "files": files_of(root),
+    })
+    assert response.status_code == 503
+    assert "演员" not in response.json()["detail"]
 
 
 def test_missing_performer_folder_and_missing_package_are_not_busy(flow, db):
