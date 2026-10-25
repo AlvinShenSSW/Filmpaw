@@ -26,7 +26,8 @@ class ArchiveIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     operation_id: str = Field(min_length=1, max_length=128)
     package_dir: str = Field(min_length=1, max_length=32767)
-    performer_id: str = Field(min_length=1, max_length=128)
+    performer_id: str | None = Field(None, min_length=1, max_length=128)
+    target_dir: str | None = Field(None, min_length=1, max_length=32767)
     expected_target: TargetIn
     files: list[FileIn] = Field(min_length=1, max_length=4096)
 
@@ -34,10 +35,11 @@ class ArchiveIn(BaseModel):
 @router.get("/target")
 def target(
     request: Request,
-    performer_id: str = Query(min_length=1, max_length=128),
+    performer_id: str | None = Query(None, min_length=1, max_length=128),
     film_dir: str = Query(min_length=1, max_length=255),
+    target_dir: str | None = Query(None, min_length=1, max_length=32767),
 ) -> dict:
-    return request.app.state.transfers.workflow_target(performer_id, film_dir)
+    return request.app.state.transfers.workflow_target(performer_id, film_dir, target_dir=target_dir)
 
 
 @router.post("", status_code=202)
@@ -48,6 +50,7 @@ def archive(body: ArchiveIn, request: Request) -> dict:
         body.performer_id,
         body.expected_target.model_dump(),
         [f.model_dump() for f in body.files],
+        target_dir=body.target_dir,
     )
 
 
